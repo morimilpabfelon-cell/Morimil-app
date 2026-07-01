@@ -1,20 +1,17 @@
 # Morimil App Scope
 
-## Phase 1 Scope
+## Phase 2 Scope
 
 ```text
-Build native Android app foundation.
-Create visible shell for:
-  chat
-  projects
-  living memory
-  PC handoff
+Add local living memory.
+Persist chat messages, decision log entries, and project state locally.
+Use Room over SQLite.
+Keep the app offline-first and local-only.
 ```
 
 ## Explicit Non-Scope
 
 ```text
-No real local memory database yet.
 No voice interaction yet.
 No GitHub sync yet.
 No Genesis bootstrap yet.
@@ -28,5 +25,5 @@ No tokens.
 
 ```text
 Morimil-app is independent.
-Morimil remains Genesis Block and is not modified by Phase 1.
+Morimil remains Genesis Block and is not modified by Phase 2.
 ```

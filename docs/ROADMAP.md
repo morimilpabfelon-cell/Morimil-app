@@ -20,6 +20,12 @@ project state
 memory retrieval
 ```
 
+Status:
+
+```text
+ready for local review
+```
+
 ## Phase 3 - Voice Interface
 
 ```text

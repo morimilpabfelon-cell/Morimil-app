@@ -23,12 +23,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 private enum class MorimilTab(val label: String) {
     Chat("Chat"),
@@ -38,7 +39,7 @@ private enum class MorimilTab(val label: String) {
 }
 
 @Composable
-fun MorimilApp() {
+fun MorimilApp(viewModel: MorimilViewModel = viewModel()) {
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             var selectedTab by remember { mutableStateOf(MorimilTab.Chat) }
@@ -59,9 +60,9 @@ fun MorimilApp() {
             ) { paddingValues ->
                 Column(modifier = Modifier.padding(paddingValues)) {
                     when (selectedTab) {
-                        MorimilTab.Chat -> ChatScreen()
-                        MorimilTab.Projects -> ProjectsScreen()
-                        MorimilTab.Memory -> MemoryScreen()
+                        MorimilTab.Chat -> ChatScreen(viewModel)
+                        MorimilTab.Projects -> ProjectsScreen(viewModel)
+                        MorimilTab.Memory -> MemoryScreen(viewModel)
                         MorimilTab.Handoff -> PcHandoffScreen()
                     }
                 }
@@ -71,18 +72,13 @@ fun MorimilApp() {
 }
 
 @Composable
-private fun ChatScreen() {
-    val messages = remember {
-        mutableStateListOf(
-            "Morimil: Fase 1 activa. App nativa primero.",
-            "Morimil: Memoria real, voz y GitHub Sync vendran despues."
-        )
-    }
+private fun ChatScreen(viewModel: MorimilViewModel) {
+    val messages by viewModel.messages.collectAsStateWithLifecycle()
     var draft by remember { mutableStateOf("") }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Morimil", style = MaterialTheme.typography.headlineMedium)
-        Text("Native mobile companion shell", style = MaterialTheme.typography.bodyMedium)
+        Text("Native mobile companion shell with local Room memory", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(16.dp))
 
         LazyColumn(
@@ -91,7 +87,7 @@ private fun ChatScreen() {
         ) {
             items(messages) { message ->
                 ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                    Text(message, modifier = Modifier.padding(12.dp))
+                    Text("${message.author}: ${message.body}", modifier = Modifier.padding(12.dp))
                 }
             }
         }
@@ -107,11 +103,8 @@ private fun ChatScreen() {
             )
             Button(
                 onClick = {
-                    if (draft.isNotBlank()) {
-                        messages.add("Tu: $draft")
-                        messages.add("Morimil: Recibido. En Fase 1 esto es UI mock.")
-                        draft = ""
-                    }
+                    viewModel.sendMessage(draft)
+                    draft = ""
                 }
             ) {
                 Text("Enviar")
@@ -121,23 +114,39 @@ private fun ChatScreen() {
 }
 
 @Composable
-private fun ProjectsScreen() {
+private fun ProjectsScreen(viewModel: MorimilViewModel) {
+    val projects by viewModel.projects.collectAsStateWithLifecycle()
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Projects", style = MaterialTheme.typography.headlineMedium)
-        ProjectCard("Morimil_app", "Fase 1: app nativa Android skeleton.", "active")
-        ProjectCard("Genesis Block", "Repo Morimil existente. No se modifica en Fase 1.", "locked")
-        ProjectCard("Future Project", "Espacio futuro para proyectos creados desde la app.", "placeholder")
+        if (projects.isEmpty()) {
+            ProjectCard("Morimil_app", "Fase 2: esperando memoria local.", "loading")
+        } else {
+            projects.forEach { project ->
+                ProjectCard(project.title, "Persisted project state in Room.", project.status)
+            }
+        }
+        ProjectCard("Genesis Block", "Repo Morimil existente. No se modifica desde la app.", "locked")
     }
 }
 
 @Composable
-private fun MemoryScreen() {
+private fun MemoryScreen(viewModel: MorimilViewModel) {
+    val decisions by viewModel.decisions.collectAsStateWithLifecycle()
+    val messages by viewModel.messages.collectAsStateWithLifecycle()
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Living Memory", style = MaterialTheme.typography.headlineMedium)
-        Text("Fase 1 placeholder. La memoria real se implementara despues.")
-        ProjectCard("Conversation memory", "Placeholder para conversaciones persistentes.", "not connected")
-        ProjectCard("Decision log", "Placeholder para decisiones persistentes.", "not connected")
-        ProjectCard("Scope guardian", "Placeholder para detectar desviaciones.", "not connected")
+        Text("Fase 2: Room/SQLite local activo. Datos guardados solo en el dispositivo.")
+        ProjectCard("Conversation memory", "${messages.size} mensajes persistidos.", "connected")
+        if (decisions.isEmpty()) {
+            ProjectCard("Decision log", "Sin decisiones registradas todavia.", "empty")
+        } else {
+            decisions.take(3).forEach { decision ->
+                ProjectCard(decision.title, "Decision persisted locally.", decision.status)
+            }
+        }
+        ProjectCard("Scope guardian", "Voz, GitHub Sync y PC Handoff siguen bloqueados.", "protected")
     }
 }
 
@@ -145,8 +154,8 @@ private fun MemoryScreen() {
 private fun PcHandoffScreen() {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("PC Handoff", style = MaterialTheme.typography.headlineMedium)
-        Text("Fase 1 placeholder. Aqui estaran los comandos aprobados para PC.")
-        ProjectCard("Pending handoff", "No hay comandos reales en Fase 1.", "empty")
+        Text("Fase 2 placeholder. Aqui estaran los comandos aprobados para PC.")
+        ProjectCard("Pending handoff", "No hay comandos reales en Fase 2.", "empty")
         ProjectCard("Boundary", "La app movil no ejecuta comandos de PC.", "protected")
     }
 }

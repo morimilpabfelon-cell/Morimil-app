@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morimil.app/schemas/local_memory.phase2.schema.json",
+  "title": "Morimil App Phase 2 Local Memory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "phase",
+    "storage",
+    "messages_persisted",
+    "voice_enabled",
+    "github_sync_enabled",
+    "pc_execution_enabled"
+  ],
+  "properties": {
+    "phase": {
+      "const": "phase_2"
+    },
+    "storage": {
+      "const": "room_sqlite"
+    },
+    "messages_persisted": {
+      "const": true
+    },
+    "voice_enabled": {
+      "const": false
+    },
+    "github_sync_enabled": {
+      "const": false
+    },
+    "pc_execution_enabled": {
+      "const": false
+    }
+  }
+}
