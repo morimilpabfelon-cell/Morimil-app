@@ -1,24 +1,24 @@
 # Morimil App Scope
 
-## Phase 5A Scope
+## Phase 5B Scope
 
 ```text
-Add Android Keystore-backed credential gate.
-Store a future GitHub credential only if entered manually by the user.
-Keep GitHub Sync blocked.
-Do not add network permission yet.
+Add controlled read-only GitHub status preview.
+Use stored Keystore-backed credential.
+Perform only explicit user-triggered GET repo metadata.
 ```
 
 ## Explicit Non-Scope
 
 ```text
-No hardcoded token.
-No GitHub API calls.
-No INTERNET permission.
 No repo creation.
 No file upload.
 No PR creation.
 No merge.
+No delete.
+No workflow dispatch.
+No background sync.
+No autonomous mutation.
 No PC command execution from the app.
 No production release.
 ```
@@ -26,6 +26,6 @@ No production release.
 ## Repository Boundary
 
 ```text
-Morimil-app prepares a credential gate.
-Morimil remains Genesis Block and is not modified by Phase 5A.
+Morimil-app can preview its own GitHub repository metadata.
+Morimil Genesis repository remains read-only and is not modified.
 ```

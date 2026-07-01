@@ -27,9 +27,15 @@ accepted
 ## Phase 5A - Keystore Credential Gate
 
 ```text
-encrypted local credential storage
-no network
-no GitHub API calls
+accepted
+```
+
+## Phase 5B - Controlled GitHub Read-Only Sync Preview
+
+```text
+manual GET repo metadata
+no writes
+no background sync
 ```
 
 Status:
@@ -38,20 +44,12 @@ Status:
 ready for local review
 ```
 
-## Phase 5B - Controlled GitHub Sync Preview
+## Phase 5C - Controlled GitHub Write Proposal
 
 ```text
-read-only GitHub status check
-explicit user action
-no writes
-```
-
-## Phase 5C - Controlled GitHub Write Sync
-
-```text
-approved file upload only
+generate approved file upload proposal
+human confirmation required
 no autonomous mutation
-no PR or merge automation
 ```
 
 ## Phase 6 - PC Handoff

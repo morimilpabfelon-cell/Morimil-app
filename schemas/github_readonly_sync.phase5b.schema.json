@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morimil.app/schemas/github_readonly_sync.phase5b.schema.json",
+  "title": "Morimil App Phase 5B GitHub Read-Only Sync Preview",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "phase",
+    "network_permission_enabled",
+    "github_api_calls_enabled",
+    "allowed_method",
+    "allowed_endpoint",
+    "github_write_enabled",
+    "background_sync_enabled",
+    "pc_execution_enabled"
+  ],
+  "properties": {
+    "phase": {
+      "const": "phase_5b"
+    },
+    "network_permission_enabled": {
+      "const": true
+    },
+    "github_api_calls_enabled": {
+      "const": true
+    },
+    "allowed_method": {
+      "const": "GET"
+    },
+    "allowed_endpoint": {
+      "const": "/repos/morimilpabfelon-cell/Morimil-app"
+    },
+    "github_write_enabled": {
+      "const": false
+    },
+    "background_sync_enabled": {
+      "const": false
+    },
+    "pc_execution_enabled": {
+      "const": false
+    }
+  }
+}
