@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morimil.app/schemas/github_write_proposal.phase5c.schema.json",
+  "title": "Morimil App Phase 5C GitHub Write Proposal Gate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "phase",
+    "proposal_only",
+    "github_write_executed",
+    "allowed_owner",
+    "allowed_repo",
+    "allowed_branch",
+    "allowed_path_prefix",
+    "human_approval_required",
+    "pc_execution_enabled"
+  ],
+  "properties": {
+    "phase": {
+      "const": "phase_5c"
+    },
+    "proposal_only": {
+      "const": true
+    },
+    "github_write_executed": {
+      "const": false
+    },
+    "allowed_owner": {
+      "const": "morimilpabfelon-cell"
+    },
+    "allowed_repo": {
+      "const": "Morimil-app"
+    },
+    "allowed_branch": {
+      "const": "main"
+    },
+    "allowed_path_prefix": {
+      "const": "docs/proposals/"
+    },
+    "human_approval_required": {
+      "const": true
+    },
+    "pc_execution_enabled": {
+      "const": false
+    }
+  }
+}

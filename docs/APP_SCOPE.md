@@ -1,18 +1,19 @@
 # Morimil App Scope
 
-## Phase 5B Scope
+## Phase 5C Scope
 
 ```text
-Add controlled read-only GitHub status preview.
-Use stored Keystore-backed credential.
-Perform only explicit user-triggered GET repo metadata.
+Add a controlled GitHub write proposal gate.
+Build and validate proposed file changes locally.
+Require human approval before a proposal can pass review.
+Keep actual GitHub write execution blocked.
 ```
 
 ## Explicit Non-Scope
 
 ```text
 No repo creation.
-No file upload.
+No file upload execution.
 No PR creation.
 No merge.
 No delete.
@@ -27,5 +28,15 @@ No production release.
 
 ```text
 Morimil-app can preview its own GitHub repository metadata.
+Morimil-app can create local write proposals for docs/proposals/.
 Morimil Genesis repository remains read-only and is not modified.
+```
+
+## Allowed Proposal Target
+
+```text
+owner: morimilpabfelon-cell
+repo: Morimil-app
+branch: main
+path prefix: docs/proposals/
 ```

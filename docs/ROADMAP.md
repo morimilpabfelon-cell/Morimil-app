@@ -33,23 +33,21 @@ accepted
 ## Phase 5B - Controlled GitHub Read-Only Sync Preview
 
 ```text
+accepted
 manual GET repo metadata
 no writes
 no background sync
 ```
 
-Status:
-
-```text
-ready for local review
-```
-
 ## Phase 5C - Controlled GitHub Write Proposal
 
 ```text
-generate approved file upload proposal
+ready for review
+generate local file upload proposal
+validate allowed target and path
 human confirmation required
 no autonomous mutation
+no GitHub write execution
 ```
 
 ## Phase 6 - PC Handoff
