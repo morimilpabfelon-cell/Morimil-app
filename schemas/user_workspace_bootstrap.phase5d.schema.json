@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morimil.app/schemas/user_workspace_bootstrap.phase5d.schema.json",
+  "title": "Morimil App Phase 5D User Workspace Bootstrap",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "phase",
+    "genesis_read_only",
+    "phone_local_primary",
+    "user_repo_optional",
+    "mutates_genesis",
+    "mutates_morimil_app_as_runtime_store",
+    "automatic_repo_creation",
+    "file_upload_execution",
+    "human_approval_required"
+  ],
+  "properties": {
+    "phase": {
+      "const": "phase_5d"
+    },
+    "genesis_read_only": {
+      "const": true
+    },
+    "phone_local_primary": {
+      "const": true
+    },
+    "user_repo_optional": {
+      "const": true
+    },
+    "mutates_genesis": {
+      "const": false
+    },
+    "mutates_morimil_app_as_runtime_store": {
+      "const": false
+    },
+    "automatic_repo_creation": {
+      "const": false
+    },
+    "file_upload_execution": {
+      "const": false
+    },
+    "human_approval_required": {
+      "const": true
+    }
+  }
+}

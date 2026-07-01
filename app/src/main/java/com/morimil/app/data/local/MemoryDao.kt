@@ -31,4 +31,13 @@ interface MemoryDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertProject(project: ProjectStateEntity)
+
+    @Query("SELECT * FROM user_workspace ORDER BY updatedAtMillis DESC LIMIT 1")
+    fun observeActiveWorkspace(): Flow<UserWorkspaceEntity?>
+
+    @Query("SELECT COUNT(*) FROM user_workspace")
+    suspend fun countWorkspaces(): Int
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertWorkspace(workspace: UserWorkspaceEntity)
 }

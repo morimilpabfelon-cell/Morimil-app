@@ -7,6 +7,7 @@ import com.morimil.app.data.local.DecisionLogEntity
 import com.morimil.app.data.local.MemoryMessageEntity
 import com.morimil.app.data.local.MorimilDatabase
 import com.morimil.app.data.local.ProjectStateEntity
+import com.morimil.app.data.local.UserWorkspaceEntity
 import com.morimil.app.data.repository.MemoryRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -36,6 +37,12 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         initialValue = emptyList()
     )
 
+    val activeWorkspace: StateFlow<UserWorkspaceEntity?> = repository.activeWorkspace.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = null
+    )
+
     init {
         viewModelScope.launch {
             repository.seedInitialStateIfNeeded()
@@ -49,7 +56,26 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             repository.addUserMessage(cleanBody)
             repository.addAssistantMessage(
-                "Recibido y guardado localmente. En Fase 2 todavia no hay modelo real conectado."
+                "Recibido y guardado localmente. Genesis queda read-only; el celular es el workspace primario."
+            )
+        }
+    }
+
+    fun saveWorkspaceProposal(
+        displayName: String,
+        repoOwner: String?,
+        repoName: String?,
+        repoPrivate: Boolean,
+        approved: Boolean
+    ) {
+        val cleanName = displayName.trim().ifBlank { "Local Morimil Workspace" }
+        viewModelScope.launch {
+            repository.saveWorkspaceProposal(
+                displayName = cleanName,
+                repoOwner = repoOwner?.trim()?.ifBlank { null },
+                repoName = repoName?.trim()?.ifBlank { null },
+                repoPrivate = repoPrivate,
+                approved = approved
             )
         }
     }

@@ -4,14 +4,17 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
         MemoryMessageEntity::class,
         DecisionLogEntity::class,
-        ProjectStateEntity::class
+        ProjectStateEntity::class,
+        UserWorkspaceEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 abstract class MorimilDatabase : RoomDatabase() {
@@ -21,6 +24,26 @@ abstract class MorimilDatabase : RoomDatabase() {
         @Volatile
         private var instance: MorimilDatabase? = null
 
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS user_workspace (
+                        workspaceId TEXT NOT NULL PRIMARY KEY,
+                        displayName TEXT NOT NULL,
+                        genesisSource TEXT NOT NULL,
+                        localPrimary INTEGER NOT NULL,
+                        optionalRepoOwner TEXT,
+                        optionalRepoName TEXT,
+                        optionalRepoPrivate INTEGER NOT NULL,
+                        repoProposalApproved INTEGER NOT NULL,
+                        updatedAtMillis INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): MorimilDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -28,6 +51,7 @@ abstract class MorimilDatabase : RoomDatabase() {
                     MorimilDatabase::class.java,
                     "morimil_memory.db"
                 )
+                    .addMigrations(MIGRATION_1_2)
                     .build()
                     .also { instance = it }
             }

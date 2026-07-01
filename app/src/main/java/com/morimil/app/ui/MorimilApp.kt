@@ -50,6 +50,7 @@ private enum class MorimilTab(val label: String) {
     Chat("Chat"),
     Voice("Voice"),
     Genesis("Genesis"),
+    Workspace("Workspace"),
     Sync("Sync"),
     Proposal("Proposal"),
     Projects("Projects"),
@@ -82,6 +83,7 @@ fun MorimilApp(viewModel: MorimilViewModel = viewModel()) {
                         MorimilTab.Chat -> ChatScreen(viewModel)
                         MorimilTab.Voice -> VoiceScreen(viewModel)
                         MorimilTab.Genesis -> GenesisScreen()
+                        MorimilTab.Workspace -> UserWorkspaceScreen(viewModel)
                         MorimilTab.Sync -> GitHubSyncGateScreen()
                         MorimilTab.Proposal -> GitHubWriteProposalScreen()
                         MorimilTab.Projects -> ProjectsScreen(viewModel)
