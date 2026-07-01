@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Phase 1: no microphone, network, storage, or GitHub permissions yet. -->
+    <!-- Phase 3: microphone is requested only for explicit push-to-talk voice input. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <application
         android:allowBackup="false"

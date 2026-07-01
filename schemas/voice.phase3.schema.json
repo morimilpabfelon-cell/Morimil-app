@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morimil.app/schemas/voice.phase3.schema.json",
+  "title": "Morimil App Phase 3 Voice Interface",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "phase",
+    "speech_to_text",
+    "text_to_speech",
+    "permission",
+    "background_listening",
+    "github_sync_enabled",
+    "pc_execution_enabled"
+  ],
+  "properties": {
+    "phase": {
+      "const": "phase_3"
+    },
+    "speech_to_text": {
+      "const": "push_to_talk"
+    },
+    "text_to_speech": {
+      "const": "manual_playback"
+    },
+    "permission": {
+      "const": "RECORD_AUDIO"
+    },
+    "background_listening": {
+      "const": false
+    },
+    "github_sync_enabled": {
+      "const": false
+    },
+    "pc_execution_enabled": {
+      "const": false
+    }
+  }
+}

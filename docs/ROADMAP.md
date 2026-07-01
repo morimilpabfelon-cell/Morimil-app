@@ -20,12 +20,6 @@ project state
 memory retrieval
 ```
 
-Status:
-
-```text
-ready for local review
-```
-
 ## Phase 3 - Voice Interface
 
 ```text
@@ -33,6 +27,12 @@ push-to-talk
 speech-to-text
 text-to-speech
 privacy boundary
+```
+
+Status:
+
+```text
+ready for local review
 ```
 
 ## Phase 4 - Genesis Reader

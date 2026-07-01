@@ -1,5 +1,14 @@
 package com.morimil.app.ui
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,17 +31,22 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import java.util.Locale
 
 private enum class MorimilTab(val label: String) {
     Chat("Chat"),
+    Voice("Voice"),
     Projects("Projects"),
     Memory("Memory"),
     Handoff("PC")
@@ -61,6 +75,7 @@ fun MorimilApp(viewModel: MorimilViewModel = viewModel()) {
                 Column(modifier = Modifier.padding(paddingValues)) {
                     when (selectedTab) {
                         MorimilTab.Chat -> ChatScreen(viewModel)
+                        MorimilTab.Voice -> VoiceScreen(viewModel)
                         MorimilTab.Projects -> ProjectsScreen(viewModel)
                         MorimilTab.Memory -> MemoryScreen(viewModel)
                         MorimilTab.Handoff -> PcHandoffScreen()
@@ -114,13 +129,145 @@ private fun ChatScreen(viewModel: MorimilViewModel) {
 }
 
 @Composable
+private fun VoiceScreen(viewModel: MorimilViewModel) {
+    val context = LocalContext.current
+    val messages by viewModel.messages.collectAsStateWithLifecycle()
+    var voiceStatus by remember { mutableStateOf("Push-to-talk listo. No escucha en background.") }
+    var ttsReady by remember { mutableStateOf(false) }
+
+    val textToSpeech = remember {
+        TextToSpeech(context) { status ->
+            ttsReady = status == TextToSpeech.SUCCESS
+        }
+    }
+
+    DisposableEffect(textToSpeech) {
+        textToSpeech.language = Locale.getDefault()
+        onDispose {
+            textToSpeech.stop()
+            textToSpeech.shutdown()
+        }
+    }
+
+    val speechRecognizer = remember {
+        SpeechRecognizer.createSpeechRecognizer(context)
+    }
+
+    DisposableEffect(speechRecognizer) {
+        speechRecognizer.setRecognitionListener(
+            object : RecognitionListener {
+                override fun onReadyForSpeech(params: android.os.Bundle?) {
+                    voiceStatus = "Escuchando..."
+                }
+
+                override fun onBeginningOfSpeech() {
+                    voiceStatus = "Voz detectada."
+                }
+
+                override fun onRmsChanged(rmsdB: Float) = Unit
+                override fun onBufferReceived(buffer: ByteArray?) = Unit
+                override fun onEndOfSpeech() {
+                    voiceStatus = "Procesando voz..."
+                }
+
+                override fun onError(error: Int) {
+                    voiceStatus = "No se pudo reconocer voz. Codigo: $error"
+                }
+
+                override fun onResults(results: android.os.Bundle?) {
+                    val matches = results
+                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        .orEmpty()
+                    val bestMatch = matches.firstOrNull().orEmpty()
+                    if (bestMatch.isBlank()) {
+                        voiceStatus = "No se recibio texto."
+                    } else {
+                        voiceStatus = "Texto reconocido y guardado."
+                        viewModel.sendMessage(bestMatch)
+                    }
+                }
+
+                override fun onPartialResults(partialResults: android.os.Bundle?) = Unit
+                override fun onEvent(eventType: Int, params: android.os.Bundle?) = Unit
+            }
+        )
+
+        onDispose {
+            speechRecognizer.destroy()
+        }
+    }
+
+    fun startListening() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Habla con Morimil")
+        }
+        speechRecognizer.startListening(intent)
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            startListening()
+        } else {
+            voiceStatus = "Permiso de microfono denegado."
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Voice", style = MaterialTheme.typography.headlineMedium)
+        Text("Fase 3: push-to-talk y TextToSpeech manual. Sin escucha continua.")
+        ProjectCard("SpeechRecognizer", voiceStatus, "controlled")
+        ProjectCard("TextToSpeech", if (ttsReady) "Motor TTS listo." else "Inicializando TTS.", "manual")
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = {
+                    val granted = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.RECORD_AUDIO
+                    ) == PackageManager.PERMISSION_GRANTED
+
+                    if (granted) {
+                        startListening()
+                    } else {
+                        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                }
+            ) {
+                Text("Hablar")
+            }
+
+            Button(
+                enabled = ttsReady && messages.isNotEmpty(),
+                onClick = {
+                    val lastMessage = messages.lastOrNull()?.body.orEmpty()
+                    textToSpeech.speak(
+                        lastMessage,
+                        TextToSpeech.QUEUE_FLUSH,
+                        null,
+                        "morimil-last-message"
+                    )
+                }
+            ) {
+                Text("Leer ultimo")
+            }
+        }
+
+        ProjectCard("Boundary", "No GitHub Sync, no PC execution, no background listener.", "protected")
+    }
+}
+
+@Composable
 private fun ProjectsScreen(viewModel: MorimilViewModel) {
     val projects by viewModel.projects.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Projects", style = MaterialTheme.typography.headlineMedium)
         if (projects.isEmpty()) {
-            ProjectCard("Morimil_app", "Fase 2: esperando memoria local.", "loading")
+            ProjectCard("Morimil_app", "Fase 3: esperando memoria local.", "loading")
         } else {
             projects.forEach { project ->
                 ProjectCard(project.title, "Persisted project state in Room.", project.status)
@@ -137,7 +284,7 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Living Memory", style = MaterialTheme.typography.headlineMedium)
-        Text("Fase 2: Room/SQLite local activo. Datos guardados solo en el dispositivo.")
+        Text("Fase 3: Room/SQLite local activo. Voz guarda mensajes en memoria local.")
         ProjectCard("Conversation memory", "${messages.size} mensajes persistidos.", "connected")
         if (decisions.isEmpty()) {
             ProjectCard("Decision log", "Sin decisiones registradas todavia.", "empty")
@@ -146,7 +293,7 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
                 ProjectCard(decision.title, "Decision persisted locally.", decision.status)
             }
         }
-        ProjectCard("Scope guardian", "Voz, GitHub Sync y PC Handoff siguen bloqueados.", "protected")
+        ProjectCard("Scope guardian", "GitHub Sync y PC Handoff siguen bloqueados.", "protected")
     }
 }
 
@@ -154,8 +301,8 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
 private fun PcHandoffScreen() {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("PC Handoff", style = MaterialTheme.typography.headlineMedium)
-        Text("Fase 2 placeholder. Aqui estaran los comandos aprobados para PC.")
-        ProjectCard("Pending handoff", "No hay comandos reales en Fase 2.", "empty")
+        Text("Fase 3 placeholder. Aqui estaran los comandos aprobados para PC.")
+        ProjectCard("Pending handoff", "No hay comandos reales en Fase 3.", "empty")
         ProjectCard("Boundary", "La app movil no ejecuta comandos de PC.", "protected")
     }
 }
