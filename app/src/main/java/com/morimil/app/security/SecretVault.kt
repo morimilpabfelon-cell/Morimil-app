@@ -62,6 +62,7 @@ class SecretVault(context: Context) {
     fun hasGitHubToken(): Boolean = hasSecret(GITHUB_TOKEN)
     fun saveGitHubToken(token: String): Result<Unit> = saveSecret(GITHUB_TOKEN, token)
     fun readGitHubToken(): Result<String?> = readSecret(GITHUB_TOKEN)
+    fun clearGitHubToken() = clearSecret(GITHUB_TOKEN)
 
     fun hasAnthropicKey(): Boolean = hasSecret(ANTHROPIC_KEY)
     fun saveAnthropicKey(key: String): Result<Unit> = saveSecret(ANTHROPIC_KEY, key)
