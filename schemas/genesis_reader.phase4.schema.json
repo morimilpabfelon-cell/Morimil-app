@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morimil.app/schemas/genesis_reader.phase4.schema.json",
+  "title": "Morimil App Phase 4 Genesis Reader",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "phase",
+    "source_mode",
+    "network_fetch",
+    "github_sync_enabled",
+    "token_storage_enabled",
+    "pc_execution_enabled"
+  ],
+  "properties": {
+    "phase": {
+      "const": "phase_4"
+    },
+    "source_mode": {
+      "const": "bundled_local_snapshot"
+    },
+    "network_fetch": {
+      "const": false
+    },
+    "github_sync_enabled": {
+      "const": false
+    },
+    "token_storage_enabled": {
+      "const": false
+    },
+    "pc_execution_enabled": {
+      "const": false
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "schema_version": "morimil.app.genesis.v0.1",
+  "source_repo": "morimilpabfelon-cell/Morimil",
+  "source_mode": "bundled_local_snapshot",
+  "source_refs": [
+    "identity/orchestrator.identity.json",
+    "docs/MORIMIL_ORCHESTRATOR_BLUEPRINT.md",
+    "docs/V61_STATUS.md",
+    "docs/V62_STATUS.md"
+  ],
+  "identity": {
+    "agent_id": "morimil.local.orchestrator",
+    "alias": "Morimil Orchestrator",
+    "role": "LOCAL_AI_CONTROL_PLANE",
+    "owner": "Founder",
+    "risk_tier": "CONTROL_PLANE"
+  },
+  "allowed_actions": [
+    "read context",
+    "classify task",
+    "draft plan",
+    "draft prompt",
+    "deny unsafe tool use",
+    "request human approval"
+  ],
+  "blocked_actions": [
+    "autonomous write",
+    "credential use",
+    "GitHub write automation",
+    "PR creation",
+    "merge",
+    "production action",
+    "irreversible action without approval",
+    "PC command execution from mobile"
+  ],
+  "mobile_boundary": {
+    "local_memory": true,
+    "voice_push_to_talk": true,
+    "genesis_reader": true,
+    "github_sync": false,
+    "pc_execution": false,
+    "production_release": false
+  },
+  "current_app_phase": "phase_4_genesis_reader"
+}

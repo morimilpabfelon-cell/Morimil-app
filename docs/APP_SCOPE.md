@@ -1,30 +1,28 @@
 # Morimil App Scope
 
-## Phase 3 Scope
+## Phase 4 Scope
 
 ```text
-Add voice interface.
-Use push-to-talk speech recognition.
-Use manual text-to-speech playback.
-Persist recognized speech through the existing local Room memory layer.
+Add local Genesis Reader.
+Read a packaged Genesis snapshot from app assets.
+Display identity, allowed actions, blocked actions, and mobile boundary.
+Keep Genesis read-only and local-only.
 ```
 
 ## Explicit Non-Scope
 
 ```text
-No continuous background listening.
-No wake word.
+No network Genesis fetch.
 No GitHub sync yet.
-No Genesis bootstrap yet.
+No GitHub token storage.
+No Android Keystore secrets yet.
 No PC command execution from the app.
 No production release.
-No secrets.
-No tokens.
 ```
 
 ## Repository Boundary
 
 ```text
-Morimil-app is independent.
-Morimil remains Genesis Block and is not modified by Phase 3.
+Morimil-app reads a bundled Genesis snapshot.
+Morimil remains Genesis Block and is not modified by Phase 4.
 ```

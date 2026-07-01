@@ -29,18 +29,19 @@ text-to-speech
 privacy boundary
 ```
 
+## Phase 4 - Genesis Reader
+
+```text
+bundled Genesis snapshot
+read-only identity display
+allowed/blocked actions display
+mobile boundary display
+```
+
 Status:
 
 ```text
 ready for local review
-```
-
-## Phase 4 - Genesis Reader
-
-```text
-read Genesis Block
-validate base rules
-recover app identity
 ```
 
 ## Phase 5 - Controlled GitHub Sync
@@ -50,6 +51,7 @@ approved project repo creation
 approved file upload
 status sync
 no autonomous mutation
+requires explicit credential/Keystore gate
 ```
 
 ## Phase 6 - PC Handoff

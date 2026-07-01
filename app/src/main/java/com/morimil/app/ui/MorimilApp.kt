@@ -42,11 +42,14 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.morimil.app.data.genesis.GenesisBlock
+import com.morimil.app.data.genesis.GenesisReader
 import java.util.Locale
 
 private enum class MorimilTab(val label: String) {
     Chat("Chat"),
     Voice("Voice"),
+    Genesis("Genesis"),
     Projects("Projects"),
     Memory("Memory"),
     Handoff("PC")
@@ -76,6 +79,7 @@ fun MorimilApp(viewModel: MorimilViewModel = viewModel()) {
                     when (selectedTab) {
                         MorimilTab.Chat -> ChatScreen(viewModel)
                         MorimilTab.Voice -> VoiceScreen(viewModel)
+                        MorimilTab.Genesis -> GenesisScreen()
                         MorimilTab.Projects -> ProjectsScreen(viewModel)
                         MorimilTab.Memory -> MemoryScreen(viewModel)
                         MorimilTab.Handoff -> PcHandoffScreen()
@@ -93,7 +97,7 @@ private fun ChatScreen(viewModel: MorimilViewModel) {
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Morimil", style = MaterialTheme.typography.headlineMedium)
-        Text("Native mobile companion shell with local Room memory", style = MaterialTheme.typography.bodyMedium)
+        Text("Native companion shell with local memory, voice, and Genesis reader", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(16.dp))
 
         LazyColumn(
@@ -166,6 +170,7 @@ private fun VoiceScreen(viewModel: MorimilViewModel) {
 
                 override fun onRmsChanged(rmsdB: Float) = Unit
                 override fun onBufferReceived(buffer: ByteArray?) = Unit
+
                 override fun onEndOfSpeech() {
                     voiceStatus = "Procesando voz..."
                 }
@@ -218,7 +223,7 @@ private fun VoiceScreen(viewModel: MorimilViewModel) {
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Voice", style = MaterialTheme.typography.headlineMedium)
-        Text("Fase 3: push-to-talk y TextToSpeech manual. Sin escucha continua.")
+        Text("Fase 4 mantiene Fase 3: push-to-talk y TTS manual.")
         ProjectCard("SpeechRecognizer", voiceStatus, "controlled")
         ProjectCard("TextToSpeech", if (ttsReady) "Motor TTS listo." else "Inicializando TTS.", "manual")
 
@@ -261,31 +266,68 @@ private fun VoiceScreen(viewModel: MorimilViewModel) {
 }
 
 @Composable
+private fun GenesisScreen() {
+    val context = LocalContext.current
+    val genesisResult = remember {
+        GenesisReader(context).readGenesisBlock()
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Genesis", style = MaterialTheme.typography.headlineMedium)
+        Text("Fase 4: lector local del Bloque Genesis empaquetado. Sin red y sin token.")
+
+        genesisResult.fold(
+            onSuccess = { genesis ->
+                GenesisContent(genesis)
+            },
+            onFailure = { error ->
+                ProjectCard("Genesis Reader", error.message.orEmpty(), "error")
+            }
+        )
+    }
+}
+
+@Composable
 private fun ProjectsScreen(viewModel: MorimilViewModel) {
     val projects by viewModel.projects.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Projects", style = MaterialTheme.typography.headlineMedium)
         if (projects.isEmpty()) {
-            ProjectCard("Morimil_app", "Fase 3: esperando memoria local.", "loading")
+            ProjectCard("Morimil_app", "Fase 4: esperando memoria local.", "loading")
         } else {
             projects.forEach { project ->
                 ProjectCard(project.title, "Persisted project state in Room.", project.status)
             }
         }
-        ProjectCard("Genesis Block", "Repo Morimil existente. No se modifica desde la app.", "locked")
+        ProjectCard("Genesis Block", "Bundled local snapshot visible in Genesis tab.", "read-only")
     }
+}
+
+@Composable
+private fun GenesisContent(genesis: GenesisBlock) {
+    ProjectCard(genesis.alias, "${genesis.role} / ${genesis.riskTier}", "loaded")
+    ProjectCard("Source", "${genesis.sourceRepo} / ${genesis.sourceMode}", genesis.currentAppPhase)
+    ProjectCard("Allowed actions", genesis.allowedActions.joinToString(", "), "bounded")
+    ProjectCard("Blocked actions", genesis.blockedActions.joinToString(", "), "protected")
+    ProjectCard(
+        "Mobile boundary",
+        "memory=${genesis.localMemory}, voice=${genesis.voicePushToTalk}, github=${genesis.githubSync}, pc=${genesis.pcExecution}",
+        "validated"
+    )
 }
 
 @Composable
 private fun MemoryScreen(viewModel: MorimilViewModel) {
     val decisions by viewModel.decisions.collectAsStateWithLifecycle()
     val messages by viewModel.messages.collectAsStateWithLifecycle()
+    val projects by viewModel.projects.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Living Memory", style = MaterialTheme.typography.headlineMedium)
-        Text("Fase 3: Room/SQLite local activo. Voz guarda mensajes en memoria local.")
+        Text("Room/SQLite local activo. Genesis Reader local activo.")
         ProjectCard("Conversation memory", "${messages.size} mensajes persistidos.", "connected")
+        ProjectCard("Project state", "${projects.size} proyectos persistidos.", "connected")
         if (decisions.isEmpty()) {
             ProjectCard("Decision log", "Sin decisiones registradas todavia.", "empty")
         } else {
@@ -301,8 +343,8 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
 private fun PcHandoffScreen() {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("PC Handoff", style = MaterialTheme.typography.headlineMedium)
-        Text("Fase 3 placeholder. Aqui estaran los comandos aprobados para PC.")
-        ProjectCard("Pending handoff", "No hay comandos reales en Fase 3.", "empty")
+        Text("Fase 4 placeholder. Aqui estaran los comandos aprobados para PC.")
+        ProjectCard("Pending handoff", "No hay comandos reales en Fase 4.", "empty")
         ProjectCard("Boundary", "La app movil no ejecuta comandos de PC.", "protected")
     }
 }
