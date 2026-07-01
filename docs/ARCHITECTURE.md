@@ -23,13 +23,24 @@ PC Handoff
 ## Future Slots
 
 ```text
-Local memory
-Voice interface
-Genesis reader
-GitHub sync
-PC handoff
+Local memory:
+  Room / SQLite
+
+Voice:
+  SpeechRecognizer
+  TextToSpeech
+
+Security:
+  Android Keystore for future local secrets
+
+Sync:
+  Genesis reader
+  controlled GitHub sync
+
+Handoff:
+  PC command preparation only after approval
 ```
 
 ## Boundary
 
-Phase 1 creates the app foundation only. No real sync, no real memory engine, and no automation.
+Phase 1 creates the app foundation only. No real sync, no real memory engine, no voice engine, and no automation.

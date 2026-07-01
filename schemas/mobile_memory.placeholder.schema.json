@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morimil.app/schemas/mobile_memory.placeholder.schema.json",
+  "title": "Morimil App Mobile Memory Placeholder",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["phase", "status", "real_memory_connected"],
+  "properties": {
+    "phase": {
+      "const": "phase_1"
+    },
+    "status": {
+      "const": "placeholder"
+    },
+    "real_memory_connected": {
+      "const": false
+    }
+  }
+}

@@ -18,7 +18,7 @@ No real local memory database yet.
 No voice interaction yet.
 No GitHub sync yet.
 No Genesis bootstrap yet.
-No PC command execution.
+No PC command execution from the app.
 No production release.
 No secrets.
 No tokens.

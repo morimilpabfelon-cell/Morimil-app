@@ -1,6 +1,6 @@
 # Morimil App Roadmap
 
-## Phase 1 — Native Android Skeleton
+## Phase 1 - Native Android Skeleton
 
 ```text
 chat UI mock
@@ -10,7 +10,7 @@ PC handoff UI mock
 safe repo boundary
 ```
 
-## Phase 2 — Local Living Memory
+## Phase 2 - Local Living Memory
 
 ```text
 Room database
@@ -20,7 +20,7 @@ project state
 memory retrieval
 ```
 
-## Phase 3 — Voice Interface
+## Phase 3 - Voice Interface
 
 ```text
 push-to-talk
@@ -29,7 +29,7 @@ text-to-speech
 privacy boundary
 ```
 
-## Phase 4 — Genesis Reader
+## Phase 4 - Genesis Reader
 
 ```text
 read Genesis Block
@@ -37,18 +37,20 @@ validate base rules
 recover app identity
 ```
 
-## Phase 5 — GitHub Sync
+## Phase 5 - Controlled GitHub Sync
 
 ```text
 approved project repo creation
 approved file upload
 status sync
+no autonomous mutation
 ```
 
-## Phase 6 — PC Handoff
+## Phase 6 - PC Handoff
 
 ```text
 prepare commands for PC
 track result notes
 sync status
+no command execution from mobile
 ```

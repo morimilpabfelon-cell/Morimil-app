@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morimil.app/schemas/pc_handoff.placeholder.schema.json",
+  "title": "Morimil App PC Handoff Placeholder",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["phase", "status", "pc_execution_allowed_from_mobile"],
+  "properties": {
+    "phase": {
+      "const": "phase_1"
+    },
+    "status": {
+      "const": "placeholder"
+    },
+    "pc_execution_allowed_from_mobile": {
+      "const": false
+    }
+  }
+}
