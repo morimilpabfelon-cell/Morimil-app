@@ -40,4 +40,21 @@ interface MemoryDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertWorkspace(workspace: UserWorkspaceEntity)
+
+    @Query("UPDATE user_workspace SET displayName = :displayName, updatedAtMillis = :updatedAtMillis WHERE workspaceId = 'local_primary'")
+    suspend fun renameWorkspace(displayName: String, updatedAtMillis: Long): Int
+
+    @Query("SELECT * FROM local_instance_identity LIMIT 1")
+    fun observeLocalIdentity(): Flow<LocalInstanceIdentityEntity?>
+
+    @Query("SELECT COUNT(*) FROM local_instance_identity")
+    suspend fun countLocalIdentity(): Int
+
+    /**
+     * ABORT, not REPLACE: an instance is born once. A future attempt to
+     * insert a second identity fails loudly rather than silently renaming
+     * the instance underneath the user.
+     */
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertLocalIdentity(identity: LocalInstanceIdentityEntity)
 }

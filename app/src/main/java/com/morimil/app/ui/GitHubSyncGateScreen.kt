@@ -100,7 +100,7 @@ fun GitHubSyncGateScreen() {
             onClick = {
                 scope.launch {
                     status = "Checking Morimil-app on GitHub..."
-                    val token = vault.readGitHubTokenForApprovedSync().getOrNull()
+                    val token = vault.readGitHubToken().getOrNull()
                     if (token.isNullOrBlank()) {
                         status = "Stored token could not be read."
                         return@launch

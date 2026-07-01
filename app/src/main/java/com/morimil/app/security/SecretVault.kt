@@ -10,41 +10,46 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
+/**
+ * Stores any named secret (GitHub token, Anthropic API key, etc.) encrypted
+ * with an AndroidKeyStore-backed AES-GCM key. The key material never leaves
+ * secure hardware; only the ciphertext and IV are persisted, in
+ * SharedPreferences, keyed by secret name.
+ */
 class SecretVault(context: Context) {
     private val appContext = context.applicationContext
     private val preferences = appContext.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
-    fun hasGitHubToken(): Boolean {
-        return preferences.contains(GITHUB_TOKEN_CIPHERTEXT) &&
-            preferences.contains(GITHUB_TOKEN_IV)
+    fun hasSecret(name: String): Boolean {
+        return preferences.contains(ciphertextKey(name)) && preferences.contains(ivKey(name))
     }
 
-    fun saveGitHubToken(token: String): Result<Unit> = runCatching {
-        val cleanToken = token.trim()
-        require(cleanToken.isNotEmpty()) { "Token must not be empty." }
+    fun saveSecret(name: String, value: String): Result<Unit> = runCatching {
+        val cleanValue = value.trim()
+        require(cleanValue.isNotEmpty()) { "Secret must not be empty." }
 
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey())
 
-        val encrypted = cipher.doFinal(cleanToken.toByteArray(Charsets.UTF_8))
+        val encrypted = cipher.doFinal(cleanValue.toByteArray(Charsets.UTF_8))
 
         preferences.edit()
-            .putString(GITHUB_TOKEN_CIPHERTEXT, encrypted.toBase64())
-            .putString(GITHUB_TOKEN_IV, cipher.iv.toBase64())
+            .putString(ciphertextKey(name), encrypted.toBase64())
+            .putString(ivKey(name), cipher.iv.toBase64())
             .apply()
     }
 
-    fun clearGitHubToken() {
+    fun clearSecret(name: String) {
         preferences.edit()
-            .remove(GITHUB_TOKEN_CIPHERTEXT)
-            .remove(GITHUB_TOKEN_IV)
+            .remove(ciphertextKey(name))
+            .remove(ivKey(name))
             .apply()
     }
 
-    fun readGitHubTokenForApprovedSync(): Result<String?> = runCatching {
-        val encrypted = preferences.getString(GITHUB_TOKEN_CIPHERTEXT, null)?.fromBase64()
+    fun readSecret(name: String): Result<String?> = runCatching {
+        val encrypted = preferences.getString(ciphertextKey(name), null)?.fromBase64()
             ?: return@runCatching null
-        val iv = preferences.getString(GITHUB_TOKEN_IV, null)?.fromBase64()
+        val iv = preferences.getString(ivKey(name), null)?.fromBase64()
             ?: return@runCatching null
 
         val cipher = Cipher.getInstance(TRANSFORMATION)
@@ -52,6 +57,18 @@ class SecretVault(context: Context) {
 
         String(cipher.doFinal(encrypted), Charsets.UTF_8)
     }
+
+    // Convenience wrappers -- same underlying storage, clearer call sites.
+    fun hasGitHubToken(): Boolean = hasSecret(GITHUB_TOKEN)
+    fun saveGitHubToken(token: String): Result<Unit> = saveSecret(GITHUB_TOKEN, token)
+    fun readGitHubToken(): Result<String?> = readSecret(GITHUB_TOKEN)
+
+    fun hasAnthropicKey(): Boolean = hasSecret(ANTHROPIC_KEY)
+    fun saveAnthropicKey(key: String): Result<Unit> = saveSecret(ANTHROPIC_KEY, key)
+    fun readAnthropicKey(): Result<String?> = readSecret(ANTHROPIC_KEY)
+
+    private fun ciphertextKey(name: String) = "${name}_ciphertext"
+    private fun ivKey(name: String) = "${name}_iv"
 
     private fun getOrCreateSecretKey(): SecretKey {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
@@ -86,7 +103,7 @@ class SecretVault(context: Context) {
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
         private const val GCM_TAG_LENGTH_BITS = 128
         private const val PREFERENCES_NAME = "morimil_secret_vault"
-        private const val GITHUB_TOKEN_CIPHERTEXT = "github_token_ciphertext"
-        private const val GITHUB_TOKEN_IV = "github_token_iv"
+        private const val GITHUB_TOKEN = "github_token"
+        private const val ANTHROPIC_KEY = "anthropic_api_key"
     }
 }

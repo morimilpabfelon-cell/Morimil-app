@@ -12,7 +12,8 @@ Keep actual GitHub write execution blocked.
 ## Explicit Non-Scope
 
 ```text
-No repo creation.
+No repo creation, EXCEPT the single onboarding-time fork of the Genesis
+  repo under the token owner's own account (see docs/GENESIS_FORK_MODEL.md).
 No file upload execution.
 No PR creation.
 No merge.

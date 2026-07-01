@@ -1,7 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Phase 5B: INTERNET is enabled only for explicit read-only GitHub metadata preview. -->
+    <!-- INTERNET is used for: (1) the read-only Genesis identity + doctrine fetch from
+         github.com/morimilpabfelon-cell/Morimil on app open, falling back to a bundled
+         identity snapshot if unreachable; (2) forking that same Genesis repo under the
+         user's own GitHub account during first-install onboarding -- the app's only
+         GitHub write, fork-only, source repo hardcoded, destination derived from the
+         token's own identity; (3) the Phase 5B read-only GitHub metadata preview; and
+         (4) real conversation via the Claude API (api.anthropic.com), using an API key
+         the user provides, with system instructions built from the fetched Genesis
+         identity and doctrine, and recent phone-local memory as context. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
 

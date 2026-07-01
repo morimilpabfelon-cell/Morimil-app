@@ -42,55 +42,67 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.morimil.app.data.genesis.GenesisBlock
-import com.morimil.app.data.genesis.GenesisReader
+import com.morimil.app.data.genesis.CurrentMobileAppCapabilities
+import com.morimil.app.data.genesis.GenesisIdentitySource
+import com.morimil.app.data.genesis.GenesisOrigin
 import java.util.Locale
 
-private enum class MorimilTab(val label: String) {
-    Chat("Chat"),
-    Voice("Voice"),
-    Genesis("Genesis"),
-    Workspace("Workspace"),
-    Sync("Sync"),
-    Proposal("Proposal"),
-    Projects("Projects"),
-    Memory("Memory"),
-    Handoff("PC")
+private enum class MorimilTab(val label: String, val icon: String) {
+    Chat("Chat", "Ch"),
+    Voice("Voice", "Vo"),
+    Genesis("Genesis", "Ge"),
+    Workspace("Workspace", "Ws"),
+    Sync("Sync", "Sy"),
+    Proposal("Proposal", "Pr"),
+    Projects("Projects", "Pj"),
+    Memory("Memory", "Me"),
+    Handoff("PC", "Ha")
 }
 
 @Composable
 fun MorimilApp(viewModel: MorimilViewModel = viewModel()) {
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
-            var selectedTab by remember { mutableStateOf(MorimilTab.Chat) }
+            val localIdentity by viewModel.localIdentity.collectAsStateWithLifecycle()
 
-            Scaffold(
-                bottomBar = {
-                    NavigationBar {
-                        MorimilTab.entries.forEach { tab ->
-                            NavigationBarItem(
-                                selected = selectedTab == tab,
-                                onClick = { selectedTab = tab },
-                                label = { Text(tab.label) },
-                                icon = { Text(tab.label.first().toString()) }
-                            )
-                        }
-                    }
+            if (localIdentity == null) {
+                OnboardingScreen(viewModel)
+            } else {
+                MainTabsScaffold(viewModel)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MainTabsScaffold(viewModel: MorimilViewModel) {
+    var selectedTab by remember { mutableStateOf(MorimilTab.Chat) }
+
+    Scaffold(
+        bottomBar = {
+            NavigationBar {
+                MorimilTab.entries.forEach { tab ->
+                    NavigationBarItem(
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        label = { Text(tab.label) },
+                        icon = { Text(tab.icon) }
+                    )
                 }
-            ) { paddingValues ->
-                Column(modifier = Modifier.padding(paddingValues)) {
-                    when (selectedTab) {
-                        MorimilTab.Chat -> ChatScreen(viewModel)
-                        MorimilTab.Voice -> VoiceScreen(viewModel)
-                        MorimilTab.Genesis -> GenesisScreen()
-                        MorimilTab.Workspace -> UserWorkspaceScreen(viewModel)
-                        MorimilTab.Sync -> GitHubSyncGateScreen()
-                        MorimilTab.Proposal -> GitHubWriteProposalScreen()
-                        MorimilTab.Projects -> ProjectsScreen(viewModel)
-                        MorimilTab.Memory -> MemoryScreen(viewModel)
-                        MorimilTab.Handoff -> PcHandoffScreen()
-                    }
-                }
+            }
+        }
+    ) { paddingValues ->
+        Column(modifier = Modifier.padding(paddingValues)) {
+            when (selectedTab) {
+                MorimilTab.Chat -> ChatScreen(viewModel)
+                MorimilTab.Voice -> VoiceScreen(viewModel)
+                MorimilTab.Genesis -> GenesisScreen(viewModel)
+                MorimilTab.Workspace -> UserWorkspaceScreen(viewModel)
+                MorimilTab.Sync -> GitHubSyncGateScreen()
+                MorimilTab.Proposal -> GitHubWriteProposalScreen()
+                MorimilTab.Projects -> ProjectsScreen(viewModel)
+                MorimilTab.Memory -> MemoryScreen(viewModel)
+                MorimilTab.Handoff -> PcHandoffScreen()
             }
         }
     }
@@ -99,12 +111,41 @@ fun MorimilApp(viewModel: MorimilViewModel = viewModel()) {
 @Composable
 private fun ChatScreen(viewModel: MorimilViewModel) {
     val messages by viewModel.messages.collectAsStateWithLifecycle()
+    val isSending by viewModel.isSending.collectAsStateWithLifecycle()
+    val chatError by viewModel.chatError.collectAsStateWithLifecycle()
     var draft by remember { mutableStateOf("") }
+    var keyDraft by remember { mutableStateOf("") }
+    var hasKey by remember { mutableStateOf(viewModel.hasAnthropicKey()) }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Morimil", style = MaterialTheme.typography.headlineMedium)
-        Text("Native companion shell with local memory, voice, and Genesis reader", style = MaterialTheme.typography.bodyMedium)
+        Text("Conversacion real, con memoria local como contexto", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(16.dp))
+
+        if (!hasKey) {
+            Text("Necesitas tu llave de la API de Claude para hablar con Morimil.")
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextField(
+                    value = keyDraft,
+                    onValueChange = { keyDraft = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Anthropic API key") }
+                )
+                Button(
+                    onClick = {
+                        viewModel.saveAnthropicKey(keyDraft)
+                            .onSuccess {
+                                keyDraft = ""
+                                hasKey = true
+                            }
+                    }
+                ) {
+                    Text("Guardar")
+                }
+            }
+            return@Column
+        }
 
         LazyColumn(
             modifier = Modifier.weight(1f),
@@ -115,6 +156,18 @@ private fun ChatScreen(viewModel: MorimilViewModel) {
                     Text("${message.author}: ${message.body}", modifier = Modifier.padding(12.dp))
                 }
             }
+            if (isSending) {
+                item {
+                    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                        Text("Morimil esta escribiendo...", modifier = Modifier.padding(12.dp))
+                    }
+                }
+            }
+        }
+
+        chatError?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(it, style = MaterialTheme.typography.bodySmall)
         }
 
         Spacer(Modifier.height(12.dp))
@@ -124,9 +177,11 @@ private fun ChatScreen(viewModel: MorimilViewModel) {
                 value = draft,
                 onValueChange = { draft = it },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Escribe a Morimil...") }
+                placeholder = { Text("Escribe a Morimil...") },
+                enabled = !isSending
             )
             Button(
+                enabled = !isSending && draft.isNotBlank(),
                 onClick = {
                     viewModel.sendMessage(draft)
                     draft = ""
@@ -229,7 +284,7 @@ private fun VoiceScreen(viewModel: MorimilViewModel) {
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Voice", style = MaterialTheme.typography.headlineMedium)
-        Text("Fase 4 mantiene Fase 3: push-to-talk y TTS manual.")
+        Text("Fase 5D mantiene voz push-to-talk y TTS manual de fases anteriores.")
         ProjectCard("SpeechRecognizer", voiceStatus, "controlled")
         ProjectCard("TextToSpeech", if (ttsReady) "Motor TTS listo." else "Inicializando TTS.", "manual")
 
@@ -272,24 +327,34 @@ private fun VoiceScreen(viewModel: MorimilViewModel) {
 }
 
 @Composable
-private fun GenesisScreen() {
-    val context = LocalContext.current
-    val genesisResult = remember {
-        GenesisReader(context).readGenesisBlock()
-    }
+private fun GenesisScreen(viewModel: MorimilViewModel) {
+    val genesisResult by viewModel.genesisResult.collectAsStateWithLifecycle()
+    val localIdentity by viewModel.localIdentity.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Genesis", style = MaterialTheme.typography.headlineMedium)
-        Text("Fase 4: lector local del Bloque Genesis empaquetado. Sin red y sin token.")
+        Text("Fase 5D: lee el Bloque Genesis en vivo desde GitHub, con respaldo local si no hay red.")
 
-        genesisResult.fold(
-            onSuccess = { genesis ->
-                GenesisContent(genesis)
-            },
-            onFailure = { error ->
-                ProjectCard("Genesis Reader", error.message.orEmpty(), "error")
-            }
-        )
+        localIdentity?.let {
+            ProjectCard(
+                "Esta instancia: ${it.alias}",
+                "${it.genesisRole} / ${it.genesisRiskTier}",
+                "instance_id=${it.instanceId}"
+            )
+            ProjectCard(
+                "Fork",
+                "${it.forkOwner}/${it.forkRepo}",
+                it.forkHtmlUrl
+            )
+        }
+
+        when (val result = genesisResult) {
+            null -> ProjectCard("Genesis Reader", "Cargando...", "loading")
+            else -> result.fold(
+                onSuccess = { source -> GenesisContent(source) },
+                onFailure = { error -> ProjectCard("Genesis Reader", error.message.orEmpty(), "error") }
+            )
+        }
     }
 }
 
@@ -300,26 +365,34 @@ private fun ProjectsScreen(viewModel: MorimilViewModel) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Projects", style = MaterialTheme.typography.headlineMedium)
         if (projects.isEmpty()) {
-            ProjectCard("Morimil_app", "Fase 4: esperando memoria local.", "loading")
+            ProjectCard("Morimil_app", "Fase 5D: esperando memoria local.", "loading")
         } else {
             projects.forEach { project ->
                 ProjectCard(project.title, "Persisted project state in Room.", project.status)
             }
         }
-        ProjectCard("Genesis Block", "Bundled local snapshot visible in Genesis tab.", "read-only")
+        ProjectCard("Genesis", "Live GitHub read with bundled fallback, visible in Genesis tab.", "read-only")
     }
 }
 
 @Composable
-private fun GenesisContent(genesis: GenesisBlock) {
-    ProjectCard(genesis.alias, "${genesis.role} / ${genesis.riskTier}", "loaded")
-    ProjectCard("Source", "${genesis.sourceRepo} / ${genesis.sourceMode}", genesis.currentAppPhase)
+private fun GenesisContent(source: GenesisIdentitySource) {
+    val genesis = source.identity
+    val capabilities = CurrentMobileAppCapabilities.value
+    val originLabel = when (source.origin) {
+        GenesisOrigin.GITHUB_LIVE -> "github_live"
+        GenesisOrigin.BUNDLED_FALLBACK -> "bundled_fallback"
+    }
+    ProjectCard(genesis.alias, "${genesis.role} / ${genesis.riskTier}", originLabel)
+    ProjectCard("Owner", genesis.owner, genesis.schemaVersion)
     ProjectCard("Allowed actions", genesis.allowedActions.joinToString(", "), "bounded")
-    ProjectCard("Blocked actions", genesis.blockedActions.joinToString(", "), "protected")
+    ProjectCard("Disallowed actions", genesis.disallowedActions.joinToString(", "), "protected")
     ProjectCard(
-        "Mobile boundary",
-        "memory=${genesis.localMemory}, voice=${genesis.voicePushToTalk}, github=${genesis.githubSync}, pc=${genesis.pcExecution}",
-        "validated"
+        "Mobile app capabilities",
+        "memory=${capabilities.localMemory}, voice=${capabilities.voicePushToTalk}, " +
+            "github_read=${capabilities.githubReadOnlySync}, github_write=${capabilities.githubWriteExecution}, " +
+            "pc=${capabilities.pcExecution}",
+        capabilities.currentAppPhase
     )
 }
 
@@ -349,8 +422,8 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
 private fun PcHandoffScreen() {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("PC Handoff", style = MaterialTheme.typography.headlineMedium)
-        Text("Fase 4 placeholder. Aqui estaran los comandos aprobados para PC.")
-        ProjectCard("Pending handoff", "No hay comandos reales en Fase 4.", "empty")
+        Text("Fase 6 placeholder. Aqui estaran los comandos aprobados para PC.")
+        ProjectCard("Pending handoff", "No hay comandos reales todavia.", "empty")
         ProjectCard("Boundary", "La app movil no ejecuta comandos de PC.", "protected")
     }
 }
