@@ -36,14 +36,34 @@ Rule:
   Phase 1 does not modify the Morimil Genesis repository.
 ```
 
-## First Local Build
+## Android Studio Build Setup
 
-Open this repository in Android Studio and sync Gradle.
+This project is intended to run from Android Studio with:
+
+```text
+JDK: 17
+Android Gradle Plugin: 8.6.1
+Gradle wrapper: 8.7
+compileSdk: 35
+targetSdk: 35
+```
+
+Open this repository in Android Studio, trust the project, and run Gradle Sync.
+
+If Android Studio cannot find the Android SDK, create a local `local.properties` file in the repository root. This file is ignored by Git and must not be committed.
+
+Example for Windows:
+
+```properties
+sdk.dir=C\:\\Users\\YOUR_WINDOWS_USER\\AppData\\Local\\Android\\Sdk
+```
 
 Then run:
 
 ```powershell
+.\gradlew.bat --version
+.\gradlew.bat tasks
 .\gradlew.bat :app:assembleDebug
 ```
 
-If the Gradle wrapper is not generated yet, open the folder in Android Studio and let the IDE sync/create the local build environment.
+After the build succeeds, select an emulator or a USB-connected Android phone in Android Studio and click Run.
