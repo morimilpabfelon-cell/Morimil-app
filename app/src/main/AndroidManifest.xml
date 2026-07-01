@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Phase 3: microphone is requested only for explicit push-to-talk voice input. -->
+    <!-- Phase 5A: microphone remains explicit push-to-talk. No INTERNET permission yet. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <application

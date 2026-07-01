@@ -3,39 +3,33 @@
 ## Phase 1 - Native Android Skeleton
 
 ```text
-chat UI mock
-projects UI mock
-memory UI mock
-PC handoff UI mock
-safe repo boundary
+accepted
 ```
 
 ## Phase 2 - Local Living Memory
 
 ```text
-Room database
-conversation entities
-decision log
-project state
-memory retrieval
+accepted
 ```
 
 ## Phase 3 - Voice Interface
 
 ```text
-push-to-talk
-speech-to-text
-text-to-speech
-privacy boundary
+accepted
 ```
 
 ## Phase 4 - Genesis Reader
 
 ```text
-bundled Genesis snapshot
-read-only identity display
-allowed/blocked actions display
-mobile boundary display
+accepted
+```
+
+## Phase 5A - Keystore Credential Gate
+
+```text
+encrypted local credential storage
+no network
+no GitHub API calls
 ```
 
 Status:
@@ -44,14 +38,20 @@ Status:
 ready for local review
 ```
 
-## Phase 5 - Controlled GitHub Sync
+## Phase 5B - Controlled GitHub Sync Preview
 
 ```text
-approved project repo creation
-approved file upload
-status sync
+read-only GitHub status check
+explicit user action
+no writes
+```
+
+## Phase 5C - Controlled GitHub Write Sync
+
+```text
+approved file upload only
 no autonomous mutation
-requires explicit credential/Keystore gate
+no PR or merge automation
 ```
 
 ## Phase 6 - PC Handoff

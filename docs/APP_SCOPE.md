@@ -1,21 +1,24 @@
 # Morimil App Scope
 
-## Phase 4 Scope
+## Phase 5A Scope
 
 ```text
-Add local Genesis Reader.
-Read a packaged Genesis snapshot from app assets.
-Display identity, allowed actions, blocked actions, and mobile boundary.
-Keep Genesis read-only and local-only.
+Add Android Keystore-backed credential gate.
+Store a future GitHub credential only if entered manually by the user.
+Keep GitHub Sync blocked.
+Do not add network permission yet.
 ```
 
 ## Explicit Non-Scope
 
 ```text
-No network Genesis fetch.
-No GitHub sync yet.
-No GitHub token storage.
-No Android Keystore secrets yet.
+No hardcoded token.
+No GitHub API calls.
+No INTERNET permission.
+No repo creation.
+No file upload.
+No PR creation.
+No merge.
 No PC command execution from the app.
 No production release.
 ```
@@ -23,6 +26,6 @@ No production release.
 ## Repository Boundary
 
 ```text
-Morimil-app reads a bundled Genesis snapshot.
-Morimil remains Genesis Block and is not modified by Phase 4.
+Morimil-app prepares a credential gate.
+Morimil remains Genesis Block and is not modified by Phase 5A.
 ```
