@@ -117,6 +117,9 @@ private fun ChatScreen(viewModel: MorimilViewModel) {
         Text("Conversacion real, con memoria local como contexto", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(16.dp))
 
+        RuntimeNote()
+        Spacer(Modifier.height(16.dp))
+
         if (!hasKey) {
             Text("Necesitas tu llave de la API de Claude para hablar con Morimil.")
             Spacer(Modifier.height(8.dp))
