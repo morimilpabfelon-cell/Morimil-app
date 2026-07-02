@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.morimil.app.ai.ChatTurn
 import com.morimil.app.ai.ClaudeApiClient
+import com.morimil.app.ai.ReasoningRuntimeState
 import com.morimil.app.ai.SystemPromptBuilder
 import com.morimil.app.data.genesis.GenesisIdentitySource
 import com.morimil.app.data.genesis.GenesisReader
@@ -85,8 +86,6 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     private val _genesisResult = MutableStateFlow<Result<GenesisIdentitySource>?>(null)
     val genesisResult: StateFlow<Result<GenesisIdentitySource>?> = _genesisResult.asStateFlow()
 
-    // Doctrine text is fetched once and cached -- it does not change per
-    // message, so re-fetching it on every send would be wasted network.
     private var cachedDoctrineText: String? = null
     private var cachedPolicyText: String? = null
 
@@ -120,10 +119,6 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
 
     fun saveAnthropicKey(key: String): Result<Unit> = secretVault.saveAnthropicKey(key)
 
-    /**
-     * First-install gate: copies the bundled Genesis seed into this device's
-     * local identity and names the instance. GitHub is not used at runtime.
-     */
     suspend fun bornInstance(alias: String): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val genesisSource = _genesisResult.value?.getOrNull()
@@ -147,12 +142,6 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    /**
-     * Real conversation. The model itself has no memory of its own -- the
-     * phone's own stored history (up to MAX_HISTORY_MESSAGES) is sent as
-     * context every time, which is how "aprende poco a poco" actually
-     * works: continuity lives in the phone's memory, not in the model.
-     */
     fun sendMessage(body: String) {
         val cleanBody = body.trim()
         if (cleanBody.isEmpty() || _isSending.value) return
@@ -166,9 +155,10 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                 return@launch
             }
 
-            val apiKey = secretVault.readAnthropicKey().getOrNull()
-            if (apiKey.isNullOrBlank()) {
-                _chatError.value = "Falta la llave de la API de Claude."
+            val runtimeConfig = ReasoningRuntimeState.get()
+            val runtimeAccess = secretVault.readAnthropicKey().getOrNull().orEmpty()
+            if (runtimeConfig.requiresRuntimeKey && runtimeAccess.isBlank()) {
+                _chatError.value = "Falta la llave de razonamiento."
                 return@launch
             }
 
@@ -192,9 +182,9 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                     livingMemoryContext = memoryContext
                 )
 
-                claudeClient.sendMessage(apiKey, systemPrompt, recent)
+                claudeClient.sendMessage(runtimeAccess, systemPrompt, recent)
                     .onSuccess { reply -> repository.addAssistantMessage(reply) }
-                    .onFailure { error -> _chatError.value = error.message ?: "Error al hablar con Claude." }
+                    .onFailure { error -> _chatError.value = error.message ?: "Error con el motor de razonamiento." }
             } finally {
                 _isSending.value = false
             }
