@@ -142,7 +142,7 @@ private fun ChatScreen(viewModel: MorimilViewModel) {
                     Text("Guardar")
                 }
             }
-            return@Column
+            Spacer(Modifier.height(16.dp))
         }
 
         LazyColumn(
