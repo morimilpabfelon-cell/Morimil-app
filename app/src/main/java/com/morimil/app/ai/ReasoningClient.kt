@@ -103,7 +103,7 @@ class ReasoningClient {
     ): Result<String> = runCatching {
         val valid = config.validated()
         if (valid.requiresRuntimeKey) {
-            require(runtimeKey.isNotBlank()) { "Falta la llave del proveedor de razonamiento." }
+            require(runtimeKey.isNotBlank()) { "Falta la llave de razonamiento." }
         }
         require(history.isNotEmpty()) { "No hay mensaje para enviar." }
 
@@ -134,10 +134,10 @@ class ReasoningClient {
                 connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
             }
             require(statusCode in 200..299) {
-                "Proveedor de razonamiento rechazo la solicitud: HTTP $statusCode $responseBody"
+                "Motor de razonamiento rechazo la solicitud: HTTP $statusCode $responseBody"
             }
             val reply = ReasoningWire.parseReply(valid, responseBody)
-            require(reply.isNotBlank()) { "El proveedor no devolvio texto." }
+            require(reply.isNotBlank()) { "El motor no devolvio texto." }
             reply
         } finally {
             connection.disconnect()
