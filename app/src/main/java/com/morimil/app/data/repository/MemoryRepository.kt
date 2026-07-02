@@ -5,8 +5,8 @@ import com.morimil.app.data.genesis.GenesisIdentity
 import com.morimil.app.data.local.DecisionLogEntity
 import com.morimil.app.data.local.GenesisCoreEntity
 import com.morimil.app.data.local.LocalInstanceIdentityEntity
-import com.morimil.app.data.local.MemoryEventEntity
 import com.morimil.app.data.local.MemoryDao
+import com.morimil.app.data.local.MemoryEventEntity
 import com.morimil.app.data.local.MemoryMessageEntity
 import com.morimil.app.data.local.MemorySnapshotEntity
 import com.morimil.app.data.local.MorimilDatabase
@@ -60,10 +60,6 @@ class MemoryRepository(private val database: MorimilDatabase) {
         )
     }
 
-    /**
-     * Only touches the display name. The local birth identity is never
-     * replaced after onboarding.
-     */
     suspend fun renameWorkspace(displayName: String): List<String> {
         val clean = displayName.trim()
         if (clean.isEmpty()) {
@@ -77,10 +73,6 @@ class MemoryRepository(private val database: MorimilDatabase) {
         return memoryDao.countLocalIdentity() > 0 || memoryDao.countGenesisCore() > 0
     }
 
-    /**
-     * Names this device's instance exactly once. Genesis is bundled inside
-     * the app and copied into local state; GitHub is not consulted at birth.
-     */
     suspend fun birthLocalIdentity(
         alias: String,
         genesis: GenesisIdentity,
@@ -265,6 +257,9 @@ class MemoryRepository(private val database: MorimilDatabase) {
                 eventSignature = null,
                 eventType = eventType,
                 actor = actor,
+                source = if (actor == "user" || actor == "morimil") "chat" else "system",
+                contextTag = "local_runtime",
+                privacyVisibility = PRIVATE_LOCAL,
                 body = cleanBody,
                 importance = importance.coerceIn(1, 100),
                 createdAtMillis = createdAtMillis
@@ -297,7 +292,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
     private fun scoreImportance(body: String): Int {
         val lower = body.lowercase()
         return when {
-            listOf("decid", "nombre", "genesis", "memoria", "api", "nunca", "siempre", "importante")
+            listOf("decid", "nombre", "genesis", "memoria", "nunca", "siempre", "importante")
                 .any { lower.contains(it) } -> 85
             body.length > 240 -> 65
             else -> 40
@@ -403,5 +398,6 @@ class MemoryRepository(private val database: MorimilDatabase) {
     companion object {
         private const val LEGACY_EVENT_HASH = "sha256:legacy-unverified"
         private const val MEMORY_EVENT_CANONICALIZATION = "morimil.memory_event_hash.v1"
+        private const val PRIVATE_LOCAL = "private_local"
     }
 }
