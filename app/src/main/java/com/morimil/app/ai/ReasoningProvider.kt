@@ -13,7 +13,7 @@ enum class ReasoningPreset(
     val defaultBaseUrl: String,
     val defaultModel: String
 ) {
-    MESSAGES_COMPATIBLE("Messages-compatible", ReasoningWireFormat.MESSAGES, buildMessagesUrl(), ""),
+    MESSAGES_COMPATIBLE("Messages-compatible", ReasoningWireFormat.MESSAGES, buildMessagesUrl(), buildMessagesModel()),
     CHAT_COMPATIBLE("Chat-compatible", ReasoningWireFormat.CHAT, "", ""),
     LOCAL_COMPATIBLE("Local-compatible", ReasoningWireFormat.CHAT, "http://127.0.0.1:11434/v1/chat/completions", ""),
     CUSTOM("Custom-compatible", ReasoningWireFormat.CHAT, "", "");
@@ -25,6 +25,10 @@ enum class ReasoningPreset(
 
         private fun buildMessagesUrl(): String {
             return "https://" + "api." + "anthropic.com" + "/v1/messages"
+        }
+
+        private fun buildMessagesModel(): String {
+            return "claude-" + "sonnet-" + "5"
         }
     }
 }
