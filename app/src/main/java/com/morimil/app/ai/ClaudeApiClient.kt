@@ -8,7 +8,7 @@ class ClaudeApiClient {
         history: List<ChatTurn>
     ): Result<String> {
         return ReasoningClient().sendMessage(
-            config = ReasoningProviderConfig.default(),
+            config = ReasoningRuntimeState.get(),
             runtimeKey = apiKey,
             systemPrompt = systemPrompt,
             history = history
