@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MemoryEventEntity::class,
         MemorySnapshotEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 abstract class MorimilDatabase : RoomDatabase() {
@@ -186,6 +186,15 @@ abstract class MorimilDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE memory_events ADD COLUMN source TEXT NOT NULL DEFAULT 'system'")
+                db.execSQL("ALTER TABLE memory_events ADD COLUMN contextTag TEXT NOT NULL DEFAULT 'local_runtime'")
+                db.execSQL("ALTER TABLE memory_events ADD COLUMN privacyVisibility TEXT NOT NULL DEFAULT 'private_local'")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_memory_events_createdAtMillis ON memory_events(createdAtMillis)")
+            }
+        }
+
         fun getInstance(context: Context): MorimilDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -193,7 +202,14 @@ abstract class MorimilDatabase : RoomDatabase() {
                     MorimilDatabase::class.java,
                     "morimil_memory.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(
+                        MIGRATION_1_2,
+                        MIGRATION_2_3,
+                        MIGRATION_3_4,
+                        MIGRATION_4_5,
+                        MIGRATION_5_6,
+                        MIGRATION_6_7
+                    )
                     .build()
                     .also { instance = it }
             }
