@@ -19,8 +19,7 @@
     "recall",
     "reasoning_use",
     "audit",
-    "migration",
-    "signatures"
+    "migration"
   ],
   "properties": {
     "schema_version": { "const": "morimil.memory_event.v1" },
@@ -64,7 +63,7 @@
         "previous_event_hash": { "type": ["string", "null"] },
         "event_hash": { "type": "string", "pattern": "^sha256:.+" },
         "hash_algorithm": { "const": "sha256" },
-        "canonicalization": { "const": "json_canonical_v1" },
+        "canonicalization": { "enum": ["json_canonical_v1", "morimil.memory_event_hash.v1"] },
         "chain_status": { "type": "string", "enum": ["valid", "pending_verification", "invalid"] }
       },
       "additionalProperties": false
@@ -256,10 +255,11 @@
     },
     "signatures": {
       "type": "object",
-      "required": ["event_signature"],
+      "required": ["event_signature", "signature_status"],
       "properties": {
+        "signature_status": { "type": "string", "enum": ["planned", "unsigned_runtime_v1", "signed"] },
         "event_signature": {
-          "type": "object",
+          "type": ["object", "null"],
           "required": ["algorithm", "key_alias", "signature"],
           "properties": {
             "algorithm": { "const": "ed25519" },
