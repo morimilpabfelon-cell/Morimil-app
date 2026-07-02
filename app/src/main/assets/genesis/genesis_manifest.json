@@ -1,8 +1,8 @@
 {
   "schema_version": "morimil.genesis_manifest.v1",
-  "manifest_id": "gmanifest_20260702_memory_core",
+  "manifest_id": "gmanifest_20260702_memory_core_runtime_integrity",
   "generated_at": "2026-07-02T00:00:00.000Z",
-  "genesis_core_hash": "sha256:7eb7c8c8a9c3b0dcd4102b7a12137c302f83bb33b3ba5b3934be2888bbd5d318",
+  "genesis_core_hash": "sha256:47ab394c2352f08e269bdadbc77ffa44b0b6ed6f9f623957bb47994422b3acc4",
   "canonicalization_spec": {
     "name": "RFC8785-JCS",
     "profile": "morimil_jcs_v1",
@@ -10,20 +10,20 @@
   },
   "bundle": {
     "name": "morimil_genesis_bundle",
-    "version": "memory-core-v1",
+    "version": "memory-core-v1.1",
     "purpose": "Install immutable Genesis seed and memory contracts into Morimil-app."
   },
   "files": [
     {
       "path": "docs/GENESIS_MEMORY_CORE.md",
       "kind": "doc",
-      "sha256": "sha256:062d0d70ca6a690d70664b3415432255e5a743c804b47e74618c224ae99f7d56",
+      "sha256": "sha256:cc426e7473a7f1d1b38fe98a217b61b1c48323566176d3b0c1b16622dee22c50",
       "required": true
     },
     {
       "path": "doctrine/doctrine.md",
       "kind": "doctrine",
-      "sha256": "sha256:978c9e934ce04a2ca6ccd9834b300d871dd69aae712ca7493c6e36ac4640b407",
+      "sha256": "sha256:0020228d16e0d94f8e22df0966de9f67622534115e53e872e2a77feac0392ffb",
       "required": true
     },
     {
@@ -35,13 +35,13 @@
     {
       "path": "identity/orchestrator.identity.json",
       "kind": "identity",
-      "sha256": "sha256:300a9ebe6470baa636ce32d795b0741f62dd645ae8895e5d3b91d6eab5b9fcfb",
+      "sha256": "sha256:b2d984b28a94c8ccbd50f9eccf832cfb2f55ec48325bb997b74a0e64cc542a00",
       "required": true
     },
     {
       "path": "policy/memory_policy.rego",
       "kind": "policy",
-      "sha256": "sha256:dbe422aff485018cad770c8c14a7e01506bdee88d6ea3ce87aac85e5037b39d6",
+      "sha256": "sha256:afbcd59df1bd1e3bf9ef8687c7277ed4c90a53cd67d8507c0070830732ba3ebd",
       "required": true
     },
     {
@@ -59,7 +59,7 @@
     {
       "path": "schemas/genesis_manifest.v1.schema.json",
       "kind": "schema",
-      "sha256": "sha256:ca5052fd5a62dab26f0244bfc670b26aa96a338acfd4e8226e9b78954068bdda",
+      "sha256": "sha256:63acf37a3b1e8cc0c36ca40f2f1dd57a18c732d58ec9cb495995cecd1e08255a",
       "required": true
     },
     {
@@ -77,7 +77,7 @@
     {
       "path": "schemas/memory_event.v1.schema.json",
       "kind": "schema",
-      "sha256": "sha256:a9a5e1db2a6852eb8879ac7d4204db2ef106817d1e9732a0dd99fb9f637a6d95",
+      "sha256": "sha256:4b44af3e07def33375141115cdccbd1b71887fd627de0a30c36f5b1ab9dca440",
       "required": true
     },
     {
@@ -125,7 +125,9 @@
   },
   "signature_policy": {
     "genesis_signature_required": true,
+    "event_signature_required": false,
     "event_signature_algorithm": "ed25519",
-    "key_storage": "android_keystore"
+    "key_storage": "android_keystore",
+    "status": "planned"
   }
 }
