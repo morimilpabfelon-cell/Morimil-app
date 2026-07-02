@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MemoryEventEntity::class,
         MemorySnapshotEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 abstract class MorimilDatabase : RoomDatabase() {
@@ -173,6 +173,19 @@ abstract class MorimilDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE memory_events ADD COLUMN previousEventHash TEXT")
+                db.execSQL("ALTER TABLE memory_events ADD COLUMN genesisCoreHash TEXT NOT NULL DEFAULT 'sha256:legacy-unverified'")
+                db.execSQL("ALTER TABLE memory_events ADD COLUMN eventHash TEXT NOT NULL DEFAULT 'sha256:legacy-unverified'")
+                db.execSQL("ALTER TABLE memory_events ADD COLUMN hashAlgorithm TEXT NOT NULL DEFAULT 'sha256'")
+                db.execSQL("ALTER TABLE memory_events ADD COLUMN canonicalization TEXT NOT NULL DEFAULT 'morimil.memory_event_hash.v1'")
+                db.execSQL("ALTER TABLE memory_events ADD COLUMN signatureAlgorithm TEXT")
+                db.execSQL("ALTER TABLE memory_events ADD COLUMN eventSignature TEXT")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_memory_events_eventHash ON memory_events(eventHash)")
+            }
+        }
+
         fun getInstance(context: Context): MorimilDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -180,7 +193,7 @@ abstract class MorimilDatabase : RoomDatabase() {
                     MorimilDatabase::class.java,
                     "morimil_memory.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                     .also { instance = it }
             }
