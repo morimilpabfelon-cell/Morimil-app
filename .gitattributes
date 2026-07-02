@@ -1,0 +1,9 @@
+* text=auto
+
+# Genesis seed files are hash-verified at runtime. Their bytes must stay stable
+# across Windows/macOS/Linux checkouts.
+app/src/main/assets/genesis/** text eol=lf
+
+# Keep platform scripts explicit.
+gradlew text eol=lf
+*.bat text eol=crlf
