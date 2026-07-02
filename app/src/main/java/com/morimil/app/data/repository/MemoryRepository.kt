@@ -29,35 +29,39 @@ class MemoryRepository(private val database: MorimilDatabase) {
     val livingMemorySnapshot: Flow<MemorySnapshotEntity?> = memoryDao.observeLivingMemorySnapshot()
 
     suspend fun addUserMessage(body: String) {
-        memoryDao.insertMessage(
-            MemoryMessageEntity(
-                author = "user",
-                body = body,
-                createdAtMillis = System.currentTimeMillis()
+        database.withTransaction {
+            memoryDao.insertMessage(
+                MemoryMessageEntity(
+                    author = "user",
+                    body = body,
+                    createdAtMillis = System.currentTimeMillis()
+                )
             )
-        )
-        appendMemoryEvent(
-            eventType = "conversation.user_message",
-            actor = "user",
-            body = body,
-            importance = scoreImportance(body)
-        )
+            appendMemoryEvent(
+                eventType = "conversation.user_message",
+                actor = "user",
+                body = body,
+                importance = scoreImportance(body)
+            )
+        }
     }
 
     suspend fun addAssistantMessage(body: String) {
-        memoryDao.insertMessage(
-            MemoryMessageEntity(
-                author = "morimil",
-                body = body,
-                createdAtMillis = System.currentTimeMillis()
+        database.withTransaction {
+            memoryDao.insertMessage(
+                MemoryMessageEntity(
+                    author = "morimil",
+                    body = body,
+                    createdAtMillis = System.currentTimeMillis()
+                )
             )
-        )
-        appendMemoryEvent(
-            eventType = "conversation.assistant_message",
-            actor = "morimil",
-            body = body,
-            importance = scoreImportance(body)
-        )
+            appendMemoryEvent(
+                eventType = "conversation.assistant_message",
+                actor = "morimil",
+                body = body,
+                importance = scoreImportance(body)
+            )
+        }
     }
 
     suspend fun renameWorkspace(displayName: String): List<String> {
