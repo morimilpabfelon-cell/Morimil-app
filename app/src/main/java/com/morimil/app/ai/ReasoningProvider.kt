@@ -39,7 +39,12 @@ data class ReasoningProviderConfig(
     val model: String,
     val maxTokens: Int = DEFAULT_MAX_TOKENS
 ) {
-    val wireFormat: ReasoningWireFormat get() = preset.wireFormat
+    val wireFormat: ReasoningWireFormat
+        get() = if (baseUrl.contains("/chat/completions")) {
+            ReasoningWireFormat.CHAT
+        } else {
+            preset.wireFormat
+        }
 
     val requiresRuntimeKey: Boolean
         get() = !(baseUrl.startsWith("http://127.0.0.1") ||
