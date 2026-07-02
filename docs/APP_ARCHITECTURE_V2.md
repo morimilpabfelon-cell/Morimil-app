@@ -27,7 +27,7 @@ Genesis is the seed. The app is the body. Local memory is the lived nervous syst
 - Local encrypted runtime storage.
 - Runtime gate shell.
 
-## V2 memory event contract
+## Memory event contract
 
 Active fields:
 
@@ -48,14 +48,31 @@ Active fields:
 - importance
 - createdAtMillis
 
-`source`, `contextTag`, and `privacyVisibility` are the v2 metadata layer for origin and local boundary tracking.
+## Hash versions
+
+The ledger supports two canonical forms:
+
+- `morimil.memory_event_hash.v1`: existing events from main. It verifies the original fields only.
+- `morimil.memory_event_hash.v2`: new events. It includes `source`, `contextTag`, and `privacyVisibility` inside the event hash.
+
+This avoids breaking old memory while strengthening new memory.
+
+## Memory organs
+
+Active sidecar organs:
+
+- AutobiographicalSnapshotEntity
+- KnowledgeCapsuleEntity
+- MemoryOrganDao
+- MemoryOrganDatabase
+- MemoryOrganRepository
+
+They live in a secondary Room database so the primary ledger is not destabilized while these organs mature.
 
 ## Next organs
 
 These are allowed only when backed by tables, DAO, runtime code, and tests:
 
-- autobiographical snapshot
-- knowledge capsule
 - recall schedule
 - rest cycle
 - migration record
