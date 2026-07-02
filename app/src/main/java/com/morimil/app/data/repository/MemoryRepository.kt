@@ -14,6 +14,7 @@ import com.morimil.app.data.local.ProjectStateEntity
 import com.morimil.app.data.local.UserWorkspaceEntity
 import kotlinx.coroutines.flow.Flow
 import org.json.JSONArray
+import java.security.MessageDigest
 
 class MemoryRepository(private val database: MorimilDatabase) {
     private val memoryDao: MemoryDao = database.memoryDao()
@@ -201,7 +202,8 @@ class MemoryRepository(private val database: MorimilDatabase) {
 
         val snapshotText = snapshot?.summary ?: "No living memory snapshot yet."
         val eventText = events.joinToString("\n") { event ->
-            "- [${event.eventType}/${event.actor}/i${event.importance}] ${event.body.take(500)}"
+            "- [${event.eventType}/${event.actor}/i${event.importance}/${event.eventHash.take(19)}] " +
+                event.body.take(500)
         }
 
         return """
@@ -230,14 +232,42 @@ class MemoryRepository(private val database: MorimilDatabase) {
         body: String,
         importance: Int
     ) {
+        val cleanBody = body.trim()
+        val createdAtMillis = System.currentTimeMillis()
+        val genesisCore = requireNotNull(memoryDao.loadGenesisCore()) {
+            "Cannot append living memory without a local Genesis Core."
+        }
+        val existingChain = memoryDao.loadMemoryEventChain()
+        require(verifyMemoryEventChain(existingChain)) {
+            "Living memory chain integrity failed. Refusing to append a new event."
+        }
+        val previousEventHash = existingChain.lastOrNull()?.eventHash
+        val eventHash = hashMemoryEvent(
+            genesisCoreId = genesisCore.coreId,
+            genesisCoreHash = genesisCore.contentSha256,
+            previousEventHash = previousEventHash,
+            eventType = eventType,
+            actor = actor,
+            body = cleanBody,
+            importance = importance.coerceIn(1, 100),
+            createdAtMillis = createdAtMillis
+        )
+
         memoryDao.insertMemoryEvent(
             MemoryEventEntity(
-                genesisCoreId = "primary_genesis",
+                genesisCoreId = genesisCore.coreId,
+                genesisCoreHash = genesisCore.contentSha256,
+                previousEventHash = previousEventHash,
+                eventHash = eventHash,
+                hashAlgorithm = "sha256",
+                canonicalization = MEMORY_EVENT_CANONICALIZATION,
+                signatureAlgorithm = null,
+                eventSignature = null,
                 eventType = eventType,
                 actor = actor,
-                body = body.trim(),
+                body = cleanBody,
                 importance = importance.coerceIn(1, 100),
-                createdAtMillis = System.currentTimeMillis()
+                createdAtMillis = createdAtMillis
             )
         )
         rebuildLivingMemorySnapshot()
@@ -274,4 +304,104 @@ class MemoryRepository(private val database: MorimilDatabase) {
         }
     }
 
+    private fun verifyMemoryEventChain(events: List<MemoryEventEntity>): Boolean {
+        var expectedPreviousHash: String? = null
+        events.forEach { event ->
+            if (event.eventHash == LEGACY_EVENT_HASH) {
+                expectedPreviousHash = event.eventHash
+                return@forEach
+            }
+            if (event.previousEventHash != expectedPreviousHash) return false
+            if (event.hashAlgorithm != "sha256") return false
+            if (event.canonicalization != MEMORY_EVENT_CANONICALIZATION) return false
+
+            val expectedHash = hashMemoryEvent(
+                genesisCoreId = event.genesisCoreId,
+                genesisCoreHash = event.genesisCoreHash,
+                previousEventHash = event.previousEventHash,
+                eventType = event.eventType,
+                actor = event.actor,
+                body = event.body,
+                importance = event.importance,
+                createdAtMillis = event.createdAtMillis
+            )
+            if (event.eventHash != expectedHash) return false
+            expectedPreviousHash = event.eventHash
+        }
+        return true
+    }
+
+    private fun hashMemoryEvent(
+        genesisCoreId: String,
+        genesisCoreHash: String,
+        previousEventHash: String?,
+        eventType: String,
+        actor: String,
+        body: String,
+        importance: Int,
+        createdAtMillis: Long
+    ): String {
+        val canonical = stableStringify(
+            mapOf(
+                "actor" to actor,
+                "body" to body,
+                "canonicalization" to MEMORY_EVENT_CANONICALIZATION,
+                "createdAtMillis" to createdAtMillis,
+                "eventType" to eventType,
+                "genesisCoreId" to genesisCoreId,
+                "genesisCoreHash" to genesisCoreHash,
+                "hashAlgorithm" to "sha256",
+                "importance" to importance,
+                "previousEventHash" to previousEventHash
+            )
+        )
+        val digest = MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray(Charsets.UTF_8))
+        return "sha256:" + digest.joinToString("") { "%02x".format(it.toInt() and 0xff) }
+    }
+
+    private fun stableStringify(value: Any?): String {
+        return when (value) {
+            null -> "null"
+            is String -> quoteJsonString(value)
+            is Number, is Boolean -> value.toString()
+            is Map<*, *> -> value.keys
+                .filterIsInstance<String>()
+                .sorted()
+                .joinToString(prefix = "{", postfix = "}", separator = ",") { key ->
+                    "${quoteJsonString(key)}:${stableStringify(value[key])}"
+                }
+            else -> quoteJsonString(value.toString())
+        }
+    }
+
+    private fun quoteJsonString(value: String): String {
+        val output = StringBuilder(value.length + 2)
+        output.append('"')
+        value.forEach { char ->
+            when (char) {
+                '"' -> output.append("\\\"")
+                '\\' -> output.append("\\\\")
+                '\b' -> output.append("\\b")
+                '\u000C' -> output.append("\\f")
+                '\n' -> output.append("\\n")
+                '\r' -> output.append("\\r")
+                '\t' -> output.append("\\t")
+                else -> {
+                    if (char.code < 0x20) {
+                        output.append("\\u")
+                        output.append(char.code.toString(16).padStart(4, '0'))
+                    } else {
+                        output.append(char)
+                    }
+                }
+            }
+        }
+        output.append('"')
+        return output.toString()
+    }
+
+    companion object {
+        private const val LEGACY_EVENT_HASH = "sha256:legacy-unverified"
+        private const val MEMORY_EVENT_CANONICALIZATION = "morimil.memory_event_hash.v1"
+    }
 }
