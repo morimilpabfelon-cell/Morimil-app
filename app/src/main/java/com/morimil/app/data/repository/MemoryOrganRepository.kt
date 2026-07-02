@@ -9,7 +9,7 @@ class MemoryOrganRepository(database: MemoryOrganDatabase) {
     private val dao = database.memoryOrganDao()
 
     val selfSnapshot: Flow<AutobiographicalSnapshotEntity?> = dao.observeCurrentSelfSnapshot()
-    val knowledgeCapsules: Flow<List<KnowledgeCapsuleEntity>> = dao.observeKnowledgeCapsules()
+    val knowledgeCapsules: Flow<List<KnowledgeCapsuleEntity>> = dao.observeRecentKnowledgeCapsules()
 
     suspend fun updateSelfSnapshot(
         genesisCoreId: String,
