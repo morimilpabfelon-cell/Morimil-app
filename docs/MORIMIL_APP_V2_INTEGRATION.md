@@ -10,6 +10,7 @@ Do not replace the current app blindly. Build the stronger body on top of the cu
 
 - Configurable motor transport.
 - Two request formats.
+- Endpoint-based chat wire inference for `/chat/completions` endpoints.
 - Legacy chat bridge.
 - Memory events with source and local visibility scope.
 - Room v7 migration for memory event metadata.
