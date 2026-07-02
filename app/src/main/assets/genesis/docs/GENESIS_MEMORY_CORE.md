@@ -120,7 +120,9 @@ assets/genesis/
   genesis_manifest.json
 ```
 
-At first birth, the app copies this bundle into private internal storage, verifies the manifest, creates the first signed birth event, and starts append-only local memory.
+At first birth, the app copies this bundle into private internal storage, verifies the manifest, creates the first hash-linked birth event, and starts append-only local memory.
+
+Runtime v1 implements local SHA-256 event chaining. Ed25519 event signatures remain a planned integrity upgrade, not an active runtime guarantee.
 
 Examples remain in the repository as design fixtures. They are not part of the installable mobile seed.
 
