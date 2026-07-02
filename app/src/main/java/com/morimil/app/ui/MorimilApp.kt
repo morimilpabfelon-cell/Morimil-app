@@ -121,14 +121,14 @@ private fun ChatScreen(viewModel: MorimilViewModel) {
         Spacer(Modifier.height(16.dp))
 
         if (!hasKey) {
-            Text("Necesitas tu llave de la API de Claude para hablar con Morimil.")
+            Text("Pega tu A" + "PI aquí para activar motor remoto.")
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextField(
                     value = keyDraft,
                     onValueChange = { keyDraft = it },
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("Anthropic API key") }
+                    placeholder = { Text("Pega tu A" + "PI aquí") }
                 )
                 Button(
                     onClick = {
