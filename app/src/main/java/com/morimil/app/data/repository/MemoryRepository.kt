@@ -238,7 +238,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
         val contextTag = "local_runtime"
         val privacyVisibility = PRIVATE_LOCAL
         val previousEventHash = existingChain.lastOrNull()?.eventHash
-        val eventHash = hashMemoryEvent(
+        val eventHash = hashMemoryEventV2(
             genesisCoreId = genesisCore.coreId,
             genesisCoreHash = genesisCore.contentSha256,
             previousEventHash = previousEventHash,
@@ -259,7 +259,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
                 previousEventHash = previousEventHash,
                 eventHash = eventHash,
                 hashAlgorithm = "sha256",
-                canonicalization = MEMORY_EVENT_CANONICALIZATION,
+                canonicalization = MEMORY_EVENT_CANONICALIZATION_V2,
                 signatureAlgorithm = null,
                 eventSignature = null,
                 eventType = eventType,
@@ -315,28 +315,66 @@ class MemoryRepository(private val database: MorimilDatabase) {
             }
             if (event.previousEventHash != expectedPreviousHash) return false
             if (event.hashAlgorithm != "sha256") return false
-            if (event.canonicalization != MEMORY_EVENT_CANONICALIZATION) return false
 
-            val expectedHash = hashMemoryEvent(
-                genesisCoreId = event.genesisCoreId,
-                genesisCoreHash = event.genesisCoreHash,
-                previousEventHash = event.previousEventHash,
-                eventType = event.eventType,
-                actor = event.actor,
-                source = event.source,
-                contextTag = event.contextTag,
-                privacyVisibility = event.privacyVisibility,
-                body = event.body,
-                importance = event.importance,
-                createdAtMillis = event.createdAtMillis
-            )
+            val expectedHash = when (event.canonicalization) {
+                MEMORY_EVENT_CANONICALIZATION_V1 -> hashMemoryEventV1(
+                    genesisCoreId = event.genesisCoreId,
+                    genesisCoreHash = event.genesisCoreHash,
+                    previousEventHash = event.previousEventHash,
+                    eventType = event.eventType,
+                    actor = event.actor,
+                    body = event.body,
+                    importance = event.importance,
+                    createdAtMillis = event.createdAtMillis
+                )
+                MEMORY_EVENT_CANONICALIZATION_V2 -> hashMemoryEventV2(
+                    genesisCoreId = event.genesisCoreId,
+                    genesisCoreHash = event.genesisCoreHash,
+                    previousEventHash = event.previousEventHash,
+                    eventType = event.eventType,
+                    actor = event.actor,
+                    source = event.source,
+                    contextTag = event.contextTag,
+                    privacyVisibility = event.privacyVisibility,
+                    body = event.body,
+                    importance = event.importance,
+                    createdAtMillis = event.createdAtMillis
+                )
+                else -> return false
+            }
             if (event.eventHash != expectedHash) return false
             expectedPreviousHash = event.eventHash
         }
         return true
     }
 
-    private fun hashMemoryEvent(
+    private fun hashMemoryEventV1(
+        genesisCoreId: String,
+        genesisCoreHash: String,
+        previousEventHash: String?,
+        eventType: String,
+        actor: String,
+        body: String,
+        importance: Int,
+        createdAtMillis: Long
+    ): String {
+        return hashFields(
+            mapOf(
+                "actor" to actor,
+                "body" to body,
+                "canonicalization" to MEMORY_EVENT_CANONICALIZATION_V1,
+                "createdAtMillis" to createdAtMillis,
+                "eventType" to eventType,
+                "genesisCoreId" to genesisCoreId,
+                "genesisCoreHash" to genesisCoreHash,
+                "hashAlgorithm" to "sha256",
+                "importance" to importance,
+                "previousEventHash" to previousEventHash
+            )
+        )
+    }
+
+    private fun hashMemoryEventV2(
         genesisCoreId: String,
         genesisCoreHash: String,
         previousEventHash: String?,
@@ -349,11 +387,11 @@ class MemoryRepository(private val database: MorimilDatabase) {
         importance: Int,
         createdAtMillis: Long
     ): String {
-        val canonical = stableStringify(
+        return hashFields(
             mapOf(
                 "actor" to actor,
                 "body" to body,
-                "canonicalization" to MEMORY_EVENT_CANONICALIZATION,
+                "canonicalization" to MEMORY_EVENT_CANONICALIZATION_V2,
                 "contextTag" to contextTag,
                 "createdAtMillis" to createdAtMillis,
                 "eventType" to eventType,
@@ -366,6 +404,10 @@ class MemoryRepository(private val database: MorimilDatabase) {
                 "source" to source
             )
         )
+    }
+
+    private fun hashFields(fields: Map<String, Any?>): String {
+        val canonical = stableStringify(fields)
         val digest = MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray(Charsets.UTF_8))
         return "sha256:" + digest.joinToString("") { "%02x".format(it.toInt() and 0xff) }
     }
@@ -413,7 +455,8 @@ class MemoryRepository(private val database: MorimilDatabase) {
 
     companion object {
         private const val LEGACY_EVENT_HASH = "sha256:legacy-unverified"
-        private const val MEMORY_EVENT_CANONICALIZATION = "morimil.memory_event_hash.v1"
+        private const val MEMORY_EVENT_CANONICALIZATION_V1 = "morimil.memory_event_hash.v1"
+        private const val MEMORY_EVENT_CANONICALIZATION_V2 = "morimil.memory_event_hash.v2"
         private const val PRIVATE_LOCAL = "private_local"
     }
 }
