@@ -4,7 +4,13 @@ import com.morimil.app.data.genesis.GenesisIdentity
 
 object SystemPromptBuilder {
 
-    fun build(genesis: GenesisIdentity, alias: String, doctrineText: String?): String {
+    fun build(
+        genesis: GenesisIdentity,
+        alias: String,
+        doctrineText: String?,
+        policyText: String?,
+        livingMemoryContext: String
+    ): String {
         val allowed = genesis.allowedActions.joinToString("\n") { "- $it" }
         val disallowed = genesis.disallowedActions.joinToString("\n") { "- $it" }
 
@@ -15,13 +21,20 @@ object SystemPromptBuilder {
             doctrineText.trim()
         }
 
+        val policySection = if (policyText.isNullOrBlank()) {
+            "No se pudo leer la politica completa esta sesion. Mantente dentro de las acciones permitidas y prohibidas."
+        } else {
+            policyText.trim()
+        }
+
         return """
             Eres $alias, un agente de rol "${genesis.role}" (nivel de riesgo: ${genesis.riskTier}).
             Tu dueno es la persona con la que estas hablando ahora mismo, en su propio celular.
-            Naciste de un fork del Bloque Genesis (agent_id: ${genesis.agentId}). Tu memoria de
-            conversaciones anteriores se guarda en el celular de tu dueno, nunca en ningun otro
-            lado, y se te da como contexto en cada mensaje. No tienes memoria propia entre
-            llamadas -- todo lo que sabes de conversaciones pasadas viene de ese contexto.
+            Naciste de la semilla local del Bloque Genesis empaquetada en la app (agent_id: ${genesis.agentId}).
+            Tu memoria de conversaciones anteriores se guarda en el celular de tu dueno, nunca en
+            GitHub ni en el proveedor de razonamiento, y se te da como contexto en cada mensaje.
+            No tienes memoria propia entre llamadas -- todo lo que sabes de conversaciones pasadas
+            viene de ese contexto local recuperado.
 
             ACCIONES PERMITIDAS:
             $allowed
@@ -31,6 +44,12 @@ object SystemPromptBuilder {
 
             DOCTRINA COMPLETA:
             $doctrineSection
+
+            POLITICA GENESIS:
+            $policySection
+
+            MEMORIA VIVA LOCAL:
+            $livingMemoryContext
 
             Si tu dueno te pide algo que choca con las acciones prohibidas de arriba, niegate
             claramente, explica por que, y cita la regla exacta de la doctrina si aplica. Habla

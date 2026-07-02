@@ -19,27 +19,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.morimil.app.data.genesis.GenesisIdentitySource
-import com.morimil.app.data.genesis.GenesisOrigin
 import kotlinx.coroutines.launch
 
 /**
  * Shown once, on first install, before the main tab UI. Matches:
- * "el Bloque Genesis es la semilla, el celular es la tierra" -- reads
- * Genesis, forks it under the user's own GitHub account (so this instance's
- * memory will live in that fork, never the shared Genesis repo), then names
- * the local instance.
+ * "el Bloque Genesis es la semilla, el celular es la tierra". Genesis is
+ * bundled in the app; the user names the local instance exactly once.
  */
 @Composable
 fun OnboardingScreen(viewModel: MorimilViewModel) {
     val genesisResult by viewModel.genesisResult.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
-    var tokenDraft by remember { mutableStateOf("") }
-    var hasToken by remember { mutableStateOf(viewModel.hasGitHubToken()) }
     var alias by remember { mutableStateOf("") }
     var status by remember { mutableStateOf<String?>(null) }
     var working by remember { mutableStateOf(false) }
@@ -52,70 +46,44 @@ fun OnboardingScreen(viewModel: MorimilViewModel) {
         Text("El Bloque Genesis es la semilla. Tu celular es la tierra donde crece tu instancia.")
 
         when (val result = genesisResult) {
-            null -> OnboardingCard("Genesis", "Leyendo reglas base desde GitHub...", "loading")
+            null -> OnboardingCard("Genesis", "Leyendo semilla local empaquetada...", "loading")
             else -> result.fold(
                 onSuccess = { source -> GenesisPreview(source) },
                 onFailure = { error -> OnboardingCard("Genesis", error.message.orEmpty(), "error") }
             )
         }
 
-        if (!hasToken) {
-            Text("Paso 1: token de GitHub, para que la app cree tu fork de Morimil.")
-            OutlinedTextField(
-                value = tokenDraft,
-                onValueChange = { tokenDraft = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("GitHub token") },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true
-            )
-            Button(
-                enabled = tokenDraft.isNotBlank(),
-                onClick = {
-                    viewModel.saveGitHubToken(tokenDraft)
+        Text("Paso 1: nombra tu instancia. Este nombre se define una sola vez.")
+        OutlinedTextField(
+            value = alias,
+            onValueChange = { alias = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Como quieres llamar a tu instancia?") },
+            singleLine = true
+        )
+
+        if (working) {
+            CircularProgressIndicator()
+            Text("Copiando Genesis y creando tu instancia local...")
+        }
+
+        Button(
+            enabled = genesisResult?.isSuccess == true && alias.isNotBlank() && !working,
+            onClick = {
+                working = true
+                scope.launch {
+                    viewModel.bornInstance(alias.trim())
                         .onSuccess {
-                            tokenDraft = ""
-                            hasToken = true
-                            status = null
+                            status = "Instancia creada. Genesis local copiado al telefono."
                         }
-                        .onFailure { error -> status = error.message.orEmpty() }
+                        .onFailure { error ->
+                            status = error.message.orEmpty()
+                            working = false
+                        }
                 }
-            ) {
-                Text("Guardar token")
             }
-        } else {
-            Text("Paso 2: nombra tu instancia. La app forkeara Genesis bajo tu cuenta.")
-            OutlinedTextField(
-                value = alias,
-                onValueChange = { alias = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Como quieres llamar a tu instancia?") },
-                singleLine = true
-            )
-
-            if (working) {
-                CircularProgressIndicator()
-                Text("Creando tu fork y tu instancia...")
-            }
-
-            Button(
-                enabled = genesisResult?.isSuccess == true && alias.isNotBlank() && !working,
-                onClick = {
-                    working = true
-                    scope.launch {
-                        viewModel.bornInstance(alias.trim())
-                            .onSuccess {
-                                status = "Instancia creada. Fork listo bajo tu cuenta de GitHub."
-                            }
-                            .onFailure { error ->
-                                status = error.message.orEmpty()
-                                working = false
-                            }
-                    }
-                }
-            ) {
-                Text("Fork Genesis y crear mi instancia")
-            }
+        ) {
+            Text("Crear mi instancia")
         }
 
         status?.let { OnboardingCard("Estado", it, "pending") }
@@ -124,11 +92,9 @@ fun OnboardingScreen(viewModel: MorimilViewModel) {
 
 @Composable
 private fun GenesisPreview(source: GenesisIdentitySource) {
-    val originLabel = when (source.origin) {
-        GenesisOrigin.GITHUB_LIVE -> "leido en vivo desde GitHub"
-        GenesisOrigin.BUNDLED_FALLBACK -> "sin red -- usando copia local empaquetada"
-    }
+    val originLabel = "semilla local empaquetada (${source.origin.label})"
     OnboardingCard(source.identity.alias, "${source.identity.role} / ${source.identity.riskTier}", originLabel)
+    OnboardingCard("Genesis verificado", "${source.manifest.fileCount} archivos / ${source.manifest.genesisCoreHash}", source.manifest.manifestId)
     OnboardingCard("Acciones permitidas", source.identity.allowedActions.joinToString(", "), "bounded")
     OnboardingCard("Acciones prohibidas", source.identity.disallowedActions.joinToString(", "), "protected")
 }

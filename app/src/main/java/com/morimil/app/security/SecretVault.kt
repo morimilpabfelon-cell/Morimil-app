@@ -11,7 +11,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * Stores any named secret (GitHub token, Anthropic API key, etc.) encrypted
+ * Stores named runtime secrets, such as a reasoning API key, encrypted
  * with an AndroidKeyStore-backed AES-GCM key. The key material never leaves
  * secure hardware; only the ciphertext and IV are persisted, in
  * SharedPreferences, keyed by secret name.
@@ -58,12 +58,6 @@ class SecretVault(context: Context) {
         String(cipher.doFinal(encrypted), Charsets.UTF_8)
     }
 
-    // Convenience wrappers -- same underlying storage, clearer call sites.
-    fun hasGitHubToken(): Boolean = hasSecret(GITHUB_TOKEN)
-    fun saveGitHubToken(token: String): Result<Unit> = saveSecret(GITHUB_TOKEN, token)
-    fun readGitHubToken(): Result<String?> = readSecret(GITHUB_TOKEN)
-    fun clearGitHubToken() = clearSecret(GITHUB_TOKEN)
-
     fun hasAnthropicKey(): Boolean = hasSecret(ANTHROPIC_KEY)
     fun saveAnthropicKey(key: String): Result<Unit> = saveSecret(ANTHROPIC_KEY, key)
     fun readAnthropicKey(): Result<String?> = readSecret(ANTHROPIC_KEY)
@@ -100,11 +94,10 @@ class SecretVault(context: Context) {
 
     companion object {
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
-        private const val KEY_ALIAS = "morimil_github_sync_gate_key"
+        private const val KEY_ALIAS = "morimil_secret_vault_key"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
         private const val GCM_TAG_LENGTH_BITS = 128
         private const val PREFERENCES_NAME = "morimil_secret_vault"
-        private const val GITHUB_TOKEN = "github_token"
         private const val ANTHROPIC_KEY = "anthropic_api_key"
     }
 }

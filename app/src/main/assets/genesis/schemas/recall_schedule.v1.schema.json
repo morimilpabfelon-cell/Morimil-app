@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morimil.local/schemas/recall_schedule.v1.schema.json",
+  "title": "Morimil Recall Schedule v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "schedule_id",
+    "instance_id",
+    "genesis_core_hash",
+    "targets",
+    "policy",
+    "next_run",
+    "audit"
+  ],
+  "properties": {
+    "schema_version": { "const": "morimil.recall_schedule.v1" },
+    "schedule_id": { "type": "string", "pattern": "^recall_[0-9]{6,}$" },
+    "instance_id": { "type": "string", "minLength": 1 },
+    "genesis_core_hash": { "type": "string", "pattern": "^sha256:.+" },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["target_id", "target_type", "reason", "priority"],
+        "properties": {
+          "target_id": { "type": "string", "minLength": 1 },
+          "target_type": { "type": "string", "enum": ["memory_event", "knowledge_capsule", "project", "autobiographical_snapshot"] },
+          "reason": { "type": "string", "minLength": 1 },
+          "priority": { "type": "integer", "minimum": 0, "maximum": 100 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "policy": {
+      "type": "object",
+      "required": ["mode", "user_interrupt_allowed", "max_items_per_run", "low_load_only"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["silent", "ask_user", "summary_prompt"] },
+        "user_interrupt_allowed": { "type": "boolean" },
+        "max_items_per_run": { "type": "integer", "minimum": 1 },
+        "low_load_only": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "next_run": {
+      "type": "object",
+      "required": ["scheduled_at", "local_conditions"],
+      "properties": {
+        "scheduled_at": { "type": "string", "format": "date-time" },
+        "local_conditions": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "audit": {
+      "type": "object",
+      "required": ["created_by", "created_at"],
+      "properties": {
+        "created_by": { "type": "string", "minLength": 1 },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

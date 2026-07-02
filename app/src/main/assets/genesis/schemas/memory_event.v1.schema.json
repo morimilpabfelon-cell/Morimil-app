@@ -1,0 +1,286 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morimil.local/schemas/memory_event.v1.schema.json",
+  "title": "Morimil Memory Event v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "event_id",
+    "instance",
+    "genesis",
+    "chain",
+    "event",
+    "memory",
+    "privacy",
+    "classification",
+    "links",
+    "decay",
+    "review_schedule",
+    "recall",
+    "reasoning_use",
+    "audit",
+    "migration",
+    "signatures"
+  ],
+  "properties": {
+    "schema_version": { "const": "morimil.memory_event.v1" },
+    "event_id": { "type": "string", "pattern": "^mem_[0-9]{6,}$" },
+    "instance": {
+      "type": "object",
+      "required": ["instance_id", "instance_name", "owner_id", "device_scope"],
+      "properties": {
+        "instance_id": { "type": "string", "minLength": 1 },
+        "instance_name": { "type": "string", "minLength": 1 },
+        "owner_id": { "type": "string", "minLength": 1 },
+        "device_scope": { "type": "string", "enum": ["primary_device", "restored_device", "test_device"] }
+      },
+      "additionalProperties": false
+    },
+    "genesis": {
+      "type": "object",
+      "required": ["genesis_core_id", "genesis_core_hash", "doctrine_hash", "policy_hash"],
+      "properties": {
+        "genesis_core_id": { "type": "string", "minLength": 1 },
+        "genesis_core_hash": { "type": "string", "pattern": "^sha256:.+" },
+        "doctrine_hash": { "type": "string", "pattern": "^sha256:.+" },
+        "policy_hash": { "type": "string", "pattern": "^sha256:.+" }
+      },
+      "additionalProperties": false
+    },
+    "chain": {
+      "type": "object",
+      "required": [
+        "sequence",
+        "previous_event_id",
+        "previous_event_hash",
+        "event_hash",
+        "hash_algorithm",
+        "canonicalization",
+        "chain_status"
+      ],
+      "properties": {
+        "sequence": { "type": "integer", "minimum": 1 },
+        "previous_event_id": { "type": ["string", "null"] },
+        "previous_event_hash": { "type": ["string", "null"] },
+        "event_hash": { "type": "string", "pattern": "^sha256:.+" },
+        "hash_algorithm": { "const": "sha256" },
+        "canonicalization": { "const": "json_canonical_v1" },
+        "chain_status": { "type": "string", "enum": ["valid", "pending_verification", "invalid"] }
+      },
+      "additionalProperties": false
+    },
+    "event": {
+      "type": "object",
+      "required": ["type", "subtype", "source", "actor", "timestamp", "language", "content", "summary"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["decision", "observation", "preference", "project_state", "conversation", "learning", "safety_event", "system_event"]
+        },
+        "subtype": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "enum": ["chat", "voice", "book", "document", "code", "system", "manual_import"] },
+        "actor": { "type": "string", "enum": ["user", "morimil", "system", "external_source"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "language": { "type": "string", "minLength": 2 },
+        "content": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "minLength": 1 },
+        "raw_ref": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "memory": {
+      "type": "object",
+      "required": ["importance", "confidence", "retention", "stability", "mutable", "decay_policy", "consolidation_state", "needs_review"],
+      "properties": {
+        "importance": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "retention": { "type": "string", "enum": ["short_term", "long_term", "permanent"] },
+        "stability": { "type": "string", "enum": ["temporary", "working_memory", "stable_preference", "core_rule"] },
+        "mutable": { "type": "boolean" },
+        "decay_policy": { "type": "string", "enum": ["standard_decay", "slow_decay", "never_decay"] },
+        "consolidation_state": { "type": "string", "enum": ["raw", "candidate", "accepted", "superseded", "rejected"] },
+        "needs_review": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "privacy": {
+      "type": "object",
+      "required": ["visibility", "contains_secret", "contains_personal_data", "export_allowed", "cloud_sync_allowed", "redaction_required"],
+      "properties": {
+        "visibility": { "type": "string", "enum": ["private_local", "user_exportable", "shareable_summary"] },
+        "contains_secret": { "type": "boolean" },
+        "contains_personal_data": { "type": "boolean" },
+        "export_allowed": { "type": "boolean" },
+        "cloud_sync_allowed": { "type": "boolean" },
+        "redaction_required": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "classification": {
+      "type": "object",
+      "required": ["domain", "risk_level", "topics", "tags", "entities"],
+      "properties": {
+        "domain": { "type": "string", "minLength": 1 },
+        "risk_level": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+        "topics": { "type": "array", "items": { "type": "string" } },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "entities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["entity_id", "entity_type", "label"],
+            "properties": {
+              "entity_id": { "type": "string", "minLength": 1 },
+              "entity_type": { "type": "string", "minLength": 1 },
+              "label": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["target_id", "target_type", "relation", "strength"],
+        "properties": {
+          "target_id": { "type": "string", "minLength": 1 },
+          "target_type": { "type": "string", "enum": ["genesis", "memory_event", "knowledge_capsule", "project", "policy", "doctrine"] },
+          "relation": { "type": "string", "minLength": 1 },
+          "strength": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "decay": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "initial_strength",
+        "current_strength",
+        "last_accessed_at",
+        "access_count",
+        "archive_threshold",
+        "delete_allowed",
+        "decay_reason"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "initial_strength": { "type": "number", "minimum": 0, "maximum": 1 },
+        "current_strength": { "type": "number", "minimum": 0, "maximum": 1 },
+        "last_accessed_at": { "type": ["string", "null"], "format": "date-time" },
+        "access_count": { "type": "integer", "minimum": 0 },
+        "archive_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "delete_allowed": { "type": "boolean" },
+        "decay_reason": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "review_schedule": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "next_review_at",
+        "interval_days",
+        "review_reason",
+        "review_mode",
+        "last_reviewed_at"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "next_review_at": { "type": ["string", "null"], "format": "date-time" },
+        "interval_days": { "type": ["integer", "null"], "minimum": 1 },
+        "review_reason": { "type": "string", "minLength": 1 },
+        "review_mode": { "type": "string", "enum": ["silent_reinforcement", "ask_user", "summarize_only", "none"] },
+        "last_reviewed_at": { "type": ["string", "null"], "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "recall": {
+      "type": "object",
+      "required": ["keywords", "semantic_summary", "retrieval_weight", "embedding"],
+      "properties": {
+        "keywords": { "type": "array", "items": { "type": "string" } },
+        "semantic_summary": { "type": "string", "minLength": 1 },
+        "retrieval_weight": { "type": "number", "minimum": 0, "maximum": 1 },
+        "embedding": {
+          "type": "object",
+          "required": ["status", "model", "vector_ref", "dimension"],
+          "properties": {
+            "status": { "type": "string", "enum": ["pending", "ready", "disabled"] },
+            "model": { "type": ["string", "null"] },
+            "vector_ref": { "type": ["string", "null"] },
+            "dimension": { "type": ["integer", "null"], "minimum": 1 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "reasoning_use": {
+      "type": "object",
+      "required": ["allowed_in_context", "priority_when_recalled", "instruction_effect", "conflict_policy"],
+      "properties": {
+        "allowed_in_context": { "type": "boolean" },
+        "priority_when_recalled": { "type": "string", "enum": ["may_include", "should_include", "must_include"] },
+        "instruction_effect": { "type": "string", "minLength": 1 },
+        "conflict_policy": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "audit": {
+      "type": "object",
+      "required": ["created_by", "created_at", "approved_by_user", "approval_id", "source_message_id", "write_mode"],
+      "properties": {
+        "created_by": { "type": "string", "minLength": 1 },
+        "created_at": { "type": "string", "format": "date-time" },
+        "approved_by_user": { "type": "boolean" },
+        "approval_id": { "type": ["string", "null"] },
+        "source_message_id": { "type": ["string", "null"] },
+        "write_mode": { "const": "append_only" }
+      },
+      "additionalProperties": false
+    },
+    "migration": {
+      "type": "object",
+      "required": ["created_schema_version", "current_schema_version", "migration_history", "forward_compatible"],
+      "properties": {
+        "created_schema_version": { "const": "morimil.memory_event.v1" },
+        "current_schema_version": { "type": "string", "minLength": 1 },
+        "migration_history": { "type": "array", "items": { "type": "string" } },
+        "forward_compatible": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "signatures": {
+      "type": "object",
+      "required": ["event_signature"],
+      "properties": {
+        "event_signature": {
+          "type": "object",
+          "required": ["algorithm", "key_alias", "signature"],
+          "properties": {
+            "algorithm": { "const": "ed25519" },
+            "key_alias": { "type": "string", "minLength": 1 },
+            "signature": { "type": "string", "pattern": "^base64:.+" }
+          },
+          "additionalProperties": false
+        },
+        "genesis_attestation": {
+          "type": "object",
+          "required": ["algorithm", "genesis_manifest_hash", "signature"],
+          "properties": {
+            "algorithm": { "const": "ed25519" },
+            "genesis_manifest_hash": { "type": "string", "pattern": "^sha256:.+" },
+            "signature": { "type": "string", "pattern": "^base64:.+" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

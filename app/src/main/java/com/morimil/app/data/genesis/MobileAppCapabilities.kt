@@ -10,8 +10,8 @@ data class MobileAppCapabilities(
     val localMemory: Boolean,
     val voicePushToTalk: Boolean,
     val genesisReader: Boolean,
-    val githubReadOnlySync: Boolean,
-    val githubWriteExecution: Boolean,
+    val externalReadOnlySync: Boolean,
+    val externalWriteExecution: Boolean,
     val pcExecution: Boolean,
     val productionRelease: Boolean,
     val currentAppPhase: String
@@ -22,10 +22,10 @@ object CurrentMobileAppCapabilities {
         localMemory = true,
         voicePushToTalk = true,
         genesisReader = true,
-        githubReadOnlySync = true,
-        githubWriteExecution = false,
+        externalReadOnlySync = false,
+        externalWriteExecution = false,
         pcExecution = false,
         productionRelease = false,
-        currentAppPhase = "phase_5d_user_workspace_bootstrap"
+        currentAppPhase = "phase_genesis_mobile_seed_v1"
     )
 }

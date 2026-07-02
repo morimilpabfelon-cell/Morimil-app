@@ -9,13 +9,15 @@ import com.morimil.app.ai.SystemPromptBuilder
 import com.morimil.app.data.genesis.GenesisIdentitySource
 import com.morimil.app.data.genesis.GenesisReader
 import com.morimil.app.data.local.DecisionLogEntity
+import com.morimil.app.data.local.GenesisCoreEntity
 import com.morimil.app.data.local.LocalInstanceIdentityEntity
+import com.morimil.app.data.local.MemoryEventEntity
 import com.morimil.app.data.local.MemoryMessageEntity
+import com.morimil.app.data.local.MemorySnapshotEntity
 import com.morimil.app.data.local.MorimilDatabase
 import com.morimil.app.data.local.ProjectStateEntity
 import com.morimil.app.data.local.UserWorkspaceEntity
 import com.morimil.app.data.repository.MemoryRepository
-import com.morimil.app.github.GitHubForkClient
 import com.morimil.app.security.SecretVault
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,11 +29,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MorimilViewModel(application: Application) : AndroidViewModel(application) {
-    private val repository = MemoryRepository(
-        MorimilDatabase.getInstance(application).memoryDao()
-    )
+    private val repository = MemoryRepository(MorimilDatabase.getInstance(application))
     private val genesisReader = GenesisReader(application)
-    private val forkClient = GitHubForkClient()
     private val secretVault = SecretVault(application)
     private val claudeClient = ClaudeApiClient()
 
@@ -65,12 +64,31 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         initialValue = null
     )
 
+    val genesisCore: StateFlow<GenesisCoreEntity?> = repository.genesisCore.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = null
+    )
+
+    val recentMemoryEvents: StateFlow<List<MemoryEventEntity>> = repository.recentMemoryEvents.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList()
+    )
+
+    val livingMemorySnapshot: StateFlow<MemorySnapshotEntity?> = repository.livingMemorySnapshot.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = null
+    )
+
     private val _genesisResult = MutableStateFlow<Result<GenesisIdentitySource>?>(null)
     val genesisResult: StateFlow<Result<GenesisIdentitySource>?> = _genesisResult.asStateFlow()
 
     // Doctrine text is fetched once and cached -- it does not change per
     // message, so re-fetching it on every send would be wasted network.
     private var cachedDoctrineText: String? = null
+    private var cachedPolicyText: String? = null
 
     private val _isSending = MutableStateFlow(false)
     val isSending: StateFlow<Boolean> = _isSending.asStateFlow()
@@ -92,33 +110,40 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
             result.getOrNull()?.identity?.doctrineRef?.let { ref ->
                 cachedDoctrineText = genesisReader.readDoctrineText(ref).getOrNull()
             }
+            result.getOrNull()?.identity?.policyRef?.let { ref ->
+                cachedPolicyText = genesisReader.readPolicyText(ref).getOrNull()
+            }
         }
     }
-
-    fun hasGitHubToken(): Boolean = secretVault.hasGitHubToken()
-
-    fun saveGitHubToken(token: String): Result<Unit> = secretVault.saveGitHubToken(token)
 
     fun hasAnthropicKey(): Boolean = secretVault.hasAnthropicKey()
 
     fun saveAnthropicKey(key: String): Result<Unit> = secretVault.saveAnthropicKey(key)
 
     /**
-     * First-install gate: forks the Genesis repo under the token's own
-     * account, then names this device's instance from the fetched Genesis
-     * identity, tied to that fork. Only called once, from the onboarding
-     * screen, which only shows while localIdentity is null. If forking
-     * fails, no local identity is created -- onboarding can be retried.
+     * First-install gate: copies the bundled Genesis seed into this device's
+     * local identity and names the instance. GitHub is not used at runtime.
      */
     suspend fun bornInstance(alias: String): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            val genesis = _genesisResult.value?.getOrNull()?.identity
+            val genesisSource = _genesisResult.value?.getOrNull()
                 ?: error("Genesis identity not loaded yet.")
-            val token = secretVault.readGitHubToken().getOrNull()
-                ?: error("No GitHub token stored yet.")
+            val genesis = genesisSource.identity
+            require(!repository.hasExistingBirth()) { "This Morimil instance has already been born." }
+            val installedBundle = genesisReader.installGenesisBundle().getOrThrow()
+            val sourceOrigin = "${genesisSource.origin.label}:${installedBundle.installPath}"
+            val genesisCoreHash = installedBundle.verification.genesisCoreHash
+            require(genesisCoreHash == genesisSource.manifest.genesisCoreHash) {
+                "Installed Genesis bundle does not match loaded Genesis manifest."
+            }
 
-            val fork = forkClient.forkGenesisRepo(token).getOrThrow()
-            repository.birthLocalIdentity(alias, genesis, fork)
+            try {
+                repository.birthLocalIdentity(alias, genesis, sourceOrigin, genesisCoreHash, cachedDoctrineText, cachedPolicyText)
+                repository.seedInitialStateIfNeeded()
+            } catch (error: Exception) {
+                genesisReader.clearInstalledGenesisBundle()
+                throw error
+            }
         }
     }
 
@@ -158,7 +183,14 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
 
                 repository.addUserMessage(cleanBody)
 
-                val systemPrompt = SystemPromptBuilder.build(genesis, alias, cachedDoctrineText)
+                val memoryContext = repository.buildLivingMemoryContext()
+                val systemPrompt = SystemPromptBuilder.build(
+                    genesis = genesis,
+                    alias = alias,
+                    doctrineText = cachedDoctrineText,
+                    policyText = cachedPolicyText,
+                    livingMemoryContext = memoryContext
+                )
 
                 claudeClient.sendMessage(apiKey, systemPrompt, recent)
                     .onSuccess { reply -> repository.addAssistantMessage(reply) }

@@ -20,7 +20,7 @@ data class LocalInstanceIdentityEntity(
     val genesisRole: String,
     val genesisRiskTier: String,
     val genesisSchemaVersion: String,
-    val forkOwner: String,
-    val forkRepo: String,
-    val forkHtmlUrl: String
+    val localMemoryOwner: String,
+    val localMemoryName: String,
+    val localMemoryUri: String
 )

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morimil.local/schemas/genesis_manifest.v1.schema.json",
+  "title": "Morimil Genesis Manifest v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "manifest_id",
+    "generated_at",
+    "genesis_core_hash",
+    "canonicalization_spec",
+    "bundle",
+    "files",
+    "mobile_installation",
+    "signature_policy"
+  ],
+  "properties": {
+    "schema_version": { "const": "morimil.genesis_manifest.v1" },
+    "manifest_id": { "type": "string", "pattern": "^gmanifest_[0-9]{8}_[a-z0-9_-]+$" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "genesis_core_hash": { "type": "string", "pattern": "^sha256:.+" },
+    "canonicalization_spec": {
+      "type": "object",
+      "required": ["name", "profile", "newline_policy"],
+      "properties": {
+        "name": { "const": "RFC8785-JCS" },
+        "profile": { "const": "morimil_jcs_v1" },
+        "newline_policy": { "const": "LF" }
+      },
+      "additionalProperties": false
+    },
+    "bundle": {
+      "type": "object",
+      "required": ["name", "version", "purpose"],
+      "properties": {
+        "name": { "const": "morimil_genesis_bundle" },
+        "version": { "type": "string", "minLength": 1 },
+        "purpose": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "kind", "sha256", "required"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "enum": ["identity", "doctrine", "policy", "schema", "example", "doc", "manifest"] },
+          "sha256": { "type": "string", "pattern": "^sha256:.+" },
+          "required": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "mobile_installation": {
+      "type": "object",
+      "required": ["asset_root", "copy_target", "first_birth_event_required", "startup_verification_required"],
+      "properties": {
+        "asset_root": { "const": "assets/genesis/" },
+        "copy_target": { "const": "filesDir/genesis/" },
+        "first_birth_event_required": { "const": true },
+        "startup_verification_required": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "signature_policy": {
+      "type": "object",
+      "required": ["genesis_signature_required", "event_signature_algorithm", "key_storage"],
+      "properties": {
+        "genesis_signature_required": { "const": true },
+        "event_signature_algorithm": { "const": "ed25519" },
+        "key_storage": { "const": "android_keystore" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

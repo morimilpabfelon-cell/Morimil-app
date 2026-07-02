@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morimil.local/schemas/self_update_proposal.v1.schema.json",
+  "title": "Morimil Self Update Proposal v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "proposal_id",
+    "instance_id",
+    "genesis_core_hash",
+    "reason",
+    "proposed_change",
+    "impact",
+    "governance",
+    "status",
+    "audit"
+  ],
+  "properties": {
+    "schema_version": { "const": "morimil.self_update_proposal.v1" },
+    "proposal_id": { "type": "string", "pattern": "^upd_[0-9]{6,}$" },
+    "instance_id": { "type": "string", "minLength": 1 },
+    "genesis_core_hash": { "type": "string", "pattern": "^sha256:.+" },
+    "reason": { "type": "string", "minLength": 1 },
+    "proposed_change": {
+      "type": "object",
+      "required": ["change_type", "summary", "target_layers", "implementation_notes"],
+      "properties": {
+        "change_type": { "type": "string", "enum": ["behavior", "memory_schema", "recall_strategy", "skill", "architecture", "safety_rule"] },
+        "summary": { "type": "string", "minLength": 1 },
+        "target_layers": { "type": "array", "items": { "type": "string" } },
+        "implementation_notes": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "impact": {
+      "type": "object",
+      "required": ["risk_level", "reversible", "requires_migration", "affected_projects"],
+      "properties": {
+        "risk_level": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+        "reversible": { "type": "boolean" },
+        "requires_migration": { "type": "boolean" },
+        "affected_projects": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "governance": {
+      "type": "object",
+      "required": ["requires_user_approval", "approval_reason", "blocked_until_approved"],
+      "properties": {
+        "requires_user_approval": { "type": "boolean" },
+        "approval_reason": { "type": "string", "minLength": 1 },
+        "blocked_until_approved": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "status": { "type": "string", "enum": ["pending", "accepted", "rejected", "superseded"] },
+    "audit": {
+      "type": "object",
+      "required": ["created_by", "created_at", "supporting_memory_ids", "supporting_capsule_ids"],
+      "properties": {
+        "created_by": { "type": "string", "minLength": 1 },
+        "created_at": { "type": "string", "format": "date-time" },
+        "supporting_memory_ids": { "type": "array", "items": { "type": "string" } },
+        "supporting_capsule_ids": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

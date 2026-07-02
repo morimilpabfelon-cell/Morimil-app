@@ -23,11 +23,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 
 /**
- * Shows this instance's own chain: the fork created during onboarding. No
- * free-text repo entry here anymore -- there is exactly one repo that
- * represents this instance, and it was set once, automatically, at birth.
- * A second, user-typed repo here would compete with that and break the
- * "Genesis is the seed, your fork is your own chain" model.
+ * Shows this instance's own local chain. Genesis is the seed; the phone is
+ * where the living memory grows after birth.
  */
 @Composable
 fun UserWorkspaceScreen(viewModel: MorimilViewModel) {
@@ -42,18 +39,18 @@ fun UserWorkspaceScreen(viewModel: MorimilViewModel) {
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Workspace", style = MaterialTheme.typography.headlineMedium)
-        Text("Genesis es la semilla. Tu fork, creado al nacer esta instancia, es tu propia cadena.")
+        Text("Genesis es la semilla. Tu celular guarda la cadena local de esta instancia.")
 
         WorkspaceCard("Genesis", "Solo lectura. Nunca se escribe en Genesis.", "read-only")
         WorkspaceCard("Phone", "Room/SQLite guarda memoria e identidad local.", "primary")
 
         localIdentity?.let { identity ->
             WorkspaceCard(
-                "Tu cadena: ${identity.forkOwner}/${identity.forkRepo}",
-                identity.forkHtmlUrl,
-                "your own fork"
+                "Tu cadena local",
+                identity.localMemoryUri,
+                "on-device"
             )
-        } ?: WorkspaceCard("Tu cadena", "Aun no se ha creado tu fork.", "pending")
+        } ?: WorkspaceCard("Tu cadena", "Aun no se ha creado tu instancia local.", "pending")
 
         OutlinedTextField(
             value = displayName,

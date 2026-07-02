@@ -1,0 +1,131 @@
+{
+  "schema_version": "morimil.genesis_manifest.v1",
+  "manifest_id": "gmanifest_20260702_memory_core",
+  "generated_at": "2026-07-02T00:00:00.000Z",
+  "genesis_core_hash": "sha256:7eb7c8c8a9c3b0dcd4102b7a12137c302f83bb33b3ba5b3934be2888bbd5d318",
+  "canonicalization_spec": {
+    "name": "RFC8785-JCS",
+    "profile": "morimil_jcs_v1",
+    "newline_policy": "LF"
+  },
+  "bundle": {
+    "name": "morimil_genesis_bundle",
+    "version": "memory-core-v1",
+    "purpose": "Install immutable Genesis seed and memory contracts into Morimil-app."
+  },
+  "files": [
+    {
+      "path": "docs/GENESIS_MEMORY_CORE.md",
+      "kind": "doc",
+      "sha256": "sha256:062d0d70ca6a690d70664b3415432255e5a743c804b47e74618c224ae99f7d56",
+      "required": true
+    },
+    {
+      "path": "doctrine/doctrine.md",
+      "kind": "doctrine",
+      "sha256": "sha256:978c9e934ce04a2ca6ccd9834b300d871dd69aae712ca7493c6e36ac4640b407",
+      "required": true
+    },
+    {
+      "path": "doctrine/evolution_rules.md",
+      "kind": "doctrine",
+      "sha256": "sha256:1f81f9e4c8f4fc9af065b91810d5434253ee71945a5f17de834c79f758437572",
+      "required": true
+    },
+    {
+      "path": "identity/orchestrator.identity.json",
+      "kind": "identity",
+      "sha256": "sha256:300a9ebe6470baa636ce32d795b0741f62dd645ae8895e5d3b91d6eab5b9fcfb",
+      "required": true
+    },
+    {
+      "path": "policy/memory_policy.rego",
+      "kind": "policy",
+      "sha256": "sha256:dbe422aff485018cad770c8c14a7e01506bdee88d6ea3ce87aac85e5037b39d6",
+      "required": true
+    },
+    {
+      "path": "policy/policy.rego",
+      "kind": "policy",
+      "sha256": "sha256:a0741052608a5086cc6144343071792fab47573398f46bc54607a204212b4c1a",
+      "required": true
+    },
+    {
+      "path": "schemas/autobiographical_snapshot.v1.schema.json",
+      "kind": "schema",
+      "sha256": "sha256:1e0dc8671280e81701310098dc8b61d3b9c4bfecb7fb8b4e140a733b83adb7e0",
+      "required": true
+    },
+    {
+      "path": "schemas/genesis_manifest.v1.schema.json",
+      "kind": "schema",
+      "sha256": "sha256:ca5052fd5a62dab26f0244bfc670b26aa96a338acfd4e8226e9b78954068bdda",
+      "required": true
+    },
+    {
+      "path": "schemas/interaction_state.v1.schema.json",
+      "kind": "schema",
+      "sha256": "sha256:807cc3de9e610a8b33d7952d97c026952209124995739e6b7aa3c52f28f9ca91",
+      "required": true
+    },
+    {
+      "path": "schemas/knowledge_capsule.v1.schema.json",
+      "kind": "schema",
+      "sha256": "sha256:a188de8f585460a9ba6c79a2efac1831331a2523d650b9a6da4a37e6f4c1f86a",
+      "required": true
+    },
+    {
+      "path": "schemas/memory_event.v1.schema.json",
+      "kind": "schema",
+      "sha256": "sha256:a9a5e1db2a6852eb8879ac7d4204db2ef106817d1e9732a0dd99fb9f637a6d95",
+      "required": true
+    },
+    {
+      "path": "schemas/memory_link.v1.schema.json",
+      "kind": "schema",
+      "sha256": "sha256:103f79546f0a03479a4e62b9b08c99ebc21ae0131d6e4d5db4687878f53c4aab",
+      "required": true
+    },
+    {
+      "path": "schemas/memory_snapshot.v1.schema.json",
+      "kind": "schema",
+      "sha256": "sha256:1ffd50ebca7492f69906b251826550024908323bfdded43691303b5f774c20c5",
+      "required": true
+    },
+    {
+      "path": "schemas/migration_record.v1.schema.json",
+      "kind": "schema",
+      "sha256": "sha256:506c9a082267659765ee0fbcec81c533835297568862642eff5c55e16e130d33",
+      "required": true
+    },
+    {
+      "path": "schemas/recall_schedule.v1.schema.json",
+      "kind": "schema",
+      "sha256": "sha256:f7a032be59feadeb80acdac92fdd4734e24d64597bdf586520f09ced747f9a2c",
+      "required": true
+    },
+    {
+      "path": "schemas/rest_cycle.v1.schema.json",
+      "kind": "schema",
+      "sha256": "sha256:6d9d8ddfe33155fc6e63ec931a34d0d99687532ff66f1c22392c6c79997ee658",
+      "required": true
+    },
+    {
+      "path": "schemas/self_update_proposal.v1.schema.json",
+      "kind": "schema",
+      "sha256": "sha256:4abd0caf347799440908964008244fc82520c6336abac853dd32df97196eeb7a",
+      "required": true
+    }
+  ],
+  "mobile_installation": {
+    "asset_root": "assets/genesis/",
+    "copy_target": "filesDir/genesis/",
+    "first_birth_event_required": true,
+    "startup_verification_required": true
+  },
+  "signature_policy": {
+    "genesis_signature_required": true,
+    "event_signature_algorithm": "ed25519",
+    "key_storage": "android_keystore"
+  }
+}

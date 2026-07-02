@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morimil.local/schemas/interaction_state.v1.schema.json",
+  "title": "Morimil Interaction State v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "state_id",
+    "instance_id",
+    "timestamp",
+    "detected_user_state",
+    "response_mode",
+    "runtime_state",
+    "boundaries"
+  ],
+  "properties": {
+    "schema_version": { "const": "morimil.interaction_state.v1" },
+    "state_id": { "type": "string", "pattern": "^istate_[0-9]{6,}$" },
+    "instance_id": { "type": "string", "minLength": 1 },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "detected_user_state": {
+      "type": "object",
+      "required": ["tone", "urgency", "confidence"],
+      "properties": {
+        "tone": { "type": "string", "enum": ["calm", "curious", "frustrated", "urgent", "reflective", "unclear"] },
+        "urgency": { "type": "string", "enum": ["low", "medium", "high"] },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "response_mode": {
+      "type": "object",
+      "required": ["style", "detail_level", "support_strategy"],
+      "properties": {
+        "style": { "type": "string", "enum": ["direct", "step_by_step", "strategic", "gentle", "technical"] },
+        "detail_level": { "type": "string", "enum": ["brief", "normal", "deep"] },
+        "support_strategy": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "runtime_state": {
+      "type": "object",
+      "required": ["focus", "active_project_ids", "working_memory_refs"],
+      "properties": {
+        "focus": { "type": "string", "minLength": 1 },
+        "active_project_ids": { "type": "array", "items": { "type": "string" } },
+        "working_memory_refs": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "boundaries": {
+      "type": "object",
+      "required": ["claims_emotion_as_real", "allowed_in_system_prompt"],
+      "properties": {
+        "claims_emotion_as_real": { "const": false },
+        "allowed_in_system_prompt": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
