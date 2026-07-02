@@ -12,7 +12,8 @@ Do not replace the current app blindly. Build the stronger body on top of the cu
 - Two request formats.
 - Legacy chat bridge.
 - Memory events with source and local visibility scope.
-- Room v7 migration for memory metadata.
+- Room v7 migration for memory event metadata.
+- Separate Room memory organ database for higher memory structures.
 - Verify before append remains mandatory.
 
 ## Not changed
@@ -25,7 +26,7 @@ Do not replace the current app blindly. Build the stronger body on top of the cu
 
 ## Memory mapping
 
-The ledger keeps the merged fields from main:
+The main ledger keeps the merged fields from main:
 
 - previousEventHash
 - genesisCoreHash
@@ -42,6 +43,18 @@ And adds:
 - privacyVisibility
 
 `contextTag` is the temporary mapping for origin and boundary intent while the final column names are reviewed.
+
+## Memory organs
+
+The v2 memory organs live in a secondary Room database:
+
+- MemoryOrganDatabase
+- MemoryOrganDao
+- MemoryOrganRepository
+- AutobiographicalSnapshotEntity
+- KnowledgeCapsuleEntity
+
+This keeps the primary ledger safe while higher memory structures mature.
 
 ## Runtime rule
 
