@@ -44,7 +44,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.morimil.app.data.genesis.CurrentMobileAppCapabilities
 import com.morimil.app.data.genesis.GenesisIdentitySource
-import com.morimil.app.data.genesis.GenesisOrigin
 import java.util.Locale
 
 private enum class MorimilTab(val label: String, val icon: String) {
@@ -52,8 +51,6 @@ private enum class MorimilTab(val label: String, val icon: String) {
     Voice("Voice", "Vo"),
     Genesis("Genesis", "Ge"),
     Workspace("Workspace", "Ws"),
-    Sync("Sync", "Sy"),
-    Proposal("Proposal", "Pr"),
     Projects("Projects", "Pj"),
     Memory("Memory", "Me"),
     Handoff("PC", "Ha")
@@ -98,8 +95,6 @@ private fun MainTabsScaffold(viewModel: MorimilViewModel) {
                 MorimilTab.Voice -> VoiceScreen(viewModel)
                 MorimilTab.Genesis -> GenesisScreen(viewModel)
                 MorimilTab.Workspace -> UserWorkspaceScreen(viewModel)
-                MorimilTab.Sync -> GitHubSyncGateScreen()
-                MorimilTab.Proposal -> GitHubWriteProposalScreen()
                 MorimilTab.Projects -> ProjectsScreen(viewModel)
                 MorimilTab.Memory -> MemoryScreen(viewModel)
                 MorimilTab.Handoff -> PcHandoffScreen()
@@ -284,7 +279,7 @@ private fun VoiceScreen(viewModel: MorimilViewModel) {
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Voice", style = MaterialTheme.typography.headlineMedium)
-        Text("Fase 5D mantiene voz push-to-talk y TTS manual de fases anteriores.")
+        Text("Genesis movil v1 mantiene voz push-to-talk y TTS manual.")
         ProjectCard("SpeechRecognizer", voiceStatus, "controlled")
         ProjectCard("TextToSpeech", if (ttsReady) "Motor TTS listo." else "Inicializando TTS.", "manual")
 
@@ -322,7 +317,7 @@ private fun VoiceScreen(viewModel: MorimilViewModel) {
             }
         }
 
-        ProjectCard("Boundary", "No GitHub Sync, no PC execution, no background listener.", "protected")
+        ProjectCard("Boundary", "Sin sincronizacion externa, sin ejecucion de PC, sin escucha en background.", "protected")
     }
 }
 
@@ -330,10 +325,11 @@ private fun VoiceScreen(viewModel: MorimilViewModel) {
 private fun GenesisScreen(viewModel: MorimilViewModel) {
     val genesisResult by viewModel.genesisResult.collectAsStateWithLifecycle()
     val localIdentity by viewModel.localIdentity.collectAsStateWithLifecycle()
+    val genesisCore by viewModel.genesisCore.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Genesis", style = MaterialTheme.typography.headlineMedium)
-        Text("Fase 5D: lee el Bloque Genesis en vivo desde GitHub, con respaldo local si no hay red.")
+        Text("Fase Genesis local: lee la semilla empaquetada en la app y la copia al telefono.")
 
         localIdentity?.let {
             ProjectCard(
@@ -342,11 +338,19 @@ private fun GenesisScreen(viewModel: MorimilViewModel) {
                 "instance_id=${it.instanceId}"
             )
             ProjectCard(
-                "Fork",
-                "${it.forkOwner}/${it.forkRepo}",
-                it.forkHtmlUrl
+                "Memoria local",
+                "cadena en el dispositivo",
+                it.localMemoryUri
             )
         }
+
+        genesisCore?.let {
+            ProjectCard(
+                "Genesis Core copiado",
+                "Origen=${it.sourceOrigin}; nacido=${it.copiedAtMillis}; sha256=${it.contentSha256.take(16)}...",
+                "immutable"
+            )
+        } ?: ProjectCard("Genesis Core", "Aun no hay copia local nacida.", "pending")
 
         when (val result = genesisResult) {
             null -> ProjectCard("Genesis Reader", "Cargando...", "loading")
@@ -365,13 +369,13 @@ private fun ProjectsScreen(viewModel: MorimilViewModel) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Projects", style = MaterialTheme.typography.headlineMedium)
         if (projects.isEmpty()) {
-            ProjectCard("Morimil_app", "Fase 5D: esperando memoria local.", "loading")
+            ProjectCard("Morimil_app", "Genesis movil v1: esperando memoria local.", "loading")
         } else {
             projects.forEach { project ->
                 ProjectCard(project.title, "Persisted project state in Room.", project.status)
             }
         }
-        ProjectCard("Genesis", "Live GitHub read with bundled fallback, visible in Genesis tab.", "read-only")
+        ProjectCard("Genesis", "Bundled Genesis seed visible in Genesis tab.", "read-only")
     }
 }
 
@@ -379,21 +383,19 @@ private fun ProjectsScreen(viewModel: MorimilViewModel) {
 private fun GenesisContent(source: GenesisIdentitySource) {
     val genesis = source.identity
     val capabilities = CurrentMobileAppCapabilities.value
-    val originLabel = when (source.origin) {
-        GenesisOrigin.GITHUB_LIVE -> "github_live"
-        GenesisOrigin.BUNDLED_FALLBACK -> "bundled_fallback"
-    }
+    val originLabel = source.origin.label
     ProjectCard(genesis.alias, "${genesis.role} / ${genesis.riskTier}", originLabel)
+    ProjectCard("Genesis verificado", "${source.manifest.fileCount} archivos", source.manifest.genesisCoreHash)
     ProjectCard("Owner", genesis.owner, genesis.schemaVersion)
     ProjectCard("Allowed actions", genesis.allowedActions.joinToString(", "), "bounded")
     ProjectCard("Disallowed actions", genesis.disallowedActions.joinToString(", "), "protected")
     ProjectCard(
-        "Mobile app capabilities",
-        "memory=${capabilities.localMemory}, voice=${capabilities.voicePushToTalk}, " +
-            "github_read=${capabilities.githubReadOnlySync}, github_write=${capabilities.githubWriteExecution}, " +
-            "pc=${capabilities.pcExecution}",
-        capabilities.currentAppPhase
-    )
+            "Mobile app capabilities",
+            "memory=${capabilities.localMemory}, voice=${capabilities.voicePushToTalk}, " +
+            "external_sync=${capabilities.externalReadOnlySync}, external_write=${capabilities.externalWriteExecution}, " +
+            "pc_execution=${capabilities.pcExecution}",
+            capabilities.currentAppPhase
+        )
 }
 
 @Composable
@@ -401,11 +403,20 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
     val decisions by viewModel.decisions.collectAsStateWithLifecycle()
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val projects by viewModel.projects.collectAsStateWithLifecycle()
+    val snapshot by viewModel.livingMemorySnapshot.collectAsStateWithLifecycle()
+    val events by viewModel.recentMemoryEvents.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Living Memory", style = MaterialTheme.typography.headlineMedium)
-        Text("Room/SQLite local activo. Genesis Reader local activo.")
+        Text("Genesis Core inmutable + eventos append-only + snapshot local.")
         ProjectCard("Conversation memory", "${messages.size} mensajes persistidos.", "connected")
+        snapshot?.let {
+            ProjectCard(
+                "Living snapshot",
+                "${it.eventCount} eventos / ${it.messageCount} mensajes. ${it.summary.take(260)}",
+                "updated=${it.updatedAtMillis}"
+            )
+        } ?: ProjectCard("Living snapshot", "Todavia no existe snapshot vivo.", "pending")
         ProjectCard("Project state", "${projects.size} proyectos persistidos.", "connected")
         if (decisions.isEmpty()) {
             ProjectCard("Decision log", "Sin decisiones registradas todavia.", "empty")
@@ -414,7 +425,14 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
                 ProjectCard(decision.title, "Decision persisted locally.", decision.status)
             }
         }
-        ProjectCard("Scope guardian", "GitHub Sync y PC Handoff siguen bloqueados.", "protected")
+        if (events.isEmpty()) {
+            ProjectCard("Memory events", "Sin eventos vivos todavia.", "empty")
+        } else {
+            events.take(5).forEach { event ->
+                ProjectCard(event.eventType, event.body.take(220), "${event.actor}/i${event.importance}")
+            }
+        }
+        ProjectCard("Scope guardian", "Sin sincronizacion externa y sin ejecucion de PC.", "protected")
     }
 }
 

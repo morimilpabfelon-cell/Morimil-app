@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morimil.local/schemas/rest_cycle.v1.schema.json",
+  "title": "Morimil Rest Cycle v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "cycle_id",
+    "instance_id",
+    "genesis_core_hash",
+    "mode",
+    "trigger",
+    "device_conditions",
+    "inputs",
+    "operations",
+    "outputs",
+    "resource_report",
+    "safety",
+    "status",
+    "audit"
+  ],
+  "properties": {
+    "schema_version": { "const": "morimil.rest_cycle.v1" },
+    "cycle_id": { "type": "string", "pattern": "^rest_[0-9]{4}_[0-9]{2}_[0-9]{2}(_[a-z0-9_-]+)?$" },
+    "instance_id": { "type": "string", "minLength": 1 },
+    "genesis_core_hash": { "type": "string", "pattern": "^sha256:.+" },
+    "mode": {
+      "type": "string",
+      "enum": ["nightly_consolidation", "manual_consolidation", "low_power_consolidation", "pre_backup_consolidation"]
+    },
+    "trigger": {
+      "type": "object",
+      "required": ["type", "requested_by", "started_at", "reason"],
+      "properties": {
+        "type": { "type": "string", "enum": ["scheduled", "user_requested", "device_idle", "pre_migration"] },
+        "requested_by": { "type": "string", "enum": ["user", "local_runtime", "system"] },
+        "started_at": { "type": "string", "format": "date-time" },
+        "reason": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "device_conditions": {
+      "type": "object",
+      "required": [
+        "device_idle",
+        "charging",
+        "battery_percent",
+        "storage_free_mb",
+        "network_required",
+        "api_required"
+      ],
+      "properties": {
+        "device_idle": { "type": "boolean" },
+        "charging": { "type": "boolean" },
+        "battery_percent": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "storage_free_mb": { "type": "integer", "minimum": 0 },
+        "network_required": { "const": false },
+        "api_required": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "inputs": {
+      "type": "object",
+      "required": [
+        "memory_event_ids",
+        "knowledge_capsule_ids",
+        "open_project_ids",
+        "previous_snapshot_ids",
+        "interaction_state_ids"
+      ],
+      "properties": {
+        "memory_event_ids": { "type": "array", "items": { "type": "string" } },
+        "knowledge_capsule_ids": { "type": "array", "items": { "type": "string" } },
+        "open_project_ids": { "type": "array", "items": { "type": "string" } },
+        "previous_snapshot_ids": { "type": "array", "items": { "type": "string" } },
+        "interaction_state_ids": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "operations": {
+      "type": "object",
+      "required": [
+        "consolidate_events",
+        "update_decay",
+        "reinforce_core_memory",
+        "create_memory_links",
+        "detect_conflicts",
+        "generate_autobiographical_snapshot",
+        "update_recall_schedule",
+        "propose_self_updates",
+        "prepare_next_wake_context"
+      ],
+      "properties": {
+        "consolidate_events": { "type": "boolean" },
+        "update_decay": { "type": "boolean" },
+        "reinforce_core_memory": { "type": "boolean" },
+        "create_memory_links": { "type": "boolean" },
+        "detect_conflicts": { "type": "boolean" },
+        "generate_autobiographical_snapshot": { "type": "boolean" },
+        "update_recall_schedule": { "type": "boolean" },
+        "propose_self_updates": { "type": "boolean" },
+        "prepare_next_wake_context": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "outputs": {
+      "type": "object",
+      "required": [
+        "autobiographical_snapshot_id",
+        "new_memory_link_ids",
+        "updated_recall_schedule_ids",
+        "self_update_proposal_ids",
+        "conflict_ids",
+        "next_wake_context"
+      ],
+      "properties": {
+        "autobiographical_snapshot_id": { "type": ["string", "null"] },
+        "new_memory_link_ids": { "type": "array", "items": { "type": "string" } },
+        "updated_recall_schedule_ids": { "type": "array", "items": { "type": "string" } },
+        "self_update_proposal_ids": { "type": "array", "items": { "type": "string" } },
+        "conflict_ids": { "type": "array", "items": { "type": "string" } },
+        "next_wake_context": {
+          "type": "object",
+          "required": ["summary", "top_priorities", "resource_requests"],
+          "properties": {
+            "summary": { "type": "string" },
+            "top_priorities": { "type": "array", "items": { "type": "string" } },
+            "resource_requests": { "type": "array", "items": { "type": "string" } }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "resource_report": {
+      "type": "object",
+      "required": [
+        "estimated_memory_mb",
+        "estimated_storage_delta_mb",
+        "api_tokens_used",
+        "needs_more_storage",
+        "needs_more_memory",
+        "recommendations"
+      ],
+      "properties": {
+        "estimated_memory_mb": { "type": "number", "minimum": 0 },
+        "estimated_storage_delta_mb": { "type": "number" },
+        "api_tokens_used": { "type": "integer", "minimum": 0 },
+        "needs_more_storage": { "type": "boolean" },
+        "needs_more_memory": { "type": "boolean" },
+        "recommendations": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "safety": {
+      "type": "object",
+      "required": [
+        "mutates_genesis_core",
+        "executes_external_actions",
+        "deletes_memory",
+        "requires_user_review",
+        "allowed_while_user_sleeping"
+      ],
+      "properties": {
+        "mutates_genesis_core": { "const": false },
+        "executes_external_actions": { "const": false },
+        "deletes_memory": { "const": false },
+        "requires_user_review": { "type": "boolean" },
+        "allowed_while_user_sleeping": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "status": { "type": "string", "enum": ["planned", "running", "completed", "completed_with_warnings", "blocked", "failed"] },
+    "audit": {
+      "type": "object",
+      "required": ["created_by", "created_at", "completed_at", "errors"],
+      "properties": {
+        "created_by": { "type": "string", "minLength": 1 },
+        "created_at": { "type": "string", "format": "date-time" },
+        "completed_at": { "type": ["string", "null"], "format": "date-time" },
+        "errors": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

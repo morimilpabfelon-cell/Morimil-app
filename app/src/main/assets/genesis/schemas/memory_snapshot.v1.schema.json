@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morimil.local/schemas/memory_snapshot.v1.schema.json",
+  "title": "Morimil Memory Snapshot v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "snapshot_id",
+    "instance_id",
+    "genesis_core_hash",
+    "snapshot_kind",
+    "created_at",
+    "state",
+    "derived_from",
+    "privacy",
+    "audit"
+  ],
+  "properties": {
+    "schema_version": { "const": "morimil.memory_snapshot.v1" },
+    "snapshot_id": { "type": "string", "pattern": "^msnap_[0-9]{6,}$" },
+    "instance_id": { "type": "string", "minLength": 1 },
+    "genesis_core_hash": { "type": "string", "pattern": "^sha256:.+" },
+    "snapshot_kind": { "type": "string", "enum": ["strategic", "operational", "identity_continuity", "resource_state", "pre_migration"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "state": {
+      "type": "object",
+      "required": ["identity_invariants", "active_projects", "top_priorities", "open_conflicts", "resource_status"],
+      "properties": {
+        "identity_invariants": { "type": "array", "items": { "type": "string" } },
+        "active_projects": { "type": "array", "items": { "type": "string" } },
+        "top_priorities": { "type": "array", "items": { "type": "string" } },
+        "open_conflicts": { "type": "array", "items": { "type": "string" } },
+        "resource_status": {
+          "type": "object",
+          "required": ["storage_free_mb", "index_size_mb", "context_window_pressure"],
+          "properties": {
+            "storage_free_mb": { "type": "integer", "minimum": 0 },
+            "index_size_mb": { "type": "integer", "minimum": 0 },
+            "context_window_pressure": { "type": "number", "minimum": 0, "maximum": 1 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "derived_from": {
+      "type": "object",
+      "required": ["event_ids", "capsule_ids", "autobiographical_snapshot_ids"],
+      "properties": {
+        "event_ids": { "type": "array", "items": { "type": "string" } },
+        "capsule_ids": { "type": "array", "items": { "type": "string" } },
+        "autobiographical_snapshot_ids": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "privacy": {
+      "type": "object",
+      "required": ["visibility", "cloud_sync_allowed", "export_allowed"],
+      "properties": {
+        "visibility": { "type": "string", "enum": ["private_local", "user_exportable", "shareable_summary"] },
+        "cloud_sync_allowed": { "type": "boolean" },
+        "export_allowed": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "audit": {
+      "type": "object",
+      "required": ["created_by", "write_mode", "verification_state"],
+      "properties": {
+        "created_by": { "type": "string", "enum": ["local_runtime", "rest_cycle", "migration"] },
+        "write_mode": { "const": "append_only" },
+        "verification_state": { "type": "string", "enum": ["pending", "valid", "invalid"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

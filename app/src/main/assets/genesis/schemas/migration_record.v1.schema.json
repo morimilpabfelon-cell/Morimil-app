@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morimil.local/schemas/migration_record.v1.schema.json",
+  "title": "Morimil Migration Record v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "migration_id",
+    "instance_id",
+    "genesis_core_hash",
+    "proposal_id",
+    "migration_type",
+    "scope",
+    "preconditions",
+    "plan",
+    "approval",
+    "result",
+    "rollback",
+    "audit"
+  ],
+  "properties": {
+    "schema_version": { "const": "morimil.migration_record.v1" },
+    "migration_id": { "type": "string", "pattern": "^mig_[0-9]{6,}$" },
+    "instance_id": { "type": "string", "minLength": 1 },
+    "genesis_core_hash": { "type": "string", "pattern": "^sha256:.+" },
+    "proposal_id": { "type": ["string", "null"] },
+    "migration_type": { "type": "string", "enum": ["schema_upgrade", "index_rebuild", "policy_update", "doctrine_update", "memory_repair", "app_runtime_upgrade"] },
+    "scope": {
+      "type": "object",
+      "required": ["from_version", "to_version", "affected_artifacts"],
+      "properties": {
+        "from_version": { "type": "string", "minLength": 1 },
+        "to_version": { "type": "string", "minLength": 1 },
+        "affected_artifacts": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "preconditions": {
+      "type": "object",
+      "required": ["pre_snapshot_id", "chain_verified", "backup_required"],
+      "properties": {
+        "pre_snapshot_id": { "type": "string", "minLength": 1 },
+        "chain_verified": { "type": "boolean" },
+        "backup_required": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "plan": {
+      "type": "object",
+      "required": ["steps", "expected_effect", "risk_level"],
+      "properties": {
+        "steps": { "type": "array", "items": { "type": "string" } },
+        "expected_effect": { "type": "string", "minLength": 1 },
+        "risk_level": { "type": "string", "enum": ["low", "medium", "high", "critical"] }
+      },
+      "additionalProperties": false
+    },
+    "approval": {
+      "type": "object",
+      "required": ["required", "approved_by_user", "approval_id"],
+      "properties": {
+        "required": { "const": true },
+        "approved_by_user": { "type": "boolean" },
+        "approval_id": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "result": {
+      "type": "object",
+      "required": ["status", "post_snapshot_id", "errors"],
+      "properties": {
+        "status": { "type": "string", "enum": ["planned", "running", "completed", "failed", "rolled_back"] },
+        "post_snapshot_id": { "type": ["string", "null"] },
+        "errors": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "rollback": {
+      "type": "object",
+      "required": ["available", "strategy"],
+      "properties": {
+        "available": { "type": "boolean" },
+        "strategy": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "audit": {
+      "type": "object",
+      "required": ["created_by", "created_at", "write_mode"],
+      "properties": {
+        "created_by": { "type": "string", "enum": ["local_runtime", "migration", "user"] },
+        "created_at": { "type": "string", "format": "date-time" },
+        "write_mode": { "const": "append_only" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morimil.local/schemas/memory_link.v1.schema.json",
+  "title": "Morimil Memory Link v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "link_id",
+    "instance_id",
+    "genesis_core_hash",
+    "source",
+    "target",
+    "relation",
+    "strength",
+    "provenance",
+    "privacy",
+    "audit"
+  ],
+  "properties": {
+    "schema_version": { "const": "morimil.memory_link.v1" },
+    "link_id": { "type": "string", "pattern": "^mlink_[0-9]{6,}$" },
+    "instance_id": { "type": "string", "minLength": 1 },
+    "genesis_core_hash": { "type": "string", "pattern": "^sha256:.+" },
+    "source": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": {
+          "type": "string",
+          "enum": ["memory_event", "knowledge_capsule", "autobiographical_snapshot", "memory_snapshot", "recall_schedule", "genesis", "policy", "doctrine", "project"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "target": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": {
+          "type": "string",
+          "enum": ["memory_event", "knowledge_capsule", "autobiographical_snapshot", "memory_snapshot", "recall_schedule", "genesis", "policy", "doctrine", "project"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "relation": {
+      "type": "string",
+      "enum": ["anchored_to", "supports", "contradicts", "derived_from", "reinforces", "updates", "blocks", "related_to", "explains", "depends_on", "constrained_by"]
+    },
+    "strength": { "type": "number", "minimum": 0, "maximum": 1 },
+    "provenance": {
+      "type": "object",
+      "required": ["created_by", "created_at", "reason"],
+      "properties": {
+        "created_by": { "type": "string", "enum": ["local_runtime", "rest_cycle", "user", "migration"] },
+        "created_at": { "type": "string", "format": "date-time" },
+        "reason": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "privacy": {
+      "type": "object",
+      "required": ["visibility", "cloud_sync_allowed", "export_allowed"],
+      "properties": {
+        "visibility": { "type": "string", "enum": ["private_local", "user_exportable", "shareable_summary"] },
+        "cloud_sync_allowed": { "type": "boolean" },
+        "export_allowed": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "audit": {
+      "type": "object",
+      "required": ["write_mode", "verification_state"],
+      "properties": {
+        "write_mode": { "const": "append_only" },
+        "verification_state": { "type": "string", "enum": ["pending", "valid", "invalid"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

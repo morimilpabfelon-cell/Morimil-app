@@ -5,70 +5,66 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
+import java.io.File
 
 /**
- * Reads the Genesis identity contract. Tries a live GitHub read first (the
- * real source of truth); only falls back to the bundled local snapshot if
- * the network read fails (e.g. first install offline, no connectivity).
- *
- * This does real network I/O -- always call readGenesisIdentity() from a
- * coroutine, never from the main thread directly.
+ * Reads the bundled Genesis seed. GitHub is only the development workshop;
+ * the installed app uses the Genesis bundle shipped in assets/genesis.
  */
 class GenesisReader(private val context: Context) {
+    private val manifestVerifier = GenesisManifestVerifier(context)
 
     suspend fun readGenesisIdentity(): Result<GenesisIdentitySource> = withContext(Dispatchers.IO) {
         runCatching {
-            val remote = runCatching { fetchRemote() }
-            if (remote.isSuccess) {
-                GenesisIdentitySource(identity = remote.getOrThrow(), origin = GenesisOrigin.GITHUB_LIVE)
-            } else {
-                GenesisIdentitySource(identity = readBundled(), origin = GenesisOrigin.BUNDLED_FALLBACK)
-            }
+            val verification = manifestVerifier.verify()
+            GenesisIdentitySource(
+                identity = readBundled(),
+                origin = GenesisOrigin.BUNDLED_SEED,
+                manifest = verification
+            )
         }
     }
 
-    /**
-     * Fetches the full doctrine text referenced by the identity's own
-     * doctrine_ref field (e.g. "doctrine/doctrine.md"), built dynamically so
-     * this never goes stale if the ref ever changes. No bundled fallback: a
-     * guessed or stale doctrine copy is worse than none, so a failed fetch
-     * here is reported as failure and the caller degrades gracefully rather
-     * than risking incorrect doctrine text in a system prompt.
-     */
     suspend fun readDoctrineText(doctrineRef: String): Result<String> = withContext(Dispatchers.IO) {
+        runCatching { readBundledText(doctrineRef) }
+    }
+
+    suspend fun readPolicyText(policyRef: String): Result<String> = withContext(Dispatchers.IO) {
+        runCatching { readBundledText(policyRef) }
+    }
+
+    suspend fun installGenesisBundle(): Result<GenesisInstalledBundle> = withContext(Dispatchers.IO) {
         runCatching {
-            val url = URL("$GENESIS_RAW_BASE/$doctrineRef")
-            val connection = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = TIMEOUT_MS
-                readTimeout = TIMEOUT_MS
+            val verification = manifestVerifier.verify()
+            val manifest = JSONObject(readBundledText("genesis_manifest.json"))
+            val files = manifest.getJSONArray("files")
+            val stagingDir = File(context.filesDir, "genesis_staging")
+            val finalDir = File(context.filesDir, "genesis")
+
+            stagingDir.deleteRecursively()
+            require(stagingDir.mkdirs()) { "Could not create Genesis staging directory." }
+
+            copyBundledAsset("genesis_manifest.json", File(stagingDir, "genesis_manifest.json"))
+            repeat(files.length()) { index ->
+                val relativePath = files.getJSONObject(index).getString("path")
+                copyBundledAsset(relativePath, File(stagingDir, relativePath))
             }
-            try {
-                val statusCode = connection.responseCode
-                require(statusCode in 200..299) { "Doctrine fetch failed: HTTP $statusCode" }
-                connection.inputStream.bufferedReader().use { it.readText() }
-            } finally {
-                connection.disconnect()
-            }
+
+            finalDir.deleteRecursively()
+            require(stagingDir.renameTo(finalDir)) { "Could not install Genesis bundle into private storage." }
+
+            GenesisInstalledBundle(
+                verification = verification,
+                installPath = finalDir.absolutePath
+            )
         }
     }
 
-    private fun fetchRemote(): GenesisIdentity {
-        val url = URL(GENESIS_RAW_URL)
-        val connection = (url.openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            connectTimeout = TIMEOUT_MS
-            readTimeout = TIMEOUT_MS
-        }
-        try {
-            val statusCode = connection.responseCode
-            require(statusCode in 200..299) { "Genesis fetch failed: HTTP $statusCode" }
-            val text = connection.inputStream.bufferedReader().use { it.readText() }
-            return parseIdentity(JSONObject(text))
-        } finally {
-            connection.disconnect()
+    suspend fun clearInstalledGenesisBundle(): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            File(context.filesDir, "genesis_staging").deleteRecursively()
+            File(context.filesDir, "genesis").deleteRecursively()
+            Unit
         }
     }
 
@@ -78,6 +74,24 @@ class GenesisReader(private val context: Context) {
             .bufferedReader()
             .use { it.readText() }
         return parseIdentity(JSONObject(rawJson))
+    }
+
+    private fun readBundledText(ref: String): String {
+        val cleanRef = ref.trim().removePrefix("/")
+        require(!cleanRef.contains("..")) { "Genesis bundle ref cannot escape assets/genesis." }
+        return context.assets
+            .open("$GENESIS_ROOT/$cleanRef")
+            .bufferedReader()
+            .use { it.readText() }
+    }
+
+    private fun copyBundledAsset(ref: String, target: File) {
+        val cleanRef = ref.trim().removePrefix("/")
+        require(!cleanRef.contains("..")) { "Genesis bundle ref cannot escape assets/genesis." }
+        target.parentFile?.mkdirs()
+        context.assets.open("$GENESIS_ROOT/$cleanRef").use { input ->
+            target.outputStream().use { output -> input.copyTo(output) }
+        }
     }
 
     private fun parseIdentity(root: JSONObject): GenesisIdentity {
@@ -100,9 +114,7 @@ class GenesisReader(private val context: Context) {
     }
 
     companion object {
-        private const val GENESIS_ASSET = "morimil_genesis_identity.json"
-        private const val GENESIS_RAW_BASE = "https://raw.githubusercontent.com/morimilpabfelon-cell/Morimil/main"
-        private const val GENESIS_RAW_URL = "$GENESIS_RAW_BASE/identity/orchestrator.identity.json"
-        private const val TIMEOUT_MS = 12_000
+        private const val GENESIS_ROOT = "genesis"
+        private const val GENESIS_ASSET = "$GENESIS_ROOT/identity/orchestrator.identity.json"
     }
 }

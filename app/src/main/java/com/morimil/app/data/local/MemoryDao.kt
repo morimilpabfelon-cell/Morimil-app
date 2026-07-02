@@ -57,4 +57,41 @@ interface MemoryDao {
      */
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertLocalIdentity(identity: LocalInstanceIdentityEntity)
+
+    @Query("SELECT * FROM genesis_core LIMIT 1")
+    fun observeGenesisCore(): Flow<GenesisCoreEntity?>
+
+    @Query("SELECT COUNT(*) FROM genesis_core")
+    suspend fun countGenesisCore(): Int
+
+    /**
+     * ABORT, not REPLACE: Genesis Core is a copied birth block. Living memory
+     * grows beside it; the copied core itself must not be silently rewritten.
+     */
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertGenesisCore(core: GenesisCoreEntity)
+
+    @Query("SELECT * FROM memory_events ORDER BY createdAtMillis DESC, id DESC LIMIT 20")
+    fun observeRecentMemoryEvents(): Flow<List<MemoryEventEntity>>
+
+    @Query("SELECT * FROM memory_events ORDER BY importance DESC, createdAtMillis DESC, id DESC LIMIT :limit")
+    suspend fun loadMemoryContext(limit: Int = 24): List<MemoryEventEntity>
+
+    @Query("SELECT COUNT(*) FROM memory_events")
+    suspend fun countMemoryEvents(): Int
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertMemoryEvent(event: MemoryEventEntity)
+
+    @Query("SELECT * FROM memory_snapshots WHERE snapshotId = 'living_memory_current' LIMIT 1")
+    fun observeLivingMemorySnapshot(): Flow<MemorySnapshotEntity?>
+
+    @Query("SELECT * FROM memory_snapshots WHERE snapshotId = 'living_memory_current' LIMIT 1")
+    suspend fun getLivingMemorySnapshot(): MemorySnapshotEntity?
+
+    @Query("SELECT COUNT(*) FROM memory_snapshots WHERE snapshotId = 'living_memory_current'")
+    suspend fun countLivingMemorySnapshot(): Int
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertMemorySnapshot(snapshot: MemorySnapshotEntity)
 }

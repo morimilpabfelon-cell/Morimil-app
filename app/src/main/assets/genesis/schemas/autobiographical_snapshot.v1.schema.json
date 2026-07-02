@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morimil.local/schemas/autobiographical_snapshot.v1.schema.json",
+  "title": "Morimil Autobiographical Snapshot v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "snapshot_id",
+    "instance_id",
+    "genesis_core_hash",
+    "period",
+    "narrative",
+    "memory_inputs",
+    "lessons",
+    "continuity",
+    "privacy",
+    "audit"
+  ],
+  "properties": {
+    "schema_version": { "const": "morimil.autobiographical_snapshot.v1" },
+    "snapshot_id": { "type": "string", "pattern": "^auto_[0-9]{4}_[0-9]{2}_[0-9]{2}(_[a-z0-9_-]+)?$" },
+    "instance_id": { "type": "string", "minLength": 1 },
+    "genesis_core_hash": { "type": "string", "pattern": "^sha256:.+" },
+    "period": {
+      "type": "object",
+      "required": ["kind", "starts_at", "ends_at"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["day", "week", "month", "project_phase"] },
+        "starts_at": { "type": "string", "format": "date-time" },
+        "ends_at": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "narrative": {
+      "type": "object",
+      "required": ["first_person_summary", "objective_summary", "tone"],
+      "properties": {
+        "first_person_summary": { "type": "string", "minLength": 1 },
+        "objective_summary": { "type": "string", "minLength": 1 },
+        "tone": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "memory_inputs": {
+      "type": "object",
+      "required": ["event_ids", "knowledge_capsule_ids", "self_update_proposal_ids"],
+      "properties": {
+        "event_ids": { "type": "array", "items": { "type": "string" } },
+        "knowledge_capsule_ids": { "type": "array", "items": { "type": "string" } },
+        "self_update_proposal_ids": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "lessons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["lesson", "applies_to", "confidence"],
+        "properties": {
+          "lesson": { "type": "string", "minLength": 1 },
+          "applies_to": { "type": "array", "items": { "type": "string" } },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "continuity": {
+      "type": "object",
+      "required": ["open_threads", "next_actions", "identity_consistency_notes"],
+      "properties": {
+        "open_threads": { "type": "array", "items": { "type": "string" } },
+        "next_actions": { "type": "array", "items": { "type": "string" } },
+        "identity_consistency_notes": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "privacy": {
+      "type": "object",
+      "required": ["visibility", "export_allowed", "cloud_sync_allowed"],
+      "properties": {
+        "visibility": { "type": "string", "enum": ["private_local", "user_exportable", "shareable_summary"] },
+        "export_allowed": { "type": "boolean" },
+        "cloud_sync_allowed": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "audit": {
+      "type": "object",
+      "required": ["created_by", "created_at", "generation_mode"],
+      "properties": {
+        "created_by": { "type": "string", "minLength": 1 },
+        "created_at": { "type": "string", "format": "date-time" },
+        "generation_mode": { "type": "string", "enum": ["local_scheduled", "user_requested", "manual_import"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
