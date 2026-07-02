@@ -20,12 +20,7 @@ has_genesis_anchor if {
 has_chain_integrity if {
   input.chain.event_hash != ""
   input.chain.hash_algorithm == "sha256"
-  input.chain.canonicalization == "json_canonical_v1"
-}
-
-has_event_signature if {
-  input.signatures.event_signature.algorithm == "ed25519"
-  input.signatures.event_signature.signature != ""
+  input.chain.canonicalization == "morimil.memory_event_hash.v1"
 }
 
 has_provenance if {
@@ -42,7 +37,6 @@ allow_append if {
   input.schema_version == "morimil.memory_event.v1"
   has_genesis_anchor
   has_chain_integrity
-  has_event_signature
   has_provenance
   private_by_default
 }

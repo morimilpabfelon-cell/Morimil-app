@@ -61,6 +61,9 @@ interface MemoryDao {
     @Query("SELECT * FROM genesis_core LIMIT 1")
     fun observeGenesisCore(): Flow<GenesisCoreEntity?>
 
+    @Query("SELECT * FROM genesis_core LIMIT 1")
+    suspend fun loadGenesisCore(): GenesisCoreEntity?
+
     @Query("SELECT COUNT(*) FROM genesis_core")
     suspend fun countGenesisCore(): Int
 
@@ -76,6 +79,9 @@ interface MemoryDao {
 
     @Query("SELECT * FROM memory_events ORDER BY importance DESC, createdAtMillis DESC, id DESC LIMIT :limit")
     suspend fun loadMemoryContext(limit: Int = 24): List<MemoryEventEntity>
+
+    @Query("SELECT * FROM memory_events ORDER BY id ASC")
+    suspend fun loadMemoryEventChain(): List<MemoryEventEntity>
 
     @Query("SELECT COUNT(*) FROM memory_events")
     suspend fun countMemoryEvents(): Int

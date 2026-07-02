@@ -102,7 +102,7 @@ class GenesisManifestVerifier(private val context: Context) {
 
     private fun sha256(bytes: ByteArray): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
-        return "sha256:" + digest.joinToString("") { "%02x".format(it) }
+        return "sha256:" + digest.joinToString("") { "%02x".format(it.toInt() and 0xff) }
     }
 
     private fun stableStringify(value: Any?): String {
@@ -166,7 +166,7 @@ class GenesisManifestVerifier(private val context: Context) {
     }
 
     companion object {
-        const val APPROVED_GENESIS_CORE_HASH = "sha256:7eb7c8c8a9c3b0dcd4102b7a12137c302f83bb33b3ba5b3934be2888bbd5d318"
+        const val APPROVED_GENESIS_CORE_HASH = "sha256:47ab394c2352f08e269bdadbc77ffa44b0b6ed6f9f623957bb47994422b3acc4"
         private const val APPROVED_FILE_COUNT = 17
         private const val GENESIS_ROOT = "genesis"
         private const val MANIFEST_ASSET = "$GENESIS_ROOT/genesis_manifest.json"
