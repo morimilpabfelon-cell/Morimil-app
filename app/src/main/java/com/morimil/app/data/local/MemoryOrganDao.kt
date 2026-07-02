@@ -17,11 +17,11 @@ interface MemoryOrganDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertSelfSnapshot(snapshot: AutobiographicalSnapshotEntity)
 
-    @Query("SELECT * FROM knowledge_capsules ORDER BY updatedAtMillis DESC LIMIT :limit")
-    fun observeKnowledgeCapsules(limit: Int = 20): Flow<List<KnowledgeCapsuleEntity>>
+    @Query("SELECT * FROM knowledge_capsules ORDER BY updatedAtMillis DESC LIMIT 20")
+    fun observeRecentKnowledgeCapsules(): Flow<List<KnowledgeCapsuleEntity>>
 
     @Query("SELECT * FROM knowledge_capsules ORDER BY updatedAtMillis DESC LIMIT :limit")
-    suspend fun loadKnowledgeCapsules(limit: Int = 20): List<KnowledgeCapsuleEntity>
+    suspend fun loadKnowledgeCapsules(limit: Int): List<KnowledgeCapsuleEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertKnowledgeCapsule(capsule: KnowledgeCapsuleEntity)
