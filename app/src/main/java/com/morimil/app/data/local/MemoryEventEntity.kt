@@ -17,6 +17,8 @@ data class MemoryEventEntity(
     val eventSignature: String?,
     val eventType: String,
     val actor: String,
+    val source: String,
+    val privacyVisibility: String,
     val body: String,
     val importance: Int,
     val createdAtMillis: Long
