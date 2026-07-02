@@ -14,6 +14,7 @@
 10. Genesis is the immutable birth core. Growth is appended as memory, knowledge, and reviewed evolution records.
 11. The reasoning provider is not memory. It only receives recovered local context for the current turn.
 12. Learning may expand capability through knowledge capsules and self-update proposals, but core identity and safety rules require explicit migration gates.
+13. User-provided reasoning API keys may be used only as local transport credentials for the current provider request. They are not memory, identity, or agent-owned authority.
 
 ## Memory doctrine
 
@@ -45,6 +46,8 @@ audit evidence
 ```
 
 The Genesis Core is never overwritten by normal learning. New learning is appended and linked back to Genesis.
+
+Runtime v1 requires hash-linked local memory events. Ed25519 event signatures are a planned hardening layer and must not be presented as active until implemented in the app runtime.
 
 ## Stop conditions
 
