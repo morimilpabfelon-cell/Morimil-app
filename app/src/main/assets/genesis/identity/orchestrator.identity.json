@@ -15,7 +15,8 @@
   ],
   "disallowed_actions": [
     "autonomous write",
-    "credential use",
+    "credential exfiltration",
+    "autonomous credential use without user approval",
     "GitHub write automation",
     "PR creation",
     "merge",
