@@ -11,10 +11,9 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * Stores named runtime secrets, such as a reasoning API key, encrypted
- * with an AndroidKeyStore-backed AES-GCM key. The key material never leaves
- * secure hardware; only the ciphertext and IV are persisted, in
- * SharedPreferences, keyed by secret name.
+ * Stores named runtime secrets encrypted with an AndroidKeyStore-backed
+ * AES-GCM key. The key material never leaves secure hardware; only ciphertext
+ * and IV are persisted in app-private preferences.
  */
 class SecretVault(context: Context) {
     private val appContext = context.applicationContext
@@ -58,9 +57,19 @@ class SecretVault(context: Context) {
         String(cipher.doFinal(encrypted), Charsets.UTF_8)
     }
 
-    fun hasAnthropicKey(): Boolean = hasSecret(ANTHROPIC_KEY)
-    fun saveAnthropicKey(key: String): Result<Unit> = saveSecret(ANTHROPIC_KEY, key)
-    fun readAnthropicKey(): Result<String?> = readSecret(ANTHROPIC_KEY)
+    fun hasReasoningKey(): Boolean = hasSecret(REASONING_KEY) || hasSecret(ANTHROPIC_KEY)
+    fun saveReasoningKey(key: String): Result<Unit> = saveSecret(REASONING_KEY, key)
+    fun readReasoningKey(): Result<String?> = runCatching {
+        readSecret(REASONING_KEY).getOrThrow() ?: readSecret(ANTHROPIC_KEY).getOrThrow()
+    }
+    fun clearReasoningKey() {
+        clearSecret(REASONING_KEY)
+        clearSecret(ANTHROPIC_KEY)
+    }
+
+    fun hasAnthropicKey(): Boolean = hasReasoningKey()
+    fun saveAnthropicKey(key: String): Result<Unit> = saveReasoningKey(key)
+    fun readAnthropicKey(): Result<String?> = readReasoningKey()
 
     private fun ciphertextKey(name: String) = "${name}_ciphertext"
     private fun ivKey(name: String) = "${name}_iv"
@@ -99,5 +108,6 @@ class SecretVault(context: Context) {
         private const val GCM_TAG_LENGTH_BITS = 128
         private const val PREFERENCES_NAME = "morimil_secret_vault"
         private const val ANTHROPIC_KEY = "anthropic_api_key"
+        private const val REASONING_KEY = "reasoning_runtime_key"
     }
 }
