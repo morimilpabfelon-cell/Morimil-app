@@ -51,7 +51,7 @@ fun RuntimeNote() {
                 placeholder = { Text("Modelo") }
             )
             Button(onClick = {
-                val updated = config.copy(baseUrl = endpoint, model = model)
+                val updated = config.copy(baseUrl = endpoint.trim(), model = model.trim())
                 store.save(updated)
                     .onSuccess {
                         config = updated
