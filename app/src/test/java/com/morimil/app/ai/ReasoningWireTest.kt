@@ -38,6 +38,18 @@ class ReasoningWireTest {
     }
 
     @Test
+    fun chatBodyIsInferredFromChatCompletionsEndpoint() {
+        val cfg = ReasoningProviderConfig.fromPreset(ReasoningPreset.MESSAGES_COMPATIBLE)
+            .copy(baseUrl = "https://example.com/v1/chat/completions", model = "model-c")
+        val body = JSONObject(ReasoningWire.buildBody(cfg, "SYS", history))
+        val messages = body.getJSONArray("messages")
+
+        assertEquals(ReasoningWireFormat.CHAT, cfg.wireFormat)
+        assertFalse(body.has("system"))
+        assertEquals("system", messages.getJSONObject(0).getString("role"))
+    }
+
+    @Test
     fun messagesReplyParsesTextBlocks() {
         val cfg = ReasoningProviderConfig.fromPreset(ReasoningPreset.MESSAGES_COMPATIBLE)
             .copy(model = "model-a")
