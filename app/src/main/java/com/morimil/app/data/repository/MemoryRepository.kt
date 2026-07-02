@@ -194,7 +194,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
 
         val snapshotText = snapshot?.summary ?: "No living memory snapshot yet."
         val eventText = events.joinToString("\n") { event ->
-            "- [${event.eventType}/${event.actor}/i${event.importance}/${event.eventHash.take(19)}] " +
+            "- [${event.eventType}/${event.actor}/${event.source}/${event.privacyVisibility}/i${event.importance}/${event.eventHash.take(19)}] " +
                 event.body.take(500)
         }
 
@@ -225,6 +225,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
         importance: Int
     ) {
         val cleanBody = body.trim()
+        val cleanImportance = importance.coerceIn(1, 100)
         val createdAtMillis = System.currentTimeMillis()
         val genesisCore = requireNotNull(memoryDao.loadGenesisCore()) {
             "Cannot append living memory without a local Genesis Core."
@@ -233,6 +234,9 @@ class MemoryRepository(private val database: MorimilDatabase) {
         require(verifyMemoryEventChain(existingChain)) {
             "Living memory chain integrity failed. Refusing to append a new event."
         }
+        val source = if (actor == "user" || actor == "morimil") "chat" else "system"
+        val contextTag = "local_runtime"
+        val privacyVisibility = PRIVATE_LOCAL
         val previousEventHash = existingChain.lastOrNull()?.eventHash
         val eventHash = hashMemoryEvent(
             genesisCoreId = genesisCore.coreId,
@@ -240,8 +244,11 @@ class MemoryRepository(private val database: MorimilDatabase) {
             previousEventHash = previousEventHash,
             eventType = eventType,
             actor = actor,
+            source = source,
+            contextTag = contextTag,
+            privacyVisibility = privacyVisibility,
             body = cleanBody,
-            importance = importance.coerceIn(1, 100),
+            importance = cleanImportance,
             createdAtMillis = createdAtMillis
         )
 
@@ -257,11 +264,11 @@ class MemoryRepository(private val database: MorimilDatabase) {
                 eventSignature = null,
                 eventType = eventType,
                 actor = actor,
-                source = if (actor == "user" || actor == "morimil") "chat" else "system",
-                contextTag = "local_runtime",
-                privacyVisibility = PRIVATE_LOCAL,
+                source = source,
+                contextTag = contextTag,
+                privacyVisibility = privacyVisibility,
                 body = cleanBody,
-                importance = importance.coerceIn(1, 100),
+                importance = cleanImportance,
                 createdAtMillis = createdAtMillis
             )
         )
@@ -316,6 +323,9 @@ class MemoryRepository(private val database: MorimilDatabase) {
                 previousEventHash = event.previousEventHash,
                 eventType = event.eventType,
                 actor = event.actor,
+                source = event.source,
+                contextTag = event.contextTag,
+                privacyVisibility = event.privacyVisibility,
                 body = event.body,
                 importance = event.importance,
                 createdAtMillis = event.createdAtMillis
@@ -332,6 +342,9 @@ class MemoryRepository(private val database: MorimilDatabase) {
         previousEventHash: String?,
         eventType: String,
         actor: String,
+        source: String,
+        contextTag: String,
+        privacyVisibility: String,
         body: String,
         importance: Int,
         createdAtMillis: Long
@@ -341,13 +354,16 @@ class MemoryRepository(private val database: MorimilDatabase) {
                 "actor" to actor,
                 "body" to body,
                 "canonicalization" to MEMORY_EVENT_CANONICALIZATION,
+                "contextTag" to contextTag,
                 "createdAtMillis" to createdAtMillis,
                 "eventType" to eventType,
                 "genesisCoreId" to genesisCoreId,
                 "genesisCoreHash" to genesisCoreHash,
                 "hashAlgorithm" to "sha256",
                 "importance" to importance,
-                "previousEventHash" to previousEventHash
+                "previousEventHash" to previousEventHash,
+                "privacyVisibility" to privacyVisibility,
+                "source" to source
             )
         )
         val digest = MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray(Charsets.UTF_8))
