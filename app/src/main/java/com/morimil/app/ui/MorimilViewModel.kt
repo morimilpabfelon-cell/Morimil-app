@@ -123,6 +123,46 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+
+    fun approveMemoryEvent(event: MemoryEventEntity) {
+        recordMemoryReview(
+            event = event,
+            action = "aprobado",
+            note = "Recuerdo aprobado por el usuario como memoria util."
+        )
+    }
+
+    fun degradeMemoryEvent(event: MemoryEventEntity) {
+        recordMemoryReview(
+            event = event,
+            action = "ruido_degradado",
+            note = "Recuerdo marcado por el usuario como ruido o baja prioridad."
+        )
+    }
+
+    fun requestMemoryCorrection(event: MemoryEventEntity) {
+        recordMemoryReview(
+            event = event,
+            action = "correccion_requerida",
+            note = "El usuario marco este recuerdo para correccion futura."
+        )
+    }
+
+    private fun recordMemoryReview(
+        event: MemoryEventEntity,
+        action: String,
+        note: String
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                repository.recordMemoryReview(
+                    targetEvent = event,
+                    action = action,
+                    note = note
+                )
+            }
+        }
+    }
     fun hasAnthropicKey(): Boolean = secretVault.hasReasoningKey()
 
     fun saveAnthropicKey(key: String): Result<Unit> = secretVault.saveReasoningKey(key)

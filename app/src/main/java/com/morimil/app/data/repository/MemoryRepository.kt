@@ -214,6 +214,35 @@ class MemoryRepository(private val database: MorimilDatabase) {
         """.trimIndent()
     }
 
+
+    suspend fun recordMemoryReview(
+        targetEvent: MemoryEventEntity,
+        action: String,
+        note: String
+    ) {
+        val cleanAction = action.trim()
+            .ifBlank { "reviewed" }
+            .replace(Regex("[^a-zA-Z0-9_.-]+"), "_")
+        val cleanNote = note.trim().ifBlank { "Revision local de memoria." }
+        val reviewImportance = when (cleanAction) {
+            "aprobado" -> 80
+            "correccion_requerida" -> 90
+            "ruido_degradado" -> 30
+            else -> 60
+        }
+
+        database.withTransaction {
+            insertMemoryEventAndRebuildSnapshot(
+                eventType = "memory_review.$cleanAction",
+                actor = "user",
+                body = "Revision local de memoria: action=$cleanAction; " +
+                    "target_event_hash=${targetEvent.eventHash}; " +
+                    "target_kind=${targetEvent.memoryKind}; " +
+                    "note=$cleanNote; excerpt=${targetEvent.body.take(220)}",
+                importance = reviewImportance
+            )
+        }
+    }
     private suspend fun appendMemoryEvent(
         eventType: String,
         actor: String,
