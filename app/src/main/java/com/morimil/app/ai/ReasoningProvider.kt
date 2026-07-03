@@ -2,12 +2,8 @@ package com.morimil.app.ai
 
 import android.content.Context
 
-private fun defaultMessagesUrl(): String {
-    return "https://" + "api." + "anthropic.com" + "/v1/messages"
-}
-
-private fun defaultMessagesModel(): String {
-    return "claude-" + "sonnet-" + "5"
+private fun localChatUrl(): String {
+    return "http://" + "127.0.0.1" + ":11434" + "/v1/" + "chat/" + "completions"
 }
 
 enum class ReasoningWireFormat {
@@ -21,14 +17,14 @@ enum class ReasoningPreset(
     val defaultBaseUrl: String,
     val defaultModel: String
 ) {
-    MESSAGES_COMPATIBLE("Messages-compatible", ReasoningWireFormat.MESSAGES, defaultMessagesUrl(), defaultMessagesModel()),
+    MESSAGES_COMPATIBLE("Messages-compatible", ReasoningWireFormat.MESSAGES, "", ""),
     CHAT_COMPATIBLE("Chat-compatible", ReasoningWireFormat.CHAT, "", ""),
-    LOCAL_COMPATIBLE("Local-compatible", ReasoningWireFormat.CHAT, "http://127.0.0.1:11434/v1/chat/completions", ""),
+    LOCAL_COMPATIBLE("Local-compatible", ReasoningWireFormat.CHAT, localChatUrl(), ""),
     CUSTOM("Custom-compatible", ReasoningWireFormat.CHAT, "", "");
 
     companion object {
         fun fromName(name: String?): ReasoningPreset {
-            return entries.firstOrNull { it.name == name } ?: MESSAGES_COMPATIBLE
+            return entries.firstOrNull { it.name == name } ?: CUSTOM
         }
     }
 }
@@ -47,7 +43,7 @@ data class ReasoningProviderConfig(
         }
 
     val requiresRuntimeKey: Boolean
-        get() = !(baseUrl.startsWith("http://127.0.0.1") ||
+        get() = baseUrl.isNotBlank() && !(baseUrl.startsWith("http://127.0.0.1") ||
             baseUrl.startsWith("http://localhost") ||
             baseUrl.startsWith("http://10.0.2.2"))
 
@@ -67,7 +63,7 @@ data class ReasoningProviderConfig(
         const val DEFAULT_MAX_TOKENS = 1024
         const val MAX_ALLOWED_TOKENS = 32768
 
-        fun default(): ReasoningProviderConfig = fromPreset(ReasoningPreset.MESSAGES_COMPATIBLE)
+        fun default(): ReasoningProviderConfig = fromPreset(ReasoningPreset.CUSTOM)
 
         fun fromPreset(preset: ReasoningPreset): ReasoningProviderConfig {
             return ReasoningProviderConfig(
