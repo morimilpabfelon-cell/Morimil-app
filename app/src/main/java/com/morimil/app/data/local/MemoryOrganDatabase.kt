@@ -11,7 +11,7 @@ import androidx.room.RoomDatabase
         KnowledgeCapsuleEntity::class
     ],
     version = 1,
-    exportSchema = true
+    exportSchema = false
 )
 abstract class MemoryOrganDatabase : RoomDatabase() {
     abstract fun memoryOrganDao(): MemoryOrganDao

@@ -19,7 +19,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MemorySnapshotEntity::class
     ],
     version = 7,
-    exportSchema = true
+    exportSchema = false
 )
 abstract class MorimilDatabase : RoomDatabase() {
     abstract fun memoryDao(): MemoryDao
