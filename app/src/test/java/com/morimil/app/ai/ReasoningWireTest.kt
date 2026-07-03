@@ -82,7 +82,7 @@ class ReasoningWireTest {
     @Test
     fun remoteEndpointRequiresRuntimeKey() {
         val cfg = ReasoningProviderConfig.fromPreset(ReasoningPreset.MESSAGES_COMPATIBLE)
-            .copy(model = "model-a")
+            .copy(baseUrl = "https://example.com/v1/messages", model = "model-a")
 
         assertTrue(cfg.requiresRuntimeKey)
     }
