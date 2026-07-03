@@ -61,6 +61,20 @@ class ReasoningWireTest {
     }
 
     @Test
+    fun responsesBodyIsInferredFromResponsesEndpoint() {
+        val cfg = ReasoningProviderConfig.fromPreset(ReasoningPreset.CUSTOM)
+            .copy(baseUrl = "https://example.com/v1/responses", model = "model-r")
+        val body = JSONObject(ReasoningWire.buildBody(cfg, "SYS", history))
+        val input = body.getJSONArray("input")
+
+        assertEquals(ReasoningWireFormat.RESPONSES, cfg.wireFormat)
+        assertEquals("SYS", body.getString("instructions"))
+        assertEquals("model-r", body.getString("model"))
+        assertEquals(3, input.length())
+        assertEquals(1024, body.getInt("max_output_tokens"))
+    }
+
+    @Test
     fun messagesReplyParsesTextBlocks() {
         val cfg = ReasoningProviderConfig.fromPreset(ReasoningPreset.MESSAGES_COMPATIBLE)
             .copy(model = "model-a")
@@ -77,6 +91,17 @@ class ReasoningWireTest {
             .copy(baseUrl = "https://example.com/chat", model = "model-b")
         val response = """
             {"choices":[{"message":{"role":"assistant","content":"hola Morimil"}}]}
+        """.trimIndent()
+
+        assertEquals("hola Morimil", ReasoningWire.parseReply(cfg, response))
+    }
+
+    @Test
+    fun responsesReplyParsesOutputText() {
+        val cfg = ReasoningProviderConfig.fromPreset(ReasoningPreset.RESPONSES_COMPATIBLE)
+            .copy(baseUrl = "https://example.com/v1/responses", model = "model-r")
+        val response = """
+            {"output_text":"hola Morimil"}
         """.trimIndent()
 
         assertEquals("hola Morimil", ReasoningWire.parseReply(cfg, response))

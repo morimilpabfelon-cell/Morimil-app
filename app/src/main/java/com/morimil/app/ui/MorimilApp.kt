@@ -109,8 +109,6 @@ private fun ChatScreen(viewModel: MorimilViewModel) {
     val isSending by viewModel.isSending.collectAsStateWithLifecycle()
     val chatError by viewModel.chatError.collectAsStateWithLifecycle()
     var draft by remember { mutableStateOf("") }
-    var keyDraft by remember { mutableStateOf("") }
-    var hasKey by remember { mutableStateOf(viewModel.hasAnthropicKey()) }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Morimil", style = MaterialTheme.typography.headlineMedium)
@@ -119,31 +117,6 @@ private fun ChatScreen(viewModel: MorimilViewModel) {
 
         RuntimeNote()
         Spacer(Modifier.height(16.dp))
-
-        if (!hasKey) {
-            Text("Pega tu A" + "PI aquí para activar motor remoto.")
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextField(
-                    value = keyDraft,
-                    onValueChange = { keyDraft = it },
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text("Pega tu A" + "PI aquí") }
-                )
-                Button(
-                    onClick = {
-                        viewModel.saveAnthropicKey(keyDraft)
-                            .onSuccess {
-                                keyDraft = ""
-                                hasKey = true
-                            }
-                    }
-                ) {
-                    Text("Guardar")
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-        }
 
         LazyColumn(
             modifier = Modifier.weight(1f),

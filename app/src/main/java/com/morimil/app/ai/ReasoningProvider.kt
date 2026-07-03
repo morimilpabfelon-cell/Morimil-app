@@ -8,7 +8,8 @@ private fun localChatUrl(): String {
 
 enum class ReasoningWireFormat {
     MESSAGES,
-    CHAT
+    CHAT,
+    RESPONSES
 }
 
 enum class ReasoningPreset(
@@ -19,6 +20,7 @@ enum class ReasoningPreset(
 ) {
     MESSAGES_COMPATIBLE("Messages-compatible", ReasoningWireFormat.MESSAGES, "", ""),
     CHAT_COMPATIBLE("Chat-compatible", ReasoningWireFormat.CHAT, "", ""),
+    RESPONSES_COMPATIBLE("Responses-compatible", ReasoningWireFormat.RESPONSES, "", ""),
     LOCAL_COMPATIBLE("Local-compatible", ReasoningWireFormat.CHAT, localChatUrl(), ""),
     CUSTOM("Custom-compatible", ReasoningWireFormat.CHAT, "", "");
 
@@ -36,10 +38,14 @@ data class ReasoningProviderConfig(
     val maxTokens: Int = DEFAULT_MAX_TOKENS
 ) {
     val wireFormat: ReasoningWireFormat
-        get() = when {
-            baseUrl.contains("/chat/completions") -> ReasoningWireFormat.CHAT
-            baseUrl.endsWith("/messages") || baseUrl.contains("/messages?") -> ReasoningWireFormat.MESSAGES
-            else -> preset.wireFormat
+        get() {
+            val cleanUrl = baseUrl.trim().lowercase()
+            return when {
+                cleanUrl.endsWith("/responses") || cleanUrl.contains("/responses?") -> ReasoningWireFormat.RESPONSES
+                cleanUrl.contains("/chat/completions") -> ReasoningWireFormat.CHAT
+                cleanUrl.endsWith("/messages") || cleanUrl.contains("/messages?") -> ReasoningWireFormat.MESSAGES
+                else -> preset.wireFormat
+            }
         }
 
     val requiresRuntimeKey: Boolean

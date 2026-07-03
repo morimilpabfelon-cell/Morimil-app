@@ -16,6 +16,7 @@ object ReasoningWire {
         return when (config.wireFormat) {
             ReasoningWireFormat.MESSAGES -> messagesBody(config, systemPrompt, history)
             ReasoningWireFormat.CHAT -> chatBody(config, systemPrompt, history)
+            ReasoningWireFormat.RESPONSES -> responsesBody(config, systemPrompt, history)
         }
     }
 
@@ -23,6 +24,7 @@ object ReasoningWire {
         return when (config.wireFormat) {
             ReasoningWireFormat.MESSAGES -> parseMessagesReply(responseBody)
             ReasoningWireFormat.CHAT -> parseChatReply(responseBody)
+            ReasoningWireFormat.RESPONSES -> parseResponsesReply(responseBody)
         }
     }
 
@@ -60,6 +62,27 @@ object ReasoningWire {
             .toString()
     }
 
+    private fun responsesBody(
+        config: ReasoningProviderConfig,
+        systemPrompt: String,
+        history: List<ChatTurn>
+    ): String {
+        val input = JSONArray()
+        history.forEach { turn ->
+            input.put(
+                JSONObject()
+                    .put("role", turn.role)
+                    .put("content", turn.content)
+            )
+        }
+        return JSONObject()
+            .put("model", config.model)
+            .put("instructions", systemPrompt)
+            .put("input", input)
+            .put("max_output_tokens", config.maxTokens)
+            .toString()
+    }
+
     private fun parseMessagesReply(body: String): String {
         val root = JSONObject(body)
         val content = root.optJSONArray("content") ?: return ""
@@ -92,6 +115,26 @@ object ReasoningWire {
             else -> ""
         }
     }
+
+    private fun parseResponsesReply(body: String): String {
+        val root = JSONObject(body)
+        val direct = root.optString("output_text")
+        if (direct.isNotBlank()) return direct
+
+        val output = root.optJSONArray("output") ?: return ""
+        val text = StringBuilder()
+        for (i in 0 until output.length()) {
+            val item = output.optJSONObject(i) ?: continue
+            val content = item.optJSONArray("content") ?: continue
+            for (j in 0 until content.length()) {
+                val part = content.optJSONObject(j) ?: continue
+                when (part.optString("type")) {
+                    "output_text", "text" -> text.append(part.optString("text"))
+                }
+            }
+        }
+        return text.toString()
+    }
 }
 
 class ReasoningClient {
@@ -119,7 +162,8 @@ class ReasoningClient {
                     if (runtimeKey.isNotBlank()) setRequestProperty("x-" + "api-key", runtimeKey)
                     setRequestProperty("anthropic-version", MESSAGES_VERSION)
                 }
-                ReasoningWireFormat.CHAT -> {
+                ReasoningWireFormat.CHAT,
+                ReasoningWireFormat.RESPONSES -> {
                     if (runtimeKey.isNotBlank()) setRequestProperty("Authorization", "Bearer " + runtimeKey)
                 }
             }
