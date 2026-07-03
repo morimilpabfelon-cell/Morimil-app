@@ -175,19 +175,23 @@ class MemoryRepository(private val database: MorimilDatabase) {
         )
 
         if (memoryDao.countDecisions() == 0) {
-            memoryDao.insertDecision(
-                DecisionLogEntity(
-                    title = "Phase 2 local Room memory enabled",
-                    status = "accepted_for_local_persistence",
-                    createdAtMillis = System.currentTimeMillis()
-                )
-            )
-            appendMemoryEvent(
-                eventType = "decision.local_memory_enabled",
-                actor = "system",
-                body = "Room/SQLite local memory enabled as persistent phone memory.",
-                importance = 90
-            )
+            database.withTransaction {
+                if (memoryDao.countDecisions() == 0) {
+                    memoryDao.insertDecision(
+                        DecisionLogEntity(
+                            title = "Phase 2 local Room memory enabled",
+                            status = "accepted_for_local_persistence",
+                            createdAtMillis = System.currentTimeMillis()
+                        )
+                    )
+                    appendMemoryEvent(
+                        eventType = "decision.local_memory_enabled",
+                        actor = "system",
+                        body = "Room/SQLite local memory enabled as persistent phone memory.",
+                        importance = 90
+                    )
+                }
+            }
         }
     }
 
@@ -218,7 +222,9 @@ class MemoryRepository(private val database: MorimilDatabase) {
         importance: Int
     ) {
         if (body.isBlank()) return
-        if (memoryDao.countGenesisCore() == 0) return
+        require(memoryDao.countGenesisCore() > 0) {
+            "Cannot append living memory without a local Genesis Core."
+        }
         insertMemoryEventAndRebuildSnapshot(eventType, actor, body, importance)
     }
 
