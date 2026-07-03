@@ -36,10 +36,10 @@ data class ReasoningProviderConfig(
     val maxTokens: Int = DEFAULT_MAX_TOKENS
 ) {
     val wireFormat: ReasoningWireFormat
-        get() = if (baseUrl.contains("/chat/completions")) {
-            ReasoningWireFormat.CHAT
-        } else {
-            preset.wireFormat
+        get() = when {
+            baseUrl.contains("/chat/completions") -> ReasoningWireFormat.CHAT
+            baseUrl.endsWith("/messages") || baseUrl.contains("/messages?") -> ReasoningWireFormat.MESSAGES
+            else -> preset.wireFormat
         }
 
     val requiresRuntimeKey: Boolean
