@@ -4,7 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.morimil.app.ai.ChatTurn
-import com.morimil.app.ai.ClaudeApiClient
+import com.morimil.app.ai.ReasoningClient
+import com.morimil.app.ai.ReasoningConfigStore
 import com.morimil.app.ai.ReasoningRuntimeState
 import com.morimil.app.ai.SystemPromptBuilder
 import com.morimil.app.data.genesis.GenesisIdentitySource
@@ -33,7 +34,8 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     private val repository = MemoryRepository(MorimilDatabase.getInstance(application))
     private val genesisReader = GenesisReader(application)
     private val secretVault = SecretVault(application)
-    private val claudeClient = ClaudeApiClient()
+    private val reasoningConfigStore = ReasoningConfigStore(application)
+    private val reasoningClient = ReasoningClient()
 
     val messages: StateFlow<List<MemoryMessageEntity>> = repository.messages.stateIn(
         scope = viewModelScope,
@@ -115,9 +117,9 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun hasAnthropicKey(): Boolean = secretVault.hasAnthropicKey()
+    fun hasAnthropicKey(): Boolean = secretVault.hasReasoningKey()
 
-    fun saveAnthropicKey(key: String): Result<Unit> = secretVault.saveAnthropicKey(key)
+    fun saveAnthropicKey(key: String): Result<Unit> = secretVault.saveReasoningKey(key)
 
     suspend fun bornInstance(alias: String): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
@@ -155,8 +157,9 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                 return@launch
             }
 
-            val runtimeConfig = ReasoningRuntimeState.get()
-            val runtimeAccess = secretVault.readAnthropicKey().getOrNull().orEmpty()
+            val runtimeConfig = reasoningConfigStore.load()
+            ReasoningRuntimeState.set(runtimeConfig)
+            val runtimeAccess = secretVault.readReasoningKey().getOrNull().orEmpty()
             if (runtimeConfig.requiresRuntimeKey && runtimeAccess.isBlank()) {
                 _chatError.value = "Falta la llave de razonamiento."
                 return@launch
@@ -167,7 +170,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
             _isSending.value = true
             try {
                 val priorHistory = messages.value
-                    .takeLast(ClaudeApiClient.MAX_HISTORY_MESSAGES - 1)
+                    .takeLast(ReasoningClient.MAX_HISTORY_MESSAGES - 1)
                     .map { ChatTurn(role = if (it.author == "user") "user" else "assistant", content = it.body) }
                 val recent = priorHistory + ChatTurn(role = "user", content = cleanBody)
 
@@ -182,7 +185,16 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                     livingMemoryContext = memoryContext
                 )
 
-                claudeClient.sendMessage(runtimeAccess, systemPrompt, recent)
+                val response = withContext(Dispatchers.IO) {
+                    reasoningClient.sendMessage(
+                        config = runtimeConfig,
+                        runtimeKey = runtimeAccess,
+                        systemPrompt = systemPrompt,
+                        history = recent
+                    )
+                }
+
+                response
                     .onSuccess { reply -> repository.addAssistantMessage(reply) }
                     .onFailure { error -> _chatError.value = error.message ?: "Error con el motor de razonamiento." }
             } finally {

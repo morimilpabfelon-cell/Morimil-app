@@ -90,13 +90,31 @@ fun RuntimeNote() {
                                 .onSuccess { discovery ->
                                     providerLabel = discovery.providerLabel
                                     discoveredModels = discovery.models
-                                    discoveredConfig = ReasoningProviderConfig.fromPreset(discovery.preset)
-                                        .copy(baseUrl = discovery.endpoint)
-                                    endpoint = discovery.endpoint
-                                    discovery.bestModel?.let { best ->
-                                        model = best.id
+                                    val bestModel = discovery.bestModel
+                                    val detectedConfig = ReasoningProviderConfig.fromPreset(discovery.preset)
+                                        .copy(
+                                            baseUrl = discovery.endpoint,
+                                            model = bestModel?.id ?: model.trim()
+                                        )
+                                    discoveredConfig = detectedConfig
+                                    endpoint = detectedConfig.baseUrl
+                                    if (bestModel != null) model = bestModel.id
+
+                                    if (bestModel != null) {
+                                        val keyResult = withContext(Dispatchers.IO) { vault.saveReasoningKey(keyDraft) }
+                                        val configResult = store.save(detectedConfig)
+                                        if (keyResult.isSuccess && configResult.isSuccess) {
+                                            config = detectedConfig
+                                            keyDraft = ""
+                                            note = "${discovery.note} Motor detectado y guardado."
+                                        } else {
+                                            note = keyResult.exceptionOrNull()?.message
+                                                ?: configResult.exceptionOrNull()?.message
+                                                ?: "No se pudo guardar el motor detectado."
+                                        }
+                                    } else {
+                                        note = discovery.note
                                     }
-                                    note = discovery.note
                                 }
                                 .onFailure { error ->
                                     note = error.message ?: "No se pudo detectar el motor."
@@ -115,8 +133,8 @@ fun RuntimeNote() {
                             config = updated
                             if (keyDraft.isNotBlank()) {
                                 vault.saveReasoningKey(keyDraft)
+                                keyDraft = ""
                             }
-                            keyDraft = ""
                             note = "Motor guardado."
                         }
                         .onFailure { note = it.message }
@@ -139,8 +157,11 @@ fun RuntimeNote() {
                             store.save(updated)
                                 .onSuccess {
                                     config = updated
-                                    if (keyDraft.isNotBlank()) vault.saveReasoningKey(keyDraft)
-                                    note = "Modelo seleccionado: ${candidate.label}"
+                                    if (keyDraft.isNotBlank()) {
+                                        vault.saveReasoningKey(keyDraft)
+                                        keyDraft = ""
+                                    }
+                                    note = "Modelo seleccionado y guardado: ${candidate.label}"
                                 }
                                 .onFailure { note = it.message }
                         }
