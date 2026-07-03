@@ -78,7 +78,7 @@ interface MemoryDao {
     fun observeRecentMemoryEvents(): Flow<List<MemoryEventEntity>>
 
     @Query("SELECT * FROM memory_events ORDER BY importance DESC, createdAtMillis DESC, id DESC LIMIT :limit")
-    suspend fun loadMemoryContext(limit: Int = 24): List<MemoryEventEntity>
+    suspend fun loadMemoryContext(limit: Int): List<MemoryEventEntity>
 
     @Query("SELECT * FROM memory_events ORDER BY id ASC")
     suspend fun loadMemoryEventChain(): List<MemoryEventEntity>
