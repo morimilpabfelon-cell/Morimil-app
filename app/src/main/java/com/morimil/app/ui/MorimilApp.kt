@@ -52,7 +52,7 @@ import java.util.Locale
 
 private enum class MorimilTab(val label: String, val icon: String) {
     Chat("Chat", "Ch"),
-    Voice("Voice", "Vo"),
+    Voice("Motor", "API"),
     Genesis("Genesis", "Ge"),
     Workspace("Workspace", "Ws"),
     Projects("Projects", "Pj"),
@@ -96,7 +96,7 @@ private fun MainTabsScaffold(viewModel: MorimilViewModel) {
         Column(modifier = Modifier.padding(paddingValues)) {
             when (selectedTab) {
                 MorimilTab.Chat -> ChatScreen(viewModel)
-                MorimilTab.Voice -> VoiceScreen(viewModel)
+                MorimilTab.Voice -> MotorScreen(viewModel)
                 MorimilTab.Genesis -> GenesisScreen(viewModel)
                 MorimilTab.Workspace -> UserWorkspaceScreen(viewModel)
                 MorimilTab.Projects -> ProjectsScreen(viewModel)
@@ -129,8 +129,6 @@ private fun ChatScreen(viewModel: MorimilViewModel) {
         Text("Conversacion real, con memoria local como contexto", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(16.dp))
 
-        RuntimeNote()
-        Spacer(Modifier.height(8.dp))
         ChatVoiceControls(viewModel)
         Spacer(Modifier.height(16.dp))
 
@@ -311,6 +309,30 @@ private fun ChatVoiceControls(viewModel: MorimilViewModel) {
                 }
             }
         }
+    }
+}
+@Composable
+private fun MotorScreen(viewModel: MorimilViewModel) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Motor/API", style = MaterialTheme.typography.headlineMedium)
+        Text("Aqui configuras el razonamiento temporal. Morimil mantiene identidad y memoria local en el celular.")
+        RuntimeNote()
+        ProjectCard(
+            "Separacion correcta",
+            "Chat conversa y usa voz. Motor/API guarda llave, endpoint, proveedor detectado y modelo.",
+            "configured"
+        )
+        ProjectCard(
+            "Privacidad",
+            "La API razona con el contexto que entrega la app; la memoria viva sigue siendo local.",
+            "private_local"
+        )
     }
 }
 @Composable
