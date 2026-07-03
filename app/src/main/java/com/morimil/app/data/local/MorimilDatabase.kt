@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MemoryEventEntity::class,
         MemorySnapshotEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class MorimilDatabase : RoomDatabase() {
@@ -195,6 +195,18 @@ abstract class MorimilDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE memory_events ADD COLUMN memoryKind TEXT NOT NULL DEFAULT 'observation'")
+                db.execSQL("ALTER TABLE memory_events ADD COLUMN tagsJson TEXT NOT NULL DEFAULT '[]'")
+                db.execSQL("ALTER TABLE memory_events ADD COLUMN evidenceJson TEXT NOT NULL DEFAULT '{}'")
+                db.execSQL("ALTER TABLE memory_events ADD COLUMN confidence INTEGER NOT NULL DEFAULT 70")
+                db.execSQL("ALTER TABLE memory_events ADD COLUMN userConfirmed INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_memory_events_memoryKind ON memory_events(memoryKind)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_memory_events_importance ON memory_events(importance)")
+            }
+        }
+
         fun getInstance(context: Context): MorimilDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -208,7 +220,8 @@ abstract class MorimilDatabase : RoomDatabase() {
                         MIGRATION_3_4,
                         MIGRATION_4_5,
                         MIGRATION_5_6,
-                        MIGRATION_6_7
+                        MIGRATION_6_7,
+                        MIGRATION_7_8
                     )
                     .build()
                     .also { instance = it }

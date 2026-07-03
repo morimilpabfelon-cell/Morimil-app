@@ -20,6 +20,11 @@ data class MemoryEventEntity(
     val source: String,
     val contextTag: String,
     val privacyVisibility: String,
+    val memoryKind: String,
+    val tagsJson: String,
+    val evidenceJson: String,
+    val confidence: Int,
+    val userConfirmed: Boolean,
     val body: String,
     val importance: Int,
     val createdAtMillis: Long

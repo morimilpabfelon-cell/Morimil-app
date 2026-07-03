@@ -14,6 +14,7 @@ import com.morimil.app.data.local.ProjectStateEntity
 import com.morimil.app.data.local.UserWorkspaceEntity
 import kotlinx.coroutines.flow.Flow
 import org.json.JSONArray
+import org.json.JSONObject
 import java.security.MessageDigest
 
 class MemoryRepository(private val database: MorimilDatabase) {
@@ -192,13 +193,13 @@ class MemoryRepository(private val database: MorimilDatabase) {
 
     suspend fun buildLivingMemoryContext(): String {
         val snapshot = memoryDao.getLivingMemorySnapshot()
-        val events = memoryDao.loadMemoryContext(24)
+        val events = memoryDao.loadMemoryContext(30)
             .sortedWith(compareBy<MemoryEventEntity> { it.createdAtMillis }.thenBy { it.id })
 
         val snapshotText = snapshot?.summary ?: "No living memory snapshot yet."
         val eventText = events.joinToString("\n") { event ->
-            "- [${event.eventType}/${event.actor}/${event.source}/${event.privacyVisibility}/i${event.importance}/${event.eventHash.take(19)}] " +
-                event.body.take(500)
+            "- [${event.memoryKind}/${event.eventType}/${event.actor}/${event.source}/${event.privacyVisibility}/i${event.importance}/c${event.confidence}/${event.eventHash.take(19)}] " +
+                "tags=${event.tagsJson} evidence=${event.evidenceJson.take(180)} text=${event.body.take(500)}"
         }
 
         return """
@@ -207,6 +208,9 @@ class MemoryRepository(private val database: MorimilDatabase) {
 
             RELEVANT LOCAL MEMORY EVENTS:
             ${eventText.ifBlank { "- No memory events yet." }}
+
+            MEMORY RULE:
+            Treat these local memory events as the valid phone memory. Prefer user-confirmed decisions, corrections and preferences over generic conversation text.
         """.trimIndent()
     }
 
@@ -230,7 +234,6 @@ class MemoryRepository(private val database: MorimilDatabase) {
         importance: Int
     ) {
         val cleanBody = body.trim()
-        val cleanImportance = importance.coerceIn(1, 100)
         val createdAtMillis = System.currentTimeMillis()
         val genesisCore = requireNotNull(memoryDao.loadGenesisCore()) {
             "Cannot append living memory without a local Genesis Core."
@@ -242,8 +245,18 @@ class MemoryRepository(private val database: MorimilDatabase) {
         val source = if (actor == "user" || actor == "morimil") "chat" else "system"
         val contextTag = "local_runtime"
         val privacyVisibility = PRIVATE_LOCAL
+        val classification = classifyMemoryEvent(eventType, actor, cleanBody)
+        val cleanImportance = maxOf(importance, classification.importance).coerceIn(1, 100)
+        val tagsJson = JSONArray(classification.tags).toString()
+        val evidenceJson = buildEvidenceJson(
+            eventType = eventType,
+            actor = actor,
+            source = source,
+            classification = classification,
+            body = cleanBody
+        )
         val previousEventHash = existingChain.lastOrNull()?.eventHash
-        val eventHash = hashMemoryEventV2(
+        val eventHash = hashMemoryEventV3(
             genesisCoreId = genesisCore.coreId,
             genesisCoreHash = genesisCore.contentSha256,
             previousEventHash = previousEventHash,
@@ -252,6 +265,11 @@ class MemoryRepository(private val database: MorimilDatabase) {
             source = source,
             contextTag = contextTag,
             privacyVisibility = privacyVisibility,
+            memoryKind = classification.memoryKind,
+            tagsJson = tagsJson,
+            evidenceJson = evidenceJson,
+            confidence = classification.confidence,
+            userConfirmed = classification.userConfirmed,
             body = cleanBody,
             importance = cleanImportance,
             createdAtMillis = createdAtMillis
@@ -264,7 +282,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
                 previousEventHash = previousEventHash,
                 eventHash = eventHash,
                 hashAlgorithm = "sha256",
-                canonicalization = MEMORY_EVENT_CANONICALIZATION_V2,
+                canonicalization = MEMORY_EVENT_CANONICALIZATION_V3,
                 signatureAlgorithm = null,
                 eventSignature = null,
                 eventType = eventType,
@@ -272,6 +290,11 @@ class MemoryRepository(private val database: MorimilDatabase) {
                 source = source,
                 contextTag = contextTag,
                 privacyVisibility = privacyVisibility,
+                memoryKind = classification.memoryKind,
+                tagsJson = tagsJson,
+                evidenceJson = evidenceJson,
+                confidence = classification.confidence,
+                userConfirmed = classification.userConfirmed,
                 body = cleanBody,
                 importance = cleanImportance,
                 createdAtMillis = createdAtMillis
@@ -281,19 +304,26 @@ class MemoryRepository(private val database: MorimilDatabase) {
     }
 
     private suspend fun rebuildLivingMemorySnapshot() {
-        val events = memoryDao.loadMemoryContext(limit = 12)
+        val events = memoryDao.loadMemoryContext(limit = 20)
         val eventCount = memoryDao.countMemoryEvents()
         val messageCount = memoryDao.countMessages()
-        val important = events
-            .sortedWith(compareByDescending<MemoryEventEntity> { it.importance }.thenByDescending { it.createdAtMillis })
-            .take(6)
-            .joinToString(" ") { it.body.take(180) }
+        val prioritized = events
+            .sortedWith(
+                compareByDescending<MemoryEventEntity> { it.userConfirmed }
+                    .thenByDescending { it.importance }
+                    .thenByDescending { it.confidence }
+                    .thenByDescending { it.createdAtMillis }
+            )
+            .take(8)
+            .joinToString("\n") { event ->
+                "- ${event.memoryKind}: ${event.body.take(180)} (${event.eventHash.take(19)})"
+            }
             .ifBlank { "Genesis Core copied; living memory is waiting for lived events." }
 
         memoryDao.upsertMemorySnapshot(
             MemorySnapshotEntity(
                 genesisCoreId = "primary_genesis",
-                summary = important,
+                summary = prioritized,
                 eventCount = eventCount,
                 messageCount = messageCount,
                 updatedAtMillis = System.currentTimeMillis()
@@ -302,13 +332,90 @@ class MemoryRepository(private val database: MorimilDatabase) {
     }
 
     private fun scoreImportance(body: String): Int {
+        return classifyMemoryEvent("conversation.user_message", "user", body).importance
+    }
+
+    private fun classifyMemoryEvent(eventType: String, actor: String, body: String): MemoryClassification {
         val lower = body.lowercase()
-        return when {
-            listOf("decid", "nombre", "genesis", "memoria", "nunca", "siempre", "importante")
-                .any { lower.contains(it) } -> 85
-            body.length > 240 -> 65
-            else -> 40
+        val tags = linkedSetOf<String>()
+        if (lower.contains("genesis") || lower.contains("gÃ©nesis")) tags += "genesis"
+        if (lower.contains("memoria") || lower.contains("recuerd")) tags += "memory"
+        if (lower.contains("api") || lower.contains("motor") || lower.contains("razon")) tags += "reasoning"
+        if (lower.contains("app") || lower.contains("celular") || lower.contains("local")) tags += "local_app"
+        if (lower.contains("proyecto") || lower.contains("repo") || lower.contains("github")) tags += "project"
+        if (lower.contains("privad") || lower.contains("segur")) tags += "privacy"
+        if (lower.contains("grafo") || lower.contains("backlink") || lower.contains("obsidian")) tags += "memory_graph"
+
+        val isUser = actor == "user"
+        val confirmed = isUser && listOf("correcto", "confirmo", "aprob", "sÃ­", "si,").any { lower.contains(it) }
+
+        val kind = when {
+            eventType.startsWith("genesis") -> "identity"
+            listOf("corrige", "correccion", "correcciÃ³n", "no es asi", "no es asÃ­", "te equivocas").any { lower.contains(it) } -> "correction"
+            listOf("error", "fallo", "bug", "no funciona").any { lower.contains(it) } -> "error_detected"
+            listOf("apruebo", "aprobado", "dale", "correcto").any { lower.contains(it) } && isUser -> "approval"
+            listOf("rechazo", "no apruebo", "cancel", "no lo hagas").any { lower.contains(it) } -> "rejection"
+            listOf("decid", "queda", "regla", "nunca", "siempre", "se define").any { lower.contains(it) } -> "decision"
+            listOf("prefiero", "me gusta", "quiero", "no quiero", "mi forma").any { lower.contains(it) } -> "preference"
+            listOf("aprend", "actualiza", "libro", "program", "investiga").any { lower.contains(it) } -> "learning"
+            eventType.startsWith("decision") -> "decision"
+            else -> "conversation"
         }
+
+        tags += when (kind) {
+            "identity" -> "identity"
+            "correction" -> "correction"
+            "error_detected" -> "error"
+            "approval" -> "approval"
+            "rejection" -> "rejection"
+            "decision" -> "decision"
+            "preference" -> "preference"
+            "learning" -> "learning"
+            else -> "conversation"
+        }
+
+        val importance = when (kind) {
+            "identity" -> 100
+            "decision", "correction", "approval", "rejection" -> 92
+            "preference" -> 88
+            "learning", "error_detected" -> 82
+            "conversation" -> if (body.length > 240) 62 else 38
+            else -> 50
+        }
+        val confidence = when {
+            confirmed -> 95
+            isUser && kind != "conversation" -> 88
+            actor == "system" -> 90
+            else -> 70
+        }
+
+        return MemoryClassification(
+            memoryKind = kind,
+            tags = tags.toList(),
+            confidence = confidence,
+            userConfirmed = confirmed,
+            importance = importance
+        )
+    }
+
+    private fun buildEvidenceJson(
+        eventType: String,
+        actor: String,
+        source: String,
+        classification: MemoryClassification,
+        body: String
+    ): String {
+        return JSONObject()
+            .put("schema", "morimil.memory_evidence.v1")
+            .put("classifier", "local_keyword_v1")
+            .put("event_type", eventType)
+            .put("actor", actor)
+            .put("source", source)
+            .put("memory_kind", classification.memoryKind)
+            .put("user_confirmed", classification.userConfirmed)
+            .put("confidence", classification.confidence)
+            .put("excerpt", body.take(240))
+            .toString()
     }
 
     private fun verifyMemoryEventChain(events: List<MemoryEventEntity>): Boolean {
@@ -341,6 +448,24 @@ class MemoryRepository(private val database: MorimilDatabase) {
                     source = event.source,
                     contextTag = event.contextTag,
                     privacyVisibility = event.privacyVisibility,
+                    body = event.body,
+                    importance = event.importance,
+                    createdAtMillis = event.createdAtMillis
+                )
+                MEMORY_EVENT_CANONICALIZATION_V3 -> hashMemoryEventV3(
+                    genesisCoreId = event.genesisCoreId,
+                    genesisCoreHash = event.genesisCoreHash,
+                    previousEventHash = event.previousEventHash,
+                    eventType = event.eventType,
+                    actor = event.actor,
+                    source = event.source,
+                    contextTag = event.contextTag,
+                    privacyVisibility = event.privacyVisibility,
+                    memoryKind = event.memoryKind,
+                    tagsJson = event.tagsJson,
+                    evidenceJson = event.evidenceJson,
+                    confidence = event.confidence,
+                    userConfirmed = event.userConfirmed,
                     body = event.body,
                     importance = event.importance,
                     createdAtMillis = event.createdAtMillis
@@ -411,6 +536,48 @@ class MemoryRepository(private val database: MorimilDatabase) {
         )
     }
 
+    private fun hashMemoryEventV3(
+        genesisCoreId: String,
+        genesisCoreHash: String,
+        previousEventHash: String?,
+        eventType: String,
+        actor: String,
+        source: String,
+        contextTag: String,
+        privacyVisibility: String,
+        memoryKind: String,
+        tagsJson: String,
+        evidenceJson: String,
+        confidence: Int,
+        userConfirmed: Boolean,
+        body: String,
+        importance: Int,
+        createdAtMillis: Long
+    ): String {
+        return hashFields(
+            mapOf(
+                "actor" to actor,
+                "body" to body,
+                "canonicalization" to MEMORY_EVENT_CANONICALIZATION_V3,
+                "confidence" to confidence,
+                "contextTag" to contextTag,
+                "createdAtMillis" to createdAtMillis,
+                "eventType" to eventType,
+                "evidenceJson" to evidenceJson,
+                "genesisCoreId" to genesisCoreId,
+                "genesisCoreHash" to genesisCoreHash,
+                "hashAlgorithm" to "sha256",
+                "importance" to importance,
+                "memoryKind" to memoryKind,
+                "previousEventHash" to previousEventHash,
+                "privacyVisibility" to privacyVisibility,
+                "source" to source,
+                "tagsJson" to tagsJson,
+                "userConfirmed" to userConfirmed
+            )
+        )
+    }
+
     private fun hashFields(fields: Map<String, Any?>): String {
         val canonical = stableStringify(fields)
         val digest = MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray(Charsets.UTF_8))
@@ -458,10 +625,19 @@ class MemoryRepository(private val database: MorimilDatabase) {
         return output.toString()
     }
 
+    private data class MemoryClassification(
+        val memoryKind: String,
+        val tags: List<String>,
+        val confidence: Int,
+        val userConfirmed: Boolean,
+        val importance: Int
+    )
+
     companion object {
         private const val LEGACY_EVENT_HASH = "sha256:legacy-unverified"
         private const val MEMORY_EVENT_CANONICALIZATION_V1 = "morimil.memory_event_hash.v1"
         private const val MEMORY_EVENT_CANONICALIZATION_V2 = "morimil.memory_event_hash.v2"
+        private const val MEMORY_EVENT_CANONICALIZATION_V3 = "morimil.memory_event_hash.v3"
         private const val PRIVATE_LOCAL = "private_local"
     }
 }
