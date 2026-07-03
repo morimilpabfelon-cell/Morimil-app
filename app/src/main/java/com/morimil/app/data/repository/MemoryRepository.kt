@@ -65,12 +65,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
     }
 
     suspend fun renameWorkspace(displayName: String): List<String> {
-        val clean = displayName.trim()
-        if (clean.isEmpty()) {
-            return listOf("Display name cannot be empty.")
-        }
-        val rows = memoryDao.renameWorkspace(clean, System.currentTimeMillis())
-        return if (rows == 0) listOf("No workspace exists yet -- create your instance first.") else emptyList()
+        return listOf("El nombre solo se define una vez.")
     }
 
     suspend fun hasExistingBirth(): Boolean {
