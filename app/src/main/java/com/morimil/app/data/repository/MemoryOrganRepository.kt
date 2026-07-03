@@ -169,14 +169,14 @@ class MemoryOrganRepository(database: MemoryOrganDatabase) {
         val lower = text.lowercase()
         return listOf(
             "crea una capsula",
-            "crea una cÃ¡psula",
+            "crea una capsula",
             "guardar como capsula",
-            "guardar como cÃ¡psula",
+            "guardar como capsula",
             "guarda esto como conocimiento",
             "knowledge capsule",
             "type\": \"knowledge_capsule",
             "manual interno",
-            "documentaciÃ³n estable",
+            "documentacion estable",
             "documentacion estable",
             "regla estable",
             "mis reglas personales",
@@ -210,7 +210,7 @@ class MemoryOrganRepository(database: MemoryOrganDatabase) {
             lower.contains("arquitectura") && lower.contains("memoria") -> "Arquitectura del sistema de memoria"
             lower.contains("manual interno") || lower.contains("politic") -> "Manual interno de politicas"
             lower.contains("errores frecuentes") || lower.contains("debe evitar") -> "Errores frecuentes que debe evitar"
-            lower.contains("diseÃ±o") || lower.contains("diseno") -> "DiseÃ±o de la app Morimil"
+            lower.contains("diseno") || lower.contains("diseno") -> "Diseno de la app Morimil"
             else -> text.lineSequence().firstOrNull()?.take(80)?.ifBlank { null } ?: "Knowledge capsule"
         }
     }
@@ -219,11 +219,11 @@ class MemoryOrganRepository(database: MemoryOrganDatabase) {
         val lower = text.lowercase()
         return when {
             lower.contains("reglas personales") || lower.contains("preferencia") -> "personal_rules"
-            lower.contains("android") || lower.contains("documentaciÃ³n") || lower.contains("documentacion") -> "technical_docs"
+            lower.contains("android") || lower.contains("documentacion") || lower.contains("documentacion") -> "technical_docs"
             lower.contains("arquitectura") && lower.contains("memoria") -> "memory_architecture"
             lower.contains("manual interno") || lower.contains("politic") -> "internal_policy"
             lower.contains("error") || lower.contains("debe evitar") -> "error_prevention"
-            lower.contains("diseÃ±o") || lower.contains("diseno") -> "app_design"
+            lower.contains("diseno") || lower.contains("diseno") -> "app_design"
             else -> "general_knowledge"
         }
     }
@@ -236,7 +236,7 @@ class MemoryOrganRepository(database: MemoryOrganDatabase) {
         if (lower.contains("arquitectura")) tags += "architecture"
         if (lower.contains("politic")) tags += "policy"
         if (lower.contains("error")) tags += "errors"
-        if (lower.contains("diseÃ±o") || lower.contains("diseno")) tags += "design"
+        if (lower.contains("diseno") || lower.contains("diseno")) tags += "design"
         if (lower.contains("morimil")) tags += "morimil"
         if (lower.contains("api")) tags += "api"
         if (lower.contains("local")) tags += "local_first"
