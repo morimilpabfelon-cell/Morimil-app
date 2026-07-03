@@ -2,6 +2,14 @@ package com.morimil.app.ai
 
 import android.content.Context
 
+private fun defaultMessagesUrl(): String {
+    return "https://" + "api." + "anthropic.com" + "/v1/messages"
+}
+
+private fun defaultMessagesModel(): String {
+    return "claude-" + "sonnet-" + "5"
+}
+
 enum class ReasoningWireFormat {
     MESSAGES,
     CHAT
@@ -13,7 +21,7 @@ enum class ReasoningPreset(
     val defaultBaseUrl: String,
     val defaultModel: String
 ) {
-    MESSAGES_COMPATIBLE("Messages-compatible", ReasoningWireFormat.MESSAGES, buildMessagesUrl(), buildMessagesModel()),
+    MESSAGES_COMPATIBLE("Messages-compatible", ReasoningWireFormat.MESSAGES, defaultMessagesUrl(), defaultMessagesModel()),
     CHAT_COMPATIBLE("Chat-compatible", ReasoningWireFormat.CHAT, "", ""),
     LOCAL_COMPATIBLE("Local-compatible", ReasoningWireFormat.CHAT, "http://127.0.0.1:11434/v1/chat/completions", ""),
     CUSTOM("Custom-compatible", ReasoningWireFormat.CHAT, "", "");
@@ -21,14 +29,6 @@ enum class ReasoningPreset(
     companion object {
         fun fromName(name: String?): ReasoningPreset {
             return entries.firstOrNull { it.name == name } ?: MESSAGES_COMPATIBLE
-        }
-
-        private fun buildMessagesUrl(): String {
-            return "https://" + "api." + "anthropic.com" + "/v1/messages"
-        }
-
-        private fun buildMessagesModel(): String {
-            return "claude-" + "sonnet-" + "5"
         }
     }
 }
