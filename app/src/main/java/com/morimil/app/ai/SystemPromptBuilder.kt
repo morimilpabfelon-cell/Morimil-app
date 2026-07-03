@@ -9,7 +9,8 @@ object SystemPromptBuilder {
         alias: String,
         doctrineText: String?,
         policyText: String?,
-        livingMemoryContext: String
+        livingMemoryContext: String,
+        knowledgeCapsuleContext: String = "No knowledge capsules yet."
     ): String {
         val allowed = genesis.allowedActions.joinToString("\n") { "- $it" }
         val disallowed = genesis.disallowedActions.joinToString("\n") { "- $it" }
@@ -50,6 +51,14 @@ object SystemPromptBuilder {
 
             MEMORIA VIVA LOCAL:
             $livingMemoryContext
+
+            CAPSULAS DE CONOCIMIENTO LOCAL:
+            $knowledgeCapsuleContext
+
+            Usa la memoria viva para hechos vividos y recientes. Usa las capsulas de conocimiento
+            para reglas estables, documentacion tecnica, arquitectura, politicas internas y temas
+            grandes aprendidos. No conviertas una conversacion normal en regla estable. Si hay
+            conflicto, prioriza decisiones y correcciones confirmadas por el dueno.
 
             Si tu dueno te pide algo que choca con las acciones prohibidas de arriba, niegate
             claramente, explica por que, y cita la regla exacta de la doctrina si aplica. Habla

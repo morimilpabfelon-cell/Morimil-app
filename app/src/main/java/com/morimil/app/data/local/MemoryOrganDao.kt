@@ -17,12 +17,21 @@ interface MemoryOrganDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertSelfSnapshot(snapshot: AutobiographicalSnapshotEntity)
 
-    @Query("SELECT * FROM knowledge_capsules ORDER BY updatedAtMillis DESC LIMIT 20")
+    @Query("SELECT * FROM knowledge_capsules WHERE status = 'active' ORDER BY updatedAtMillis DESC LIMIT 20")
     fun observeRecentKnowledgeCapsules(): Flow<List<KnowledgeCapsuleEntity>>
 
-    @Query("SELECT * FROM knowledge_capsules ORDER BY updatedAtMillis DESC LIMIT :limit")
+    @Query("SELECT * FROM knowledge_capsules WHERE status = 'active' ORDER BY confidence DESC, updatedAtMillis DESC LIMIT :limit")
     suspend fun loadKnowledgeCapsules(limit: Int): List<KnowledgeCapsuleEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertKnowledgeCapsule(capsule: KnowledgeCapsuleEntity)
+    @Query("SELECT * FROM knowledge_capsules ORDER BY createdAtMillis ASC, capsuleId ASC")
+    suspend fun loadKnowledgeCapsuleChain(): List<KnowledgeCapsuleEntity>
+
+    @Query("SELECT * FROM knowledge_capsules WHERE title = :title ORDER BY capsuleVersion DESC, createdAtMillis DESC")
+    suspend fun loadCapsulesByTitle(title: String): List<KnowledgeCapsuleEntity>
+
+    @Query("UPDATE knowledge_capsules SET status = 'superseded', updatedAtMillis = :updatedAtMillis WHERE title = :title AND status = 'active'")
+    suspend fun markActiveCapsulesSuperseded(title: String, updatedAtMillis: Long): Int
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertKnowledgeCapsule(capsule: KnowledgeCapsuleEntity)
 }

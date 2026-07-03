@@ -17,9 +17,11 @@ import com.morimil.app.data.local.MemoryEventEntity
 import com.morimil.app.data.local.MemoryMessageEntity
 import com.morimil.app.data.local.MemorySnapshotEntity
 import com.morimil.app.data.local.MorimilDatabase
+import com.morimil.app.data.local.MemoryOrganDatabase
 import com.morimil.app.data.local.ProjectStateEntity
 import com.morimil.app.data.local.UserWorkspaceEntity
 import com.morimil.app.data.repository.MemoryRepository
+import com.morimil.app.data.repository.MemoryOrganRepository
 import com.morimil.app.security.SecretVault
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +34,7 @@ import kotlinx.coroutines.withContext
 
 class MorimilViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = MemoryRepository(MorimilDatabase.getInstance(application))
+    private val memoryOrganRepository = MemoryOrganRepository(MemoryOrganDatabase.getInstance(application))
     private val genesisReader = GenesisReader(application)
     private val secretVault = SecretVault(application)
     private val reasoningConfigStore = ReasoningConfigStore(application)
@@ -175,14 +178,18 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                 val recent = priorHistory + ChatTurn(role = "user", content = cleanBody)
 
                 repository.addUserMessage(cleanBody)
+                val activeGenesisCoreId = genesisCore.value?.coreId ?: "primary_genesis"
+                memoryOrganRepository.captureKnowledgeCapsuleFromText(activeGenesisCoreId, cleanBody)
 
                 val memoryContext = repository.buildLivingMemoryContext()
+                val knowledgeCapsuleContext = memoryOrganRepository.buildKnowledgeCapsuleContext()
                 val systemPrompt = SystemPromptBuilder.build(
                     genesis = genesis,
                     alias = alias,
                     doctrineText = cachedDoctrineText,
                     policyText = cachedPolicyText,
-                    livingMemoryContext = memoryContext
+                    livingMemoryContext = memoryContext,
+                    knowledgeCapsuleContext = knowledgeCapsuleContext
                 )
 
                 val response = withContext(Dispatchers.IO) {
