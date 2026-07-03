@@ -105,7 +105,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     init {
         viewModelScope.launch {
             repository.seedInitialStateIfNeeded()
-            restCycleRepository.runLocalRestCycleIfDue()
+            runCatching { restCycleRepository.runLocalRestCycleIfDue() }
         }
         refreshGenesis()
     }
@@ -143,7 +143,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
             try {
                 repository.birthLocalIdentity(alias, genesis, sourceOrigin, genesisCoreHash, cachedDoctrineText, cachedPolicyText)
                 repository.seedInitialStateIfNeeded()
-                restCycleRepository.runLocalRestCycleIfDue()
+                runCatching { restCycleRepository.runLocalRestCycleIfDue() }
                 Unit
             } catch (error: Exception) {
                 genesisReader.clearInstalledGenesisBundle()
@@ -208,7 +208,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
 
                 response
                     .onSuccess { reply -> repository.addAssistantMessage(reply)
-                    restCycleRepository.runLocalRestCycleIfDue() }
+                    runCatching { restCycleRepository.runLocalRestCycleIfDue() } }
                     .onFailure { error -> _chatError.value = error.message ?: "Error con el motor de razonamiento." }
             } finally {
                 _isSending.value = false
