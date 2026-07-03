@@ -17,8 +17,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -31,6 +34,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -109,6 +113,16 @@ private fun ChatScreen(viewModel: MorimilViewModel) {
     val isSending by viewModel.isSending.collectAsStateWithLifecycle()
     val chatError by viewModel.chatError.collectAsStateWithLifecycle()
     var draft by remember { mutableStateOf("") }
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(messages.size, isSending) {
+        val target = when {
+            isSending -> messages.size
+            messages.isNotEmpty() -> messages.lastIndex
+            else -> null
+        }
+        target?.let { listState.animateScrollToItem(it) }
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Morimil", style = MaterialTheme.typography.headlineMedium)
@@ -116,9 +130,12 @@ private fun ChatScreen(viewModel: MorimilViewModel) {
         Spacer(Modifier.height(16.dp))
 
         RuntimeNote()
+        Spacer(Modifier.height(8.dp))
+        ChatVoiceControls(viewModel)
         Spacer(Modifier.height(16.dp))
 
         LazyColumn(
+            state = listState,
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -164,6 +181,138 @@ private fun ChatScreen(viewModel: MorimilViewModel) {
     }
 }
 
+@Composable
+private fun ChatVoiceControls(viewModel: MorimilViewModel) {
+    val context = LocalContext.current
+    val messages by viewModel.messages.collectAsStateWithLifecycle()
+    var voiceStatus by remember { mutableStateOf("Voz lista.") }
+    var ttsReady by remember { mutableStateOf(false) }
+
+    val textToSpeech = remember {
+        TextToSpeech(context) { status ->
+            ttsReady = status == TextToSpeech.SUCCESS
+        }
+    }
+
+    DisposableEffect(textToSpeech) {
+        textToSpeech.language = Locale.getDefault()
+        onDispose {
+            textToSpeech.stop()
+            textToSpeech.shutdown()
+        }
+    }
+
+    val speechRecognizer = remember {
+        SpeechRecognizer.createSpeechRecognizer(context)
+    }
+
+    DisposableEffect(speechRecognizer) {
+        speechRecognizer.setRecognitionListener(
+            object : RecognitionListener {
+                override fun onReadyForSpeech(params: android.os.Bundle?) {
+                    voiceStatus = "Escuchando..."
+                }
+
+                override fun onBeginningOfSpeech() {
+                    voiceStatus = "Voz detectada."
+                }
+
+                override fun onRmsChanged(rmsdB: Float) = Unit
+                override fun onBufferReceived(buffer: ByteArray?) = Unit
+
+                override fun onEndOfSpeech() {
+                    voiceStatus = "Procesando voz..."
+                }
+
+                override fun onError(error: Int) {
+                    voiceStatus = "No se pudo reconocer voz. Codigo: $error"
+                }
+
+                override fun onResults(results: android.os.Bundle?) {
+                    val bestMatch = results
+                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        .orEmpty()
+                        .firstOrNull()
+                        .orEmpty()
+
+                    if (bestMatch.isBlank()) {
+                        voiceStatus = "No se recibio texto."
+                    } else {
+                        voiceStatus = "Texto reconocido y enviado."
+                        viewModel.sendMessage(bestMatch)
+                    }
+                }
+
+                override fun onPartialResults(partialResults: android.os.Bundle?) = Unit
+                override fun onEvent(eventType: Int, params: android.os.Bundle?) = Unit
+            }
+        )
+
+        onDispose {
+            speechRecognizer.destroy()
+        }
+    }
+
+    fun startListening() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Habla con Morimil")
+        }
+        speechRecognizer.startListening(intent)
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            startListening()
+        } else {
+            voiceStatus = "Permiso de microfono denegado."
+        }
+    }
+
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Voz integrada", style = MaterialTheme.typography.titleMedium)
+            Text(voiceStatus, style = MaterialTheme.typography.bodySmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = {
+                        val granted = ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.RECORD_AUDIO
+                        ) == PackageManager.PERMISSION_GRANTED
+
+                        if (granted) {
+                            startListening()
+                        } else {
+                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                    }
+                ) {
+                    Text("Hablar")
+                }
+
+                Button(
+                    enabled = ttsReady && messages.isNotEmpty(),
+                    onClick = {
+                        val lastMessage = messages.lastOrNull { it.author != "user" }?.body
+                            ?: messages.lastOrNull()?.body.orEmpty()
+                        textToSpeech.speak(
+                            lastMessage,
+                            TextToSpeech.QUEUE_FLUSH,
+                            null,
+                            "morimil-chat-last-message"
+                        )
+                    }
+                ) {
+                    Text("Leer ultimo")
+                }
+            }
+        }
+    }
+}
 @Composable
 private fun VoiceScreen(viewModel: MorimilViewModel) {
     val context = LocalContext.current
@@ -253,7 +402,7 @@ private fun VoiceScreen(viewModel: MorimilViewModel) {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Voice", style = MaterialTheme.typography.headlineMedium)
         Text("Genesis movil v1 mantiene voz push-to-talk y TTS manual.")
         ProjectCard("SpeechRecognizer", voiceStatus, "controlled")
@@ -303,7 +452,7 @@ private fun GenesisScreen(viewModel: MorimilViewModel) {
     val localIdentity by viewModel.localIdentity.collectAsStateWithLifecycle()
     val genesisCore by viewModel.genesisCore.collectAsStateWithLifecycle()
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Genesis", style = MaterialTheme.typography.headlineMedium)
         Text("Fase Genesis local: lee la semilla empaquetada en la app y la copia al telefono.")
 
@@ -342,7 +491,7 @@ private fun GenesisScreen(viewModel: MorimilViewModel) {
 private fun ProjectsScreen(viewModel: MorimilViewModel) {
     val projects by viewModel.projects.collectAsStateWithLifecycle()
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Projects", style = MaterialTheme.typography.headlineMedium)
         if (projects.isEmpty()) {
             ProjectCard("Morimil_app", "Genesis movil v1: esperando memoria local.", "loading")
@@ -382,7 +531,7 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
     val snapshot by viewModel.livingMemorySnapshot.collectAsStateWithLifecycle()
     val events by viewModel.recentMemoryEvents.collectAsStateWithLifecycle()
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Living Memory", style = MaterialTheme.typography.headlineMedium)
         Text("Genesis Core inmutable + eventos append-only + snapshot local.")
         ProjectCard("Conversation memory", "${messages.size} mensajes persistidos.", "connected")
@@ -401,11 +550,35 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
                 ProjectCard(decision.title, "Decision persisted locally.", decision.status)
             }
         }
+        Text("Memory review queue", style = MaterialTheme.typography.titleMedium)
+        Text("Los recuerdos son append-only. Aprobar, corregir o degradar crea una revision local nueva; no modifica el evento original.")
         if (events.isEmpty()) {
             ProjectCard("Memory events", "Sin eventos vivos todavia.", "empty")
         } else {
-            events.take(5).forEach { event ->
-                ProjectCard(event.eventType, event.body.take(220), "${event.actor}/i${event.importance}")
+            events.take(12).forEach { event ->
+                ElevatedCard {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("${event.memoryKind} / ${event.eventType}", style = MaterialTheme.typography.titleMedium)
+                        Text(event.body.take(340))
+                        Text(
+                            "actor=${event.actor} importance=${event.importance} confidence=${event.confidence} " +
+                                "hash=${event.eventHash.take(24)}"
+                        )
+                        Text("tags=${event.tagsJson.take(160)}")
+                        Button(onClick = { viewModel.approveMemoryEvent(event) }) {
+                            Text("Aprobar")
+                        }
+                        Button(onClick = { viewModel.degradeMemoryEvent(event) }) {
+                            Text("Degradar ruido")
+                        }
+                        Button(onClick = { viewModel.requestMemoryCorrection(event) }) {
+                            Text("Pedir correccion")
+                        }
+                    }
+                }
             }
         }
         ProjectCard("Scope guardian", "Sin sincronizacion externa y sin ejecucion de PC.", "protected")
@@ -414,7 +587,7 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
 
 @Composable
 private fun PcHandoffScreen() {
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("PC Handoff", style = MaterialTheme.typography.headlineMedium)
         Text("Fase 6 placeholder. Aqui estaran los comandos aprobados para PC.")
         ProjectCard("Pending handoff", "No hay comandos reales todavia.", "empty")
