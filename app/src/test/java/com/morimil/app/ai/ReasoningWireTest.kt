@@ -25,6 +25,17 @@ class ReasoningWireTest {
     }
 
     @Test
+    fun messagesBodyIsInferredFromMessagesEndpoint() {
+        val cfg = ReasoningProviderConfig.fromPreset(ReasoningPreset.CUSTOM)
+            .copy(baseUrl = "https://example.com/v1/messages", model = "model-a")
+        val body = JSONObject(ReasoningWire.buildBody(cfg, "SYS", history))
+
+        assertEquals(ReasoningWireFormat.MESSAGES, cfg.wireFormat)
+        assertEquals("SYS", body.getString("system"))
+        assertEquals(3, body.getJSONArray("messages").length())
+    }
+
+    @Test
     fun chatBodyUsesSystemAsFirstMessage() {
         val cfg = ReasoningProviderConfig.fromPreset(ReasoningPreset.CHAT_COMPATIBLE)
             .copy(baseUrl = "https://example.com/chat", model = "model-b")
