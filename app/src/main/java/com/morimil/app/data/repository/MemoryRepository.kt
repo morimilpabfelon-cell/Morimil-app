@@ -197,7 +197,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
 
     suspend fun buildLivingMemoryContext(): String {
         val snapshot = memoryDao.getLivingMemorySnapshot()
-        val events = memoryDao.loadMemoryContext()
+        val events = memoryDao.loadMemoryContext(24)
             .sortedWith(compareBy<MemoryEventEntity> { it.createdAtMillis }.thenBy { it.id })
 
         val snapshotText = snapshot?.summary ?: "No living memory snapshot yet."
