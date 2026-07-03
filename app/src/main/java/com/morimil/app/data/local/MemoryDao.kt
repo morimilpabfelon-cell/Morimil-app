@@ -100,4 +100,6 @@ interface MemoryDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertMemorySnapshot(snapshot: MemorySnapshotEntity)
+    @Query("SELECT * FROM memory_events WHERE eventType = 'rest_cycle.local_consolidation' ORDER BY createdAtMillis DESC, id DESC LIMIT 1")
+    suspend fun loadLatestRestCycleEvent(): MemoryEventEntity?
 }

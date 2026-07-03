@@ -21,6 +21,7 @@ import com.morimil.app.data.local.MemoryOrganDatabase
 import com.morimil.app.data.local.ProjectStateEntity
 import com.morimil.app.data.local.UserWorkspaceEntity
 import com.morimil.app.data.repository.MemoryRepository
+import com.morimil.app.data.repository.RestCycleRepository
 import com.morimil.app.data.repository.MemoryOrganRepository
 import com.morimil.app.security.SecretVault
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +35,7 @@ import kotlinx.coroutines.withContext
 
 class MorimilViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = MemoryRepository(MorimilDatabase.getInstance(application))
+    private val restCycleRepository = RestCycleRepository(MorimilDatabase.getInstance(application))
     private val memoryOrganRepository = MemoryOrganRepository(MemoryOrganDatabase.getInstance(application))
     private val genesisReader = GenesisReader(application)
     private val secretVault = SecretVault(application)
@@ -103,6 +105,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     init {
         viewModelScope.launch {
             repository.seedInitialStateIfNeeded()
+            restCycleRepository.runLocalRestCycleIfDue()
         }
         refreshGenesis()
     }
@@ -140,6 +143,8 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
             try {
                 repository.birthLocalIdentity(alias, genesis, sourceOrigin, genesisCoreHash, cachedDoctrineText, cachedPolicyText)
                 repository.seedInitialStateIfNeeded()
+                restCycleRepository.runLocalRestCycleIfDue()
+                Unit
             } catch (error: Exception) {
                 genesisReader.clearInstalledGenesisBundle()
                 throw error
@@ -202,7 +207,8 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                 }
 
                 response
-                    .onSuccess { reply -> repository.addAssistantMessage(reply) }
+                    .onSuccess { reply -> repository.addAssistantMessage(reply)
+                    restCycleRepository.runLocalRestCycleIfDue() }
                     .onFailure { error -> _chatError.value = error.message ?: "Error con el motor de razonamiento." }
             } finally {
                 _isSending.value = false
