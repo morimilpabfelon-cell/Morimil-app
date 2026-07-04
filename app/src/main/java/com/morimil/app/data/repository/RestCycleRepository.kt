@@ -44,13 +44,13 @@ class RestCycleRepository(private val database: MorimilDatabase) {
             val genesisCore = requireNotNull(memoryDao.loadGenesisCore()) {
                 "Cannot run rest cycle without a local Genesis Core."
             }
-            val existingChain = memoryDao.loadMemoryEventChain()
-            require(verifyMemoryEventChain(existingChain)) {
+            val eventTail = memoryDao.loadMemoryEventTail(MEMORY_EVENT_TAIL_VERIFICATION_LIMIT).asReversed()
+            require(verifyMemoryEventChain(eventTail, requireGenesisStart = false)) {
                 "Living memory chain integrity failed. Refusing to append rest cycle."
             }
 
             val createdAtMillis = System.currentTimeMillis()
-            val previousEventHash = existingChain.lastOrNull()?.eventHash
+            val previousEventHash = eventTail.lastOrNull()?.eventHash
             val tagsJson = JSONArray(listOf("rest_cycle", "local_consolidation", "snapshot")).toString()
             val evidenceJson = JSONObject()
                 .put("schema", "morimil.memory_evidence.v1")
@@ -190,8 +190,11 @@ class RestCycleRepository(private val database: MorimilDatabase) {
         )
     }
 
-    private fun verifyMemoryEventChain(events: List<MemoryEventEntity>): Boolean {
-        var expectedPreviousHash: String? = null
+    private fun verifyMemoryEventChain(
+        events: List<MemoryEventEntity>,
+        requireGenesisStart: Boolean = true
+    ): Boolean {
+        var expectedPreviousHash = if (requireGenesisStart) null else events.firstOrNull()?.previousEventHash
         events.forEach { event ->
             if (event.eventHash == LEGACY_EVENT_HASH) {
                 expectedPreviousHash = event.eventHash
@@ -405,6 +408,7 @@ class RestCycleRepository(private val database: MorimilDatabase) {
         private const val MEMORY_EVENT_CANONICALIZATION_V1 = "morimil.memory_event_hash.v1"
         private const val MEMORY_EVENT_CANONICALIZATION_V2 = "morimil.memory_event_hash.v2"
         private const val MEMORY_EVENT_CANONICALIZATION_V3 = "morimil.memory_event_hash.v3"
+        private const val MEMORY_EVENT_TAIL_VERIFICATION_LIMIT = 12
         private const val PRIVATE_LOCAL = "private_local"
     }
 }

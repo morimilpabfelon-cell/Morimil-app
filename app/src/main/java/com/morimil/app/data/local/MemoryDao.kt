@@ -83,6 +83,9 @@ interface MemoryDao {
     @Query("SELECT * FROM memory_events ORDER BY id ASC")
     suspend fun loadMemoryEventChain(): List<MemoryEventEntity>
 
+    @Query("SELECT * FROM memory_events ORDER BY id DESC LIMIT :limit")
+    suspend fun loadMemoryEventTail(limit: Int): List<MemoryEventEntity>
+
     @Query("SELECT COUNT(*) FROM memory_events")
     suspend fun countMemoryEvents(): Int
 

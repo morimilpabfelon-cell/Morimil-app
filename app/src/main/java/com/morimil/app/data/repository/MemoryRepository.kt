@@ -215,6 +215,9 @@ class MemoryRepository(private val database: MorimilDatabase) {
         """.trimIndent()
     }
 
+    suspend fun auditLivingMemoryChain(): Boolean {
+        return verifyMemoryEventChain(memoryDao.loadMemoryEventChain())
+    }
 
     suspend fun recordMemoryReview(
         targetEvent: MemoryEventEntity,
@@ -268,8 +271,8 @@ class MemoryRepository(private val database: MorimilDatabase) {
         val genesisCore = requireNotNull(memoryDao.loadGenesisCore()) {
             "Cannot append living memory without a local Genesis Core."
         }
-        val existingChain = memoryDao.loadMemoryEventChain()
-        require(verifyMemoryEventChain(existingChain)) {
+        val eventTail = memoryDao.loadMemoryEventTail(MEMORY_EVENT_TAIL_VERIFICATION_LIMIT).asReversed()
+        require(verifyMemoryEventChain(eventTail, requireGenesisStart = false)) {
             "Living memory chain integrity failed. Refusing to append a new event."
         }
         val source = if (actor == "user" || actor == "morimil") "chat" else "system"
@@ -289,7 +292,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
             classification = classification,
             body = cleanBody
         )
-        val previousEventHash = existingChain.lastOrNull()?.eventHash
+        val previousEventHash = eventTail.lastOrNull()?.eventHash
         val eventHash = hashMemoryEventV3(
             genesisCoreId = genesisCore.coreId,
             genesisCoreHash = genesisCore.contentSha256,
@@ -484,8 +487,11 @@ class MemoryRepository(private val database: MorimilDatabase) {
             .toString()
     }
 
-    private fun verifyMemoryEventChain(events: List<MemoryEventEntity>): Boolean {
-        var expectedPreviousHash: String? = null
+    private fun verifyMemoryEventChain(
+        events: List<MemoryEventEntity>,
+        requireGenesisStart: Boolean = true
+    ): Boolean {
+        var expectedPreviousHash = if (requireGenesisStart) null else events.firstOrNull()?.previousEventHash
         events.forEach { event ->
             if (event.eventHash == LEGACY_EVENT_HASH) {
                 expectedPreviousHash = event.eventHash
@@ -704,6 +710,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
         private const val MEMORY_EVENT_CANONICALIZATION_V1 = "morimil.memory_event_hash.v1"
         private const val MEMORY_EVENT_CANONICALIZATION_V2 = "morimil.memory_event_hash.v2"
         private const val MEMORY_EVENT_CANONICALIZATION_V3 = "morimil.memory_event_hash.v3"
+        private const val MEMORY_EVENT_TAIL_VERIFICATION_LIMIT = 12
         private const val PRIVATE_LOCAL = "private_local"
     }
 }
