@@ -109,7 +109,10 @@ allow_genesis_manifest if {
   input.schema_version == "morimil.genesis_manifest.v1"
   input.mobile_installation.first_birth_event_required == true
   input.mobile_installation.startup_verification_required == true
-  input.signature_policy.genesis_signature_required == true
+  input.signature_policy.genesis_signature_required == false
+  input.signature_policy.event_signature_required == false
+  input.signature_policy.event_signature_algorithm == "planned_ed25519"
+  input.signature_policy.status == "planned"
 }
 
 allow_genesis_mutation if {

@@ -45,6 +45,10 @@ And adds:
 
 `contextTag` is the temporary mapping for origin and boundary intent while the final column names are reviewed.
 
+Runtime v1 writes unsigned events explicitly as `unsigned_runtime_v1`.
+Ed25519 signatures with a non-exportable AndroidKeyStore key are planned, not
+active in this runtime.
+
 ## Memory organs
 
 The v2 memory organs live in a secondary Room database:

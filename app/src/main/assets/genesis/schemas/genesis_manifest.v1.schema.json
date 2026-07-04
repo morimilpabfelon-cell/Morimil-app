@@ -68,11 +68,11 @@
       "type": "object",
       "required": ["genesis_signature_required", "event_signature_required", "event_signature_algorithm", "key_storage", "status"],
       "properties": {
-        "genesis_signature_required": { "const": true },
-        "event_signature_required": { "type": "boolean" },
-        "event_signature_algorithm": { "const": "ed25519" },
-        "key_storage": { "const": "android_keystore" },
-        "status": { "type": "string", "enum": ["planned", "active"] }
+        "genesis_signature_required": { "const": false },
+        "event_signature_required": { "const": false },
+        "event_signature_algorithm": { "const": "planned_ed25519" },
+        "key_storage": { "const": "planned_android_keystore_non_exportable" },
+        "status": { "const": "planned" }
       },
       "additionalProperties": false
     }

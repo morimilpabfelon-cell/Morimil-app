@@ -101,7 +101,7 @@ class RestCycleRepository(private val database: MorimilDatabase) {
                     eventHash = eventHash,
                     hashAlgorithm = "sha256",
                     canonicalization = MEMORY_EVENT_CANONICALIZATION_V3,
-                    signatureAlgorithm = null,
+                    signatureAlgorithm = MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED,
                     eventSignature = null,
                     eventType = REST_CYCLE_EVENT_TYPE,
                     actor = "system",
@@ -420,6 +420,7 @@ class RestCycleRepository(private val database: MorimilDatabase) {
         private const val MEMORY_EVENT_CANONICALIZATION_V1 = "morimil.memory_event_hash.v1"
         private const val MEMORY_EVENT_CANONICALIZATION_V2 = "morimil.memory_event_hash.v2"
         private const val MEMORY_EVENT_CANONICALIZATION_V3 = "morimil.memory_event_hash.v3"
+        private const val MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED = "unsigned_runtime_v1"
         private const val MEMORY_EVENT_TAIL_VERIFICATION_LIMIT = 12
         private const val PRIVATE_LOCAL = "private_local"
     }

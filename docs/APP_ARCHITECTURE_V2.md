@@ -44,6 +44,11 @@ Active fields:
 - source
 - contextTag
 - privacyVisibility
+
+Runtime v1 stores `signatureAlgorithm = unsigned_runtime_v1` with no
+`eventSignature`. The active protection is SHA-256 hash chaining; Ed25519
+AndroidKeyStore event signing is a planned hardening layer, not an active
+runtime guarantee.
 - body
 - importance
 - createdAtMillis

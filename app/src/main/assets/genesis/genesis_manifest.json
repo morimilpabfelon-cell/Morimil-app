@@ -2,7 +2,7 @@
   "schema_version": "morimil.genesis_manifest.v1",
   "manifest_id": "gmanifest_20260702_memory_core_runtime_integrity",
   "generated_at": "2026-07-02T00:00:00.000Z",
-  "genesis_core_hash": "sha256:47ab394c2352f08e269bdadbc77ffa44b0b6ed6f9f623957bb47994422b3acc4",
+  "genesis_core_hash": "sha256:fb0e37ef719b2cb2607944b7738a7e8e1abdb0e437e9c5bce84117d6df597f5f",
   "canonicalization_spec": {
     "name": "RFC8785-JCS",
     "profile": "morimil_jcs_v1",
@@ -41,7 +41,7 @@
     {
       "path": "policy/memory_policy.rego",
       "kind": "policy",
-      "sha256": "sha256:afbcd59df1bd1e3bf9ef8687c7277ed4c90a53cd67d8507c0070830732ba3ebd",
+      "sha256": "sha256:ebd0116aea53f7a92ea3252c7fe9afa66fb2089148b2c9d6e171fefa4a456bc7",
       "required": true
     },
     {
@@ -59,7 +59,7 @@
     {
       "path": "schemas/genesis_manifest.v1.schema.json",
       "kind": "schema",
-      "sha256": "sha256:63acf37a3b1e8cc0c36ca40f2f1dd57a18c732d58ec9cb495995cecd1e08255a",
+      "sha256": "sha256:8c0442ddd9268b8679076ece41befd4cf46af302969d8546d98791ee2ab479bd",
       "required": true
     },
     {
@@ -124,10 +124,10 @@
     "startup_verification_required": true
   },
   "signature_policy": {
-    "genesis_signature_required": true,
+    "genesis_signature_required": false,
     "event_signature_required": false,
-    "event_signature_algorithm": "ed25519",
-    "key_storage": "android_keystore",
+    "event_signature_algorithm": "planned_ed25519",
+    "key_storage": "planned_android_keystore_non_exportable",
     "status": "planned"
   }
 }

@@ -166,7 +166,7 @@ class GenesisManifestVerifier(private val context: Context) {
     }
 
     companion object {
-        const val APPROVED_GENESIS_CORE_HASH = "sha256:47ab394c2352f08e269bdadbc77ffa44b0b6ed6f9f623957bb47994422b3acc4"
+        const val APPROVED_GENESIS_CORE_HASH = "sha256:fb0e37ef719b2cb2607944b7738a7e8e1abdb0e437e9c5bce84117d6df597f5f"
         private const val APPROVED_FILE_COUNT = 17
         private const val GENESIS_ROOT = "genesis"
         private const val MANIFEST_ASSET = "$GENESIS_ROOT/genesis_manifest.json"
