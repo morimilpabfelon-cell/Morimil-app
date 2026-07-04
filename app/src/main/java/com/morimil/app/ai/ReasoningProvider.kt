@@ -124,11 +124,21 @@ class ReasoningConfigStore(context: Context) {
             preferences.getString(prefix + KEY_PRESET, null)
                 ?: if (id == 1) preferences.getString(KEY_PRESET, null) else null
         )
+        val legacyBaseUrl = if (id == 1) {
+            preferences.getString(KEY_BASE_URL, null)?.takeIf { it.isNotBlank() }
+        } else {
+            null
+        }
         val baseUrl = preferences.getString(prefix + KEY_BASE_URL, null)?.takeIf { it.isNotBlank() }
-            ?: if (id == 1) preferences.getString(KEY_BASE_URL, null)?.takeIf { it.isNotBlank() } else null
+            ?: legacyBaseUrl
             ?: preset.defaultBaseUrl
+        val legacyModel = if (id == 1) {
+            preferences.getString(KEY_MODEL, null)?.takeIf { it.isNotBlank() }
+        } else {
+            null
+        }
         val model = preferences.getString(prefix + KEY_MODEL, null)?.takeIf { it.isNotBlank() }
-            ?: if (id == 1) preferences.getString(KEY_MODEL, null)?.takeIf { it.isNotBlank() } else null
+            ?: legacyModel
             ?: preset.defaultModel
         val maxTokens = if (preferences.contains(prefix + KEY_MAX_TOKENS)) {
             preferences.getInt(prefix + KEY_MAX_TOKENS, ReasoningProviderConfig.DEFAULT_MAX_TOKENS)
