@@ -46,9 +46,15 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.morimil.app.core.memory.MemoryBacklink
+import com.morimil.app.core.memory.MemoryBacklinkGraphBuilder
 import com.morimil.app.data.genesis.CurrentMobileAppCapabilities
 import com.morimil.app.data.genesis.GenesisIdentitySource
+import com.morimil.app.data.local.MemoryEventEntity
+import com.morimil.app.data.local.MemoryLinkEntity
 import java.util.Locale
+
+private const val MEMORY_EVENT_NODE_TYPE = "memory_event"
 
 private enum class MorimilTab(val label: String, val icon: String) {
     Chat("Chat", "Ch"),
@@ -553,6 +559,10 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
     val snapshot by viewModel.livingMemorySnapshot.collectAsStateWithLifecycle()
     val events by viewModel.recentMemoryEvents.collectAsStateWithLifecycle()
     val recalls by viewModel.activeRecallSchedules.collectAsStateWithLifecycle()
+    val selectedMemoryEventHash by viewModel.selectedMemoryEventHash.collectAsStateWithLifecycle()
+    val selectedMemoryLinks by viewModel.selectedMemoryLinks.collectAsStateWithLifecycle()
+    val eventsByHash = events.associateBy { event -> event.eventHash }
+    val selectedMemoryEvent = selectedMemoryEventHash?.let { hash -> eventsByHash[hash] }
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Living Memory", style = MaterialTheme.typography.headlineMedium)
@@ -624,6 +634,13 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
                                 "hash=${event.eventHash.take(24)}"
                         )
                         Text("tags=${event.tagsJson.take(160)}")
+                        if (selectedMemoryEventHash == event.eventHash) {
+                            AssistChip(onClick = {}, label = { Text("Backlinks abiertos") })
+                        } else {
+                            Button(onClick = { viewModel.selectMemoryEvent(event.eventHash) }) {
+                                Text("Ver backlinks")
+                            }
+                        }
                         Button(onClick = { viewModel.approveMemoryEvent(event) }) {
                             Text("Aprobar")
                         }
@@ -637,8 +654,107 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
                 }
             }
         }
+        MemoryBacklinksPanel(
+            selectedEventHash = selectedMemoryEventHash,
+            selectedEvent = selectedMemoryEvent,
+            selectedLinks = selectedMemoryLinks,
+            eventsByHash = eventsByHash,
+            onSelectEventHash = viewModel::selectMemoryEvent,
+            onClearSelection = viewModel::clearSelectedMemoryEvent
+        )
         ProjectCard("Scope guardian", "Sin sincronizacion externa y sin ejecucion de PC.", "protected")
     }
+}
+
+@Composable
+private fun MemoryBacklinksPanel(
+    selectedEventHash: String?,
+    selectedEvent: MemoryEventEntity?,
+    selectedLinks: List<MemoryLinkEntity>,
+    eventsByHash: Map<String, MemoryEventEntity>,
+    onSelectEventHash: (String) -> Unit,
+    onClearSelection: () -> Unit
+) {
+    Text("Backlinks de memoria", style = MaterialTheme.typography.titleMedium)
+    if (selectedEventHash == null) {
+        ProjectCard("Grafo de recuerdos", "Selecciona un recuerdo para ver que apunta a el y a que apunta.", "empty")
+        return
+    }
+
+    val graph = MemoryBacklinkGraphBuilder.buildForNode(
+        nodeId = selectedEventHash,
+        nodeType = MEMORY_EVENT_NODE_TYPE,
+        links = selectedLinks
+    )
+
+    ElevatedCard {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text("Recuerdo seleccionado", style = MaterialTheme.typography.titleMedium)
+            Text(selectedEvent?.body?.take(260) ?: selectedEventHash.take(32))
+            Text("hash=${selectedEventHash.take(32)} links=${selectedLinks.size}")
+            Button(onClick = onClearSelection) {
+                Text("Cerrar")
+            }
+            MemoryBacklinkSection(
+                title = "Este recuerdo apunta a...",
+                emptyText = "Este recuerdo todavia no apunta a otros nodos.",
+                backlinks = graph.outgoing,
+                eventsByHash = eventsByHash,
+                onSelectEventHash = onSelectEventHash
+            )
+            MemoryBacklinkSection(
+                title = "Este recuerdo es mencionado por...",
+                emptyText = "Ningun nodo reciente apunta todavia a este recuerdo.",
+                backlinks = graph.incoming,
+                eventsByHash = eventsByHash,
+                onSelectEventHash = onSelectEventHash
+            )
+        }
+    }
+}
+
+@Composable
+private fun MemoryBacklinkSection(
+    title: String,
+    emptyText: String,
+    backlinks: List<MemoryBacklink>,
+    eventsByHash: Map<String, MemoryEventEntity>,
+    onSelectEventHash: (String) -> Unit
+) {
+    Text(title, style = MaterialTheme.typography.titleMedium)
+    if (backlinks.isEmpty()) {
+        Text(emptyText)
+        return
+    }
+
+    backlinks.take(8).forEach { backlink ->
+        val linkedEvent = eventsByHash[backlink.linkedNodeId]
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("${backlink.link.relation} / strength=${backlink.link.strength} / ${backlink.link.reason.take(120)}")
+            if (backlink.linkedNodeType == MEMORY_EVENT_NODE_TYPE) {
+                Button(onClick = { onSelectEventHash(backlink.linkedNodeId) }) {
+                    Text(memoryNodeLabel(linkedEvent, backlink.linkedNodeId, backlink.linkedNodeType).take(90))
+                }
+            } else {
+                AssistChip(
+                    onClick = {},
+                    label = { Text(memoryNodeLabel(linkedEvent, backlink.linkedNodeId, backlink.linkedNodeType).take(90)) }
+                )
+            }
+        }
+    }
+}
+
+private fun memoryNodeLabel(
+    event: MemoryEventEntity?,
+    nodeId: String,
+    nodeType: String
+): String {
+    if (event == null) return "$nodeType ${nodeId.take(24)}"
+    return "${event.memoryKind} / ${event.eventType}: ${event.body.take(90)}"
 }
 
 @Composable
