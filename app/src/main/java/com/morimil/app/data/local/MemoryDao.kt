@@ -83,8 +83,13 @@ interface MemoryDao {
     @Query("SELECT * FROM memory_events ORDER BY importance DESC, createdAtMillis DESC, id DESC LIMIT :limit")
     suspend fun loadMemoryContext(limit: Int): List<MemoryEventEntity>
 
+    /**
+     * Full-chain load is intentionally reserved for explicit user/system audits.
+     * Runtime appends must verify only the recent tail so memory writes stay O(1)
+     * with respect to long-term history size.
+     */
     @Query("SELECT * FROM memory_events ORDER BY id ASC")
-    suspend fun loadMemoryEventChain(): List<MemoryEventEntity>
+    suspend fun loadMemoryEventAuditChain(): List<MemoryEventEntity>
 
     @Query("SELECT * FROM memory_events ORDER BY id DESC LIMIT :limit")
     suspend fun loadMemoryEventTail(limit: Int): List<MemoryEventEntity>

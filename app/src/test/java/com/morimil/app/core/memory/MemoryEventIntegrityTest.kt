@@ -50,6 +50,37 @@ class MemoryEventIntegrityTest {
         assertFalse(integrity.verifyMemoryEventChain(listOf(first, brokenSecond)))
     }
 
+    @Test
+    fun tailVerificationCanStartAfterExistingHistory() {
+        val checkpointHash = "sha256:trusted-checkpoint"
+        val firstTailEvent = sampleEvent(
+            previousEventHash = checkpointHash,
+            createdAtMillis = SAMPLE_CREATED_AT_MILLIS + 10,
+            body = "Morimil verifica solo la cola reciente antes de escribir."
+        )
+        val secondTailEvent = sampleEvent(
+            previousEventHash = firstTailEvent.eventHash,
+            body = "La auditoria completa queda fuera del camino caliente.",
+            createdAtMillis = SAMPLE_CREATED_AT_MILLIS + 11,
+            eventType = "conversation.assistant_message",
+            actor = "morimil",
+            source = "chat",
+            memoryKind = "conversation",
+            tagsJson = "[\"memory\",\"tail_verification\"]",
+            confidence = 90,
+            userConfirmed = false,
+            importance = 80
+        )
+
+        assertTrue(
+            integrity.verifyMemoryEventChain(
+                listOf(firstTailEvent, secondTailEvent),
+                requireGenesisStart = false
+            )
+        )
+        assertFalse(integrity.verifyMemoryEventChain(listOf(firstTailEvent, secondTailEvent)))
+    }
+
     private fun sampleEvent(
         previousEventHash: String?,
         body: String = SAMPLE_BODY,

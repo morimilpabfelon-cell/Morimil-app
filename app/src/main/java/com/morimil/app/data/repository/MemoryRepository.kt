@@ -217,7 +217,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
     }
 
     suspend fun auditLivingMemoryChain(): Boolean {
-        return memoryEventIntegrity.verifyMemoryEventChain(memoryDao.loadMemoryEventChain())
+        return memoryEventIntegrity.verifyMemoryEventChain(memoryDao.loadMemoryEventAuditChain())
     }
 
     suspend fun recordMemoryReview(
