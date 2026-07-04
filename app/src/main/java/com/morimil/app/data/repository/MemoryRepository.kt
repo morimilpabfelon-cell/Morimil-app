@@ -271,10 +271,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
         val genesisCore = requireNotNull(memoryDao.loadGenesisCore()) {
             "Cannot append living memory without a local Genesis Core."
         }
-        val eventTail = memoryDao.loadMemoryEventTail(MEMORY_EVENT_TAIL_VERIFICATION_LIMIT).asReversed()
-        require(verifyMemoryEventChain(eventTail, requireGenesisStart = false)) {
-            "Living memory chain integrity failed. Refusing to append a new event."
-        }
+        val previousEventHash = resolveMemoryAppendPreviousHash(genesisCore, createdAtMillis)
         val source = if (actor == "user" || actor == "morimil") "chat" else "system"
         val contextTag = "local_runtime"
         val privacyVisibility = PRIVATE_LOCAL
@@ -292,7 +289,6 @@ class MemoryRepository(private val database: MorimilDatabase) {
             classification = classification,
             body = cleanBody
         )
-        val previousEventHash = eventTail.lastOrNull()?.eventHash
         val eventHash = hashMemoryEventV3(
             genesisCoreId = genesisCore.coreId,
             genesisCoreHash = genesisCore.contentSha256,
@@ -487,6 +483,133 @@ class MemoryRepository(private val database: MorimilDatabase) {
             .toString()
     }
 
+    private suspend fun resolveMemoryAppendPreviousHash(
+        genesisCore: GenesisCoreEntity,
+        createdAtMillis: Long
+    ): String? {
+        val recoveryBoundary = memoryDao.loadLatestMemoryEventByType(MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE)
+        val eventTail = if (recoveryBoundary == null) {
+            memoryDao.loadMemoryEventTail(MEMORY_EVENT_TAIL_VERIFICATION_LIMIT)
+        } else {
+            memoryDao.loadMemoryEventTailAfterLatestEventType(
+                eventType = MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE,
+                limit = MEMORY_EVENT_TAIL_VERIFICATION_LIMIT
+            )
+        }.asReversed()
+        val tailIntegrity = inspectMemoryEventTail(
+            events = eventTail,
+            fallbackPreviousHash = recoveryBoundary?.eventHash
+        )
+        if (tailIntegrity.trusted) return tailIntegrity.appendPreviousEventHash
+
+        return insertMemoryIntegrityQuarantineEvent(
+            genesisCore = genesisCore,
+            previousEventHash = tailIntegrity.lastTrustedEventHash ?: recoveryBoundary?.eventHash,
+            firstUntrustedHash = tailIntegrity.firstUntrustedHash,
+            reason = tailIntegrity.reason ?: "unknown_tail_integrity_break",
+            createdAtMillis = createdAtMillis
+        )
+    }
+
+    private suspend fun insertMemoryIntegrityQuarantineEvent(
+        genesisCore: GenesisCoreEntity,
+        previousEventHash: String?,
+        firstUntrustedHash: String?,
+        reason: String,
+        createdAtMillis: Long
+    ): String {
+        val tagsJson = JSONArray(listOf("memory_integrity", "quarantine", "recovery")).toString()
+        val evidenceJson = JSONObject()
+            .put("schema", "morimil.memory_integrity_quarantine.v1")
+            .put("reason", reason)
+            .put("first_untrusted_hash", firstUntrustedHash)
+            .put("recovery_previous_hash", previousEventHash)
+            .put("policy", "isolate_untrusted_tail_and_continue_local_memory")
+            .toString()
+        val body = "ALERTA_MEMORIA_LOCAL: Se detecto una ruptura de integridad en la cola de memoria. " +
+            "El tramo no confiable quedo aislado y la memoria continua desde este marcador de cuarentena. " +
+            "reason=$reason; first_untrusted_hash=${firstUntrustedHash ?: "unknown"}"
+        val eventHash = hashMemoryEventV3(
+            genesisCoreId = genesisCore.coreId,
+            genesisCoreHash = genesisCore.contentSha256,
+            previousEventHash = previousEventHash,
+            eventType = MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE,
+            actor = "system",
+            source = "local_integrity",
+            contextTag = "local_integrity",
+            privacyVisibility = PRIVATE_LOCAL,
+            memoryKind = "integrity_quarantine",
+            tagsJson = tagsJson,
+            evidenceJson = evidenceJson,
+            confidence = 100,
+            userConfirmed = false,
+            body = body,
+            importance = 100,
+            createdAtMillis = createdAtMillis
+        )
+
+        memoryDao.insertMemoryEvent(
+            MemoryEventEntity(
+                genesisCoreId = genesisCore.coreId,
+                genesisCoreHash = genesisCore.contentSha256,
+                previousEventHash = previousEventHash,
+                eventHash = eventHash,
+                hashAlgorithm = "sha256",
+                canonicalization = MEMORY_EVENT_CANONICALIZATION_V3,
+                signatureAlgorithm = null,
+                eventSignature = null,
+                eventType = MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE,
+                actor = "system",
+                source = "local_integrity",
+                contextTag = "local_integrity",
+                privacyVisibility = PRIVATE_LOCAL,
+                memoryKind = "integrity_quarantine",
+                tagsJson = tagsJson,
+                evidenceJson = evidenceJson,
+                confidence = 100,
+                userConfirmed = false,
+                body = body,
+                importance = 100,
+                createdAtMillis = createdAtMillis
+            )
+        )
+        return eventHash
+    }
+
+    private fun inspectMemoryEventTail(
+        events: List<MemoryEventEntity>,
+        fallbackPreviousHash: String?
+    ): MemoryTailIntegrity {
+        var expectedPreviousHash = events.firstOrNull()?.previousEventHash ?: fallbackPreviousHash
+        var lastTrustedEventHash = fallbackPreviousHash
+        events.forEach { event ->
+            if (event.eventHash == LEGACY_EVENT_HASH) {
+                expectedPreviousHash = event.eventHash
+                lastTrustedEventHash = event.eventHash
+                return@forEach
+            }
+            val failure = memoryEventIntegrityFailure(event, expectedPreviousHash)
+            if (failure != null) {
+                return MemoryTailIntegrity(
+                    trusted = false,
+                    appendPreviousEventHash = lastTrustedEventHash,
+                    lastTrustedEventHash = lastTrustedEventHash,
+                    firstUntrustedHash = event.eventHash,
+                    reason = failure
+                )
+            }
+            expectedPreviousHash = event.eventHash
+            lastTrustedEventHash = event.eventHash
+        }
+        return MemoryTailIntegrity(
+            trusted = true,
+            appendPreviousEventHash = lastTrustedEventHash,
+            lastTrustedEventHash = lastTrustedEventHash,
+            firstUntrustedHash = null,
+            reason = null
+        )
+    }
+
     private fun verifyMemoryEventChain(
         events: List<MemoryEventEntity>,
         requireGenesisStart: Boolean = true
@@ -497,57 +620,68 @@ class MemoryRepository(private val database: MorimilDatabase) {
                 expectedPreviousHash = event.eventHash
                 return@forEach
             }
-            if (event.previousEventHash != expectedPreviousHash) return false
-            if (event.hashAlgorithm != "sha256") return false
-
-            val expectedHash = when (event.canonicalization) {
-                MEMORY_EVENT_CANONICALIZATION_V1 -> hashMemoryEventV1(
-                    genesisCoreId = event.genesisCoreId,
-                    genesisCoreHash = event.genesisCoreHash,
-                    previousEventHash = event.previousEventHash,
-                    eventType = event.eventType,
-                    actor = event.actor,
-                    body = event.body,
-                    importance = event.importance,
-                    createdAtMillis = event.createdAtMillis
-                )
-                MEMORY_EVENT_CANONICALIZATION_V2 -> hashMemoryEventV2(
-                    genesisCoreId = event.genesisCoreId,
-                    genesisCoreHash = event.genesisCoreHash,
-                    previousEventHash = event.previousEventHash,
-                    eventType = event.eventType,
-                    actor = event.actor,
-                    source = event.source,
-                    contextTag = event.contextTag,
-                    privacyVisibility = event.privacyVisibility,
-                    body = event.body,
-                    importance = event.importance,
-                    createdAtMillis = event.createdAtMillis
-                )
-                MEMORY_EVENT_CANONICALIZATION_V3 -> hashMemoryEventV3(
-                    genesisCoreId = event.genesisCoreId,
-                    genesisCoreHash = event.genesisCoreHash,
-                    previousEventHash = event.previousEventHash,
-                    eventType = event.eventType,
-                    actor = event.actor,
-                    source = event.source,
-                    contextTag = event.contextTag,
-                    privacyVisibility = event.privacyVisibility,
-                    memoryKind = event.memoryKind,
-                    tagsJson = event.tagsJson,
-                    evidenceJson = event.evidenceJson,
-                    confidence = event.confidence,
-                    userConfirmed = event.userConfirmed,
-                    body = event.body,
-                    importance = event.importance,
-                    createdAtMillis = event.createdAtMillis
-                )
-                else -> return false
-            }
-            if (event.eventHash != expectedHash) return false
+            if (memoryEventIntegrityFailure(event, expectedPreviousHash) != null) return false
             expectedPreviousHash = event.eventHash
         }
         return true
+    }
+
+    private fun memoryEventIntegrityFailure(
+        event: MemoryEventEntity,
+        expectedPreviousHash: String?
+    ): String? {
+        if (event.previousEventHash != expectedPreviousHash) return "previous_hash_mismatch"
+        if (event.hashAlgorithm != "sha256") return "unsupported_hash_algorithm:${event.hashAlgorithm}"
+        val expectedHash = expectedMemoryEventHash(event) ?: return "unknown_canonicalization:${event.canonicalization}"
+        if (event.eventHash != expectedHash) return "event_hash_mismatch"
+        return null
+    }
+
+    private fun expectedMemoryEventHash(event: MemoryEventEntity): String? {
+        return when (event.canonicalization) {
+            MEMORY_EVENT_CANONICALIZATION_V1 -> hashMemoryEventV1(
+                genesisCoreId = event.genesisCoreId,
+                genesisCoreHash = event.genesisCoreHash,
+                previousEventHash = event.previousEventHash,
+                eventType = event.eventType,
+                actor = event.actor,
+                body = event.body,
+                importance = event.importance,
+                createdAtMillis = event.createdAtMillis
+            )
+            MEMORY_EVENT_CANONICALIZATION_V2 -> hashMemoryEventV2(
+                genesisCoreId = event.genesisCoreId,
+                genesisCoreHash = event.genesisCoreHash,
+                previousEventHash = event.previousEventHash,
+                eventType = event.eventType,
+                actor = event.actor,
+                source = event.source,
+                contextTag = event.contextTag,
+                privacyVisibility = event.privacyVisibility,
+                body = event.body,
+                importance = event.importance,
+                createdAtMillis = event.createdAtMillis
+            )
+            MEMORY_EVENT_CANONICALIZATION_V3 -> hashMemoryEventV3(
+                genesisCoreId = event.genesisCoreId,
+                genesisCoreHash = event.genesisCoreHash,
+                previousEventHash = event.previousEventHash,
+                eventType = event.eventType,
+                actor = event.actor,
+                source = event.source,
+                contextTag = event.contextTag,
+                privacyVisibility = event.privacyVisibility,
+                memoryKind = event.memoryKind,
+                tagsJson = event.tagsJson,
+                evidenceJson = event.evidenceJson,
+                confidence = event.confidence,
+                userConfirmed = event.userConfirmed,
+                body = event.body,
+                importance = event.importance,
+                createdAtMillis = event.createdAtMillis
+            )
+            else -> null
+        }
     }
 
     private fun hashMemoryEventV1(
@@ -705,8 +839,17 @@ class MemoryRepository(private val database: MorimilDatabase) {
         val importance: Int
     )
 
+    private data class MemoryTailIntegrity(
+        val trusted: Boolean,
+        val appendPreviousEventHash: String?,
+        val lastTrustedEventHash: String?,
+        val firstUntrustedHash: String?,
+        val reason: String?
+    )
+
     companion object {
         private const val LEGACY_EVENT_HASH = "sha256:legacy-unverified"
+        private const val MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE = "memory_integrity.quarantine"
         private const val MEMORY_EVENT_CANONICALIZATION_V1 = "morimil.memory_event_hash.v1"
         private const val MEMORY_EVENT_CANONICALIZATION_V2 = "morimil.memory_event_hash.v2"
         private const val MEMORY_EVENT_CANONICALIZATION_V3 = "morimil.memory_event_hash.v3"

@@ -86,6 +86,19 @@ interface MemoryDao {
     @Query("SELECT * FROM memory_events ORDER BY id DESC LIMIT :limit")
     suspend fun loadMemoryEventTail(limit: Int): List<MemoryEventEntity>
 
+    @Query("SELECT * FROM memory_events WHERE eventType = :eventType ORDER BY id DESC LIMIT 1")
+    suspend fun loadLatestMemoryEventByType(eventType: String): MemoryEventEntity?
+
+    @Query(
+        """
+        SELECT * FROM memory_events
+        WHERE id > COALESCE((SELECT MAX(id) FROM memory_events WHERE eventType = :eventType), 0)
+        ORDER BY id DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun loadMemoryEventTailAfterLatestEventType(eventType: String, limit: Int): List<MemoryEventEntity>
+
     @Query("SELECT COUNT(*) FROM memory_events")
     suspend fun countMemoryEvents(): Int
 

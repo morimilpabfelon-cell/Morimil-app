@@ -35,22 +35,32 @@ class RestCycleRepository(private val database: MorimilDatabase) {
         val summary = buildRestCycleSummary(events, now)
         if (summary.isBlank()) return false
 
-        appendRestCycleEvent(summary)
-        return true
+        return appendRestCycleEvent(summary)
     }
 
-    private suspend fun appendRestCycleEvent(summary: String) {
-        database.withTransaction {
+    private suspend fun appendRestCycleEvent(summary: String): Boolean {
+        return database.withTransaction {
             val genesisCore = requireNotNull(memoryDao.loadGenesisCore()) {
                 "Cannot run rest cycle without a local Genesis Core."
             }
-            val eventTail = memoryDao.loadMemoryEventTail(MEMORY_EVENT_TAIL_VERIFICATION_LIMIT).asReversed()
-            require(verifyMemoryEventChain(eventTail, requireGenesisStart = false)) {
-                "Living memory chain integrity failed. Refusing to append rest cycle."
-            }
+            val recoveryBoundary = memoryDao.loadLatestMemoryEventByType(MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE)
+            val eventTail = if (recoveryBoundary == null) {
+                memoryDao.loadMemoryEventTail(MEMORY_EVENT_TAIL_VERIFICATION_LIMIT)
+            } else {
+                memoryDao.loadMemoryEventTailAfterLatestEventType(
+                    eventType = MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE,
+                    limit = MEMORY_EVENT_TAIL_VERIFICATION_LIMIT
+                )
+            }.asReversed()
 
             val createdAtMillis = System.currentTimeMillis()
-            val previousEventHash = eventTail.lastOrNull()?.eventHash
+            val tailTrusted = verifyMemoryEventChain(eventTail, requireGenesisStart = false)
+            if (!tailTrusted && recoveryBoundary == null) return@withTransaction false
+            val previousEventHash = if (tailTrusted) {
+                eventTail.lastOrNull()?.eventHash ?: recoveryBoundary?.eventHash
+            } else {
+                recoveryBoundary?.eventHash
+            }
             val tagsJson = JSONArray(listOf("rest_cycle", "local_consolidation", "snapshot")).toString()
             val evidenceJson = JSONObject()
                 .put("schema", "morimil.memory_evidence.v1")
@@ -109,6 +119,7 @@ class RestCycleRepository(private val database: MorimilDatabase) {
                 )
             )
             rebuildLivingMemorySnapshot()
+            true
         }
     }
 
@@ -405,6 +416,7 @@ class RestCycleRepository(private val database: MorimilDatabase) {
         private const val REST_CYCLE_MIN_INTERVAL_MILLIS = 6L * 60L * 60L * 1000L
         private const val REST_CYCLE_MIN_EVENTS = 6
         private const val LEGACY_EVENT_HASH = "sha256:legacy-unverified"
+        private const val MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE = "memory_integrity.quarantine"
         private const val MEMORY_EVENT_CANONICALIZATION_V1 = "morimil.memory_event_hash.v1"
         private const val MEMORY_EVENT_CANONICALIZATION_V2 = "morimil.memory_event_hash.v2"
         private const val MEMORY_EVENT_CANONICALIZATION_V3 = "morimil.memory_event_hash.v3"
