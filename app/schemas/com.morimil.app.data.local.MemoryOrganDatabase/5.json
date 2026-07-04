@@ -1,0 +1,769 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 5,
+    "identityHash": "dc48c01dfd32a2f1c561e07f9a7127b1",
+    "entities": [
+      {
+        "tableName": "autobiographical_snapshots",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`snapshotId` TEXT NOT NULL, `genesisCoreId` TEXT NOT NULL, `alias` TEXT NOT NULL, `selfSummary` TEXT NOT NULL, `stableTraits` TEXT NOT NULL, `activeGoals` TEXT NOT NULL, `importantConstraints` TEXT NOT NULL, `sourceEventHash` TEXT, `updatedAtMillis` INTEGER NOT NULL, PRIMARY KEY(`snapshotId`))",
+        "fields": [
+          {
+            "fieldPath": "snapshotId",
+            "columnName": "snapshotId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "genesisCoreId",
+            "columnName": "genesisCoreId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "alias",
+            "columnName": "alias",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "selfSummary",
+            "columnName": "selfSummary",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stableTraits",
+            "columnName": "stableTraits",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activeGoals",
+            "columnName": "activeGoals",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "importantConstraints",
+            "columnName": "importantConstraints",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceEventHash",
+            "columnName": "sourceEventHash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "updatedAtMillis",
+            "columnName": "updatedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "snapshotId"
+          ]
+        }
+      },
+      {
+        "tableName": "knowledge_capsules",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`capsuleId` TEXT NOT NULL, `genesisCoreId` TEXT NOT NULL, `capsuleVersion` INTEGER NOT NULL DEFAULT 1, `capsuleCategory` TEXT NOT NULL DEFAULT 'general_knowledge', `capsuleType` TEXT NOT NULL DEFAULT 'knowledge_capsule', `status` TEXT NOT NULL DEFAULT 'active', `title` TEXT NOT NULL, `source` TEXT NOT NULL DEFAULT 'user_approved_notes', `privacyVisibility` TEXT NOT NULL DEFAULT 'private_local', `summary` TEXT NOT NULL, `claimsJson` TEXT NOT NULL DEFAULT '[]', `tags` TEXT NOT NULL, `evidenceJson` TEXT NOT NULL DEFAULT '{}', `confidence` INTEGER NOT NULL, `sourceEventHash` TEXT, `previousCapsuleHash` TEXT, `capsuleHash` TEXT NOT NULL DEFAULT 'sha256:legacy-unverified', `hashAlgorithm` TEXT NOT NULL DEFAULT 'sha256', `canonicalization` TEXT NOT NULL DEFAULT 'morimil.knowledge_capsule_hash.v1', `createdAtMillis` INTEGER NOT NULL, `updatedAtMillis` INTEGER NOT NULL, PRIMARY KEY(`capsuleId`))",
+        "fields": [
+          {
+            "fieldPath": "capsuleId",
+            "columnName": "capsuleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "genesisCoreId",
+            "columnName": "genesisCoreId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "capsuleVersion",
+            "columnName": "capsuleVersion",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "capsuleCategory",
+            "columnName": "capsuleCategory",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'general_knowledge'"
+          },
+          {
+            "fieldPath": "capsuleType",
+            "columnName": "capsuleType",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'knowledge_capsule'"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'active'"
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'user_approved_notes'"
+          },
+          {
+            "fieldPath": "privacyVisibility",
+            "columnName": "privacyVisibility",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'private_local'"
+          },
+          {
+            "fieldPath": "summary",
+            "columnName": "summary",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "claimsJson",
+            "columnName": "claimsJson",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'[]'"
+          },
+          {
+            "fieldPath": "tags",
+            "columnName": "tags",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "evidenceJson",
+            "columnName": "evidenceJson",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'{}'"
+          },
+          {
+            "fieldPath": "confidence",
+            "columnName": "confidence",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceEventHash",
+            "columnName": "sourceEventHash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "previousCapsuleHash",
+            "columnName": "previousCapsuleHash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "capsuleHash",
+            "columnName": "capsuleHash",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'sha256:legacy-unverified'"
+          },
+          {
+            "fieldPath": "hashAlgorithm",
+            "columnName": "hashAlgorithm",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'sha256'"
+          },
+          {
+            "fieldPath": "canonicalization",
+            "columnName": "canonicalization",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'morimil.knowledge_capsule_hash.v1'"
+          },
+          {
+            "fieldPath": "createdAtMillis",
+            "columnName": "createdAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMillis",
+            "columnName": "updatedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "capsuleId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_knowledge_capsules_capsuleHash",
+            "unique": false,
+            "columnNames": [
+              "capsuleHash"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_knowledge_capsules_capsuleHash` ON `${TABLE_NAME}` (`capsuleHash`)"
+          },
+          {
+            "name": "index_knowledge_capsules_capsuleType",
+            "unique": false,
+            "columnNames": [
+              "capsuleType"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_knowledge_capsules_capsuleType` ON `${TABLE_NAME}` (`capsuleType`)"
+          },
+          {
+            "name": "index_knowledge_capsules_updatedAtMillis",
+            "unique": false,
+            "columnNames": [
+              "updatedAtMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_knowledge_capsules_updatedAtMillis` ON `${TABLE_NAME}` (`updatedAtMillis`)"
+          },
+          {
+            "name": "index_knowledge_capsules_status",
+            "unique": false,
+            "columnNames": [
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_knowledge_capsules_status` ON `${TABLE_NAME}` (`status`)"
+          },
+          {
+            "name": "index_knowledge_capsules_category",
+            "unique": false,
+            "columnNames": [
+              "capsuleCategory"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_knowledge_capsules_category` ON `${TABLE_NAME}` (`capsuleCategory`)"
+          },
+          {
+            "name": "index_knowledge_capsules_title",
+            "unique": false,
+            "columnNames": [
+              "title"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_knowledge_capsules_title` ON `${TABLE_NAME}` (`title`)"
+          }
+        ]
+      },
+      {
+        "tableName": "recall_schedules",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`recallId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `genesisCoreId` TEXT NOT NULL, `targetEventHash` TEXT NOT NULL, `targetMemoryKind` TEXT NOT NULL, `prompt` TEXT NOT NULL, `reason` TEXT NOT NULL, `priority` INTEGER NOT NULL, `intervalDays` INTEGER NOT NULL, `dueAtMillis` INTEGER NOT NULL, `status` TEXT NOT NULL, `lastAction` TEXT NOT NULL, `source` TEXT NOT NULL, `createdAtMillis` INTEGER NOT NULL, `updatedAtMillis` INTEGER NOT NULL, `lastReviewedAtMillis` INTEGER)",
+        "fields": [
+          {
+            "fieldPath": "recallId",
+            "columnName": "recallId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "genesisCoreId",
+            "columnName": "genesisCoreId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetEventHash",
+            "columnName": "targetEventHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetMemoryKind",
+            "columnName": "targetMemoryKind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "prompt",
+            "columnName": "prompt",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reason",
+            "columnName": "reason",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "priority",
+            "columnName": "priority",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "intervalDays",
+            "columnName": "intervalDays",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dueAtMillis",
+            "columnName": "dueAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastAction",
+            "columnName": "lastAction",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMillis",
+            "columnName": "createdAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMillis",
+            "columnName": "updatedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastReviewedAtMillis",
+            "columnName": "lastReviewedAtMillis",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "recallId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_recall_schedules_targetEventHash",
+            "unique": true,
+            "columnNames": [
+              "targetEventHash"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_recall_schedules_targetEventHash` ON `${TABLE_NAME}` (`targetEventHash`)"
+          },
+          {
+            "name": "index_recall_schedules_status",
+            "unique": false,
+            "columnNames": [
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_recall_schedules_status` ON `${TABLE_NAME}` (`status`)"
+          },
+          {
+            "name": "index_recall_schedules_dueAtMillis",
+            "unique": false,
+            "columnNames": [
+              "dueAtMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_recall_schedules_dueAtMillis` ON `${TABLE_NAME}` (`dueAtMillis`)"
+          }
+        ]
+      },
+      {
+        "tableName": "memory_links",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`linkId` TEXT NOT NULL, `instanceId` TEXT NOT NULL, `genesisCoreHash` TEXT NOT NULL, `sourceId` TEXT NOT NULL, `sourceType` TEXT NOT NULL, `targetId` TEXT NOT NULL, `targetType` TEXT NOT NULL, `relation` TEXT NOT NULL, `strength` REAL NOT NULL, `reason` TEXT NOT NULL, `createdBy` TEXT NOT NULL, `privacyVisibility` TEXT NOT NULL, `cloudSyncAllowed` INTEGER NOT NULL, `exportAllowed` INTEGER NOT NULL, `verificationState` TEXT NOT NULL, `createdAtMillis` INTEGER NOT NULL, PRIMARY KEY(`linkId`))",
+        "fields": [
+          {
+            "fieldPath": "linkId",
+            "columnName": "linkId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "instanceId",
+            "columnName": "instanceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "genesisCoreHash",
+            "columnName": "genesisCoreHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceId",
+            "columnName": "sourceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceType",
+            "columnName": "sourceType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetId",
+            "columnName": "targetId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetType",
+            "columnName": "targetType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "relation",
+            "columnName": "relation",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "strength",
+            "columnName": "strength",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reason",
+            "columnName": "reason",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdBy",
+            "columnName": "createdBy",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "privacyVisibility",
+            "columnName": "privacyVisibility",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cloudSyncAllowed",
+            "columnName": "cloudSyncAllowed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exportAllowed",
+            "columnName": "exportAllowed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "verificationState",
+            "columnName": "verificationState",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMillis",
+            "columnName": "createdAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "linkId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_memory_links_sourceId_sourceType",
+            "unique": false,
+            "columnNames": [
+              "sourceId",
+              "sourceType"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_memory_links_sourceId_sourceType` ON `${TABLE_NAME}` (`sourceId`, `sourceType`)"
+          },
+          {
+            "name": "index_memory_links_targetId_targetType",
+            "unique": false,
+            "columnNames": [
+              "targetId",
+              "targetType"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_memory_links_targetId_targetType` ON `${TABLE_NAME}` (`targetId`, `targetType`)"
+          },
+          {
+            "name": "index_memory_links_relation",
+            "unique": false,
+            "columnNames": [
+              "relation"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_memory_links_relation` ON `${TABLE_NAME}` (`relation`)"
+          },
+          {
+            "name": "index_memory_links_verificationState",
+            "unique": false,
+            "columnNames": [
+              "verificationState"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_memory_links_verificationState` ON `${TABLE_NAME}` (`verificationState`)"
+          },
+          {
+            "name": "index_memory_links_sourceId_sourceType_targetId_targetType_relation",
+            "unique": true,
+            "columnNames": [
+              "sourceId",
+              "sourceType",
+              "targetId",
+              "targetType",
+              "relation"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_memory_links_sourceId_sourceType_targetId_targetType_relation` ON `${TABLE_NAME}` (`sourceId`, `sourceType`, `targetId`, `targetType`, `relation`)"
+          }
+        ]
+      },
+      {
+        "tableName": "migration_records",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`migrationId` TEXT NOT NULL, `instanceId` TEXT NOT NULL, `genesisCoreHash` TEXT NOT NULL, `proposalId` TEXT, `migrationType` TEXT NOT NULL, `fromVersion` TEXT NOT NULL, `toVersion` TEXT NOT NULL, `affectedArtifactsJson` TEXT NOT NULL, `preSnapshotId` TEXT NOT NULL, `chainVerified` INTEGER NOT NULL, `backupRequired` INTEGER NOT NULL, `stepsJson` TEXT NOT NULL, `expectedEffect` TEXT NOT NULL, `riskLevel` TEXT NOT NULL, `approvalRequired` INTEGER NOT NULL, `approvedByUser` INTEGER NOT NULL, `approvalId` TEXT, `status` TEXT NOT NULL, `postSnapshotId` TEXT, `errorsJson` TEXT NOT NULL, `rollbackAvailable` INTEGER NOT NULL, `rollbackStrategy` TEXT NOT NULL, `createdBy` TEXT NOT NULL, `createdAtMillis` INTEGER NOT NULL, `updatedAtMillis` INTEGER NOT NULL, PRIMARY KEY(`migrationId`))",
+        "fields": [
+          {
+            "fieldPath": "migrationId",
+            "columnName": "migrationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "instanceId",
+            "columnName": "instanceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "genesisCoreHash",
+            "columnName": "genesisCoreHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "proposalId",
+            "columnName": "proposalId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "migrationType",
+            "columnName": "migrationType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fromVersion",
+            "columnName": "fromVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "toVersion",
+            "columnName": "toVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "affectedArtifactsJson",
+            "columnName": "affectedArtifactsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "preSnapshotId",
+            "columnName": "preSnapshotId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chainVerified",
+            "columnName": "chainVerified",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "backupRequired",
+            "columnName": "backupRequired",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stepsJson",
+            "columnName": "stepsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expectedEffect",
+            "columnName": "expectedEffect",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "riskLevel",
+            "columnName": "riskLevel",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "approvalRequired",
+            "columnName": "approvalRequired",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "approvedByUser",
+            "columnName": "approvedByUser",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "approvalId",
+            "columnName": "approvalId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "postSnapshotId",
+            "columnName": "postSnapshotId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "errorsJson",
+            "columnName": "errorsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rollbackAvailable",
+            "columnName": "rollbackAvailable",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rollbackStrategy",
+            "columnName": "rollbackStrategy",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdBy",
+            "columnName": "createdBy",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMillis",
+            "columnName": "createdAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMillis",
+            "columnName": "updatedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "migrationId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_migration_records_migrationType",
+            "unique": false,
+            "columnNames": [
+              "migrationType"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_migration_records_migrationType` ON `${TABLE_NAME}` (`migrationType`)"
+          },
+          {
+            "name": "index_migration_records_status",
+            "unique": false,
+            "columnNames": [
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_migration_records_status` ON `${TABLE_NAME}` (`status`)"
+          },
+          {
+            "name": "index_migration_records_approvedByUser",
+            "unique": false,
+            "columnNames": [
+              "approvedByUser"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_migration_records_approvedByUser` ON `${TABLE_NAME}` (`approvedByUser`)"
+          },
+          {
+            "name": "index_migration_records_createdAtMillis",
+            "unique": false,
+            "columnNames": [
+              "createdAtMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_migration_records_createdAtMillis` ON `${TABLE_NAME}` (`createdAtMillis`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'dc48c01dfd32a2f1c561e07f9a7127b1')"
+    ]
+  }
+}
