@@ -1,0 +1,123 @@
+package com.morimil.app.core.memory
+
+import com.morimil.app.data.local.MemoryEventEntity
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class MemoryEventIntegrityTest {
+    private val integrity = MemoryEventIntegrity()
+
+    @Test
+    fun v3HashIsDeterministic() {
+        val first = sampleHash(previousEventHash = null)
+        val second = sampleHash(previousEventHash = null)
+
+        assertEquals("sha256:a69fcd21d68505ea6504a9c6a4466268b2b7ccd271f49c0aac2d5ba89398ce1d", first)
+        assertEquals(first, second)
+    }
+
+    @Test
+    fun tamperedEventBodyFailsIntegrity() {
+        val event = sampleEvent(previousEventHash = null)
+        val tampered = event.copy(body = "Morimil recuerda otra cosa.")
+
+        assertNull(integrity.memoryEventIntegrityFailure(event, expectedPreviousHash = null))
+        assertEquals("event_hash_mismatch", integrity.memoryEventIntegrityFailure(tampered, expectedPreviousHash = null))
+    }
+
+    @Test
+    fun chainVerificationAcceptsValidChainAndRejectsBrokenLink() {
+        val first = sampleEvent(previousEventHash = null)
+        val second = sampleEvent(
+            previousEventHash = first.eventHash,
+            body = "Morimil consolida la memoria local.",
+            createdAtMillis = SAMPLE_CREATED_AT_MILLIS + 1,
+            eventType = "conversation.assistant_message",
+            actor = "morimil",
+            source = "chat",
+            memoryKind = "conversation",
+            tagsJson = "[\"memory\",\"conversation\"]",
+            confidence = 90,
+            userConfirmed = false,
+            importance = 80
+        )
+        val brokenSecond = second.copy(previousEventHash = "sha256:wrong-previous")
+
+        assertTrue(integrity.verifyMemoryEventChain(listOf(first, second)))
+        assertFalse(integrity.verifyMemoryEventChain(listOf(first, brokenSecond)))
+    }
+
+    private fun sampleEvent(
+        previousEventHash: String?,
+        body: String = SAMPLE_BODY,
+        createdAtMillis: Long = SAMPLE_CREATED_AT_MILLIS,
+        eventType: String = "conversation.user_message",
+        actor: String = "user",
+        source: String = "chat",
+        memoryKind: String = "decision",
+        tagsJson: String = "[\"memory\",\"decision\"]",
+        evidenceJson: String = SAMPLE_EVIDENCE_JSON,
+        confidence: Int = 94,
+        userConfirmed: Boolean = true,
+        importance: Int = 92
+    ): MemoryEventEntity {
+        val eventHash = integrity.hashMemoryEventV3(
+            genesisCoreId = SAMPLE_GENESIS_CORE_ID,
+            genesisCoreHash = SAMPLE_GENESIS_CORE_HASH,
+            previousEventHash = previousEventHash,
+            eventType = eventType,
+            actor = actor,
+            source = source,
+            contextTag = SAMPLE_CONTEXT_TAG,
+            privacyVisibility = SAMPLE_PRIVACY,
+            memoryKind = memoryKind,
+            tagsJson = tagsJson,
+            evidenceJson = evidenceJson,
+            confidence = confidence,
+            userConfirmed = userConfirmed,
+            body = body,
+            importance = importance,
+            createdAtMillis = createdAtMillis
+        )
+        return MemoryEventEntity(
+            genesisCoreId = SAMPLE_GENESIS_CORE_ID,
+            genesisCoreHash = SAMPLE_GENESIS_CORE_HASH,
+            previousEventHash = previousEventHash,
+            eventHash = eventHash,
+            hashAlgorithm = "sha256",
+            canonicalization = MemoryEventIntegrity.MEMORY_EVENT_CANONICALIZATION_V3,
+            signatureAlgorithm = "unsigned_runtime_v1",
+            eventSignature = null,
+            eventType = eventType,
+            actor = actor,
+            source = source,
+            contextTag = SAMPLE_CONTEXT_TAG,
+            privacyVisibility = SAMPLE_PRIVACY,
+            memoryKind = memoryKind,
+            tagsJson = tagsJson,
+            evidenceJson = evidenceJson,
+            confidence = confidence,
+            userConfirmed = userConfirmed,
+            body = body,
+            importance = importance,
+            createdAtMillis = createdAtMillis
+        )
+    }
+
+    private fun sampleHash(previousEventHash: String?): String {
+        return sampleEvent(previousEventHash = previousEventHash).eventHash
+    }
+
+    companion object {
+        private const val SAMPLE_GENESIS_CORE_ID = "primary_genesis"
+        private const val SAMPLE_GENESIS_CORE_HASH = "sha256:genesis-core-test"
+        private const val SAMPLE_CONTEXT_TAG = "local_runtime"
+        private const val SAMPLE_PRIVACY = "private_local"
+        private const val SAMPLE_BODY = "Morimil recuerda que la memoria local vive en el telefono."
+        private const val SAMPLE_EVIDENCE_JSON = "{\"schema\":\"morimil.memory_evidence.v1\",\"classifier\":\"test\"}"
+        private const val SAMPLE_CREATED_AT_MILLIS = 1_720_000_000_000L
+    }
+}
