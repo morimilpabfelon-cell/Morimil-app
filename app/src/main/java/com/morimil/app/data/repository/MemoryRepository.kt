@@ -2,6 +2,7 @@ package com.morimil.app.data.repository
 
 import androidx.room.withTransaction
 import com.morimil.app.core.memory.MemoryEventIntegrity
+import com.morimil.app.core.memory.MemoryIntegrityVerifier
 import com.morimil.app.data.genesis.GenesisIdentity
 import com.morimil.app.data.local.DecisionLogEntity
 import com.morimil.app.data.local.GenesisCoreEntity
@@ -21,6 +22,7 @@ import java.text.Normalizer
 class MemoryRepository(private val database: MorimilDatabase) {
     private val memoryDao: MemoryDao = database.memoryDao()
     private val memoryEventIntegrity = MemoryEventIntegrity()
+    private val memoryIntegrityVerifier = MemoryIntegrityVerifier(memoryEventIntegrity)
 
     val messages: Flow<List<MemoryMessageEntity>> = memoryDao.observeMessages()
     val decisions: Flow<List<DecisionLogEntity>> = memoryDao.observeDecisions()
@@ -217,7 +219,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
     }
 
     suspend fun auditLivingMemoryChain(): Boolean {
-        return memoryEventIntegrity.verifyMemoryEventChain(memoryDao.loadMemoryEventAuditChain())
+        return memoryIntegrityVerifier.verifyMemoryEventChain(memoryDao.loadMemoryEventAuditChain())
     }
 
     suspend fun recordMemoryReview(
@@ -497,7 +499,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
                 limit = MEMORY_EVENT_TAIL_VERIFICATION_LIMIT
             )
         }.asReversed()
-        val tailIntegrity = inspectMemoryEventTail(
+        val tailIntegrity = memoryIntegrityVerifier.inspectMemoryEventTail(
             events = eventTail,
             fallbackPreviousHash = recoveryBoundary?.eventHash
         )
@@ -577,54 +579,12 @@ class MemoryRepository(private val database: MorimilDatabase) {
         return eventHash
     }
 
-    private fun inspectMemoryEventTail(
-        events: List<MemoryEventEntity>,
-        fallbackPreviousHash: String?
-    ): MemoryTailIntegrity {
-        var expectedPreviousHash = events.firstOrNull()?.previousEventHash ?: fallbackPreviousHash
-        var lastTrustedEventHash = fallbackPreviousHash
-        events.forEach { event ->
-            if (event.eventHash == MemoryEventIntegrity.LEGACY_EVENT_HASH) {
-                expectedPreviousHash = event.eventHash
-                lastTrustedEventHash = event.eventHash
-                return@forEach
-            }
-            val failure = memoryEventIntegrity.memoryEventIntegrityFailure(event, expectedPreviousHash)
-            if (failure != null) {
-                return MemoryTailIntegrity(
-                    trusted = false,
-                    appendPreviousEventHash = lastTrustedEventHash,
-                    lastTrustedEventHash = lastTrustedEventHash,
-                    firstUntrustedHash = event.eventHash,
-                    reason = failure
-                )
-            }
-            expectedPreviousHash = event.eventHash
-            lastTrustedEventHash = event.eventHash
-        }
-        return MemoryTailIntegrity(
-            trusted = true,
-            appendPreviousEventHash = lastTrustedEventHash,
-            lastTrustedEventHash = lastTrustedEventHash,
-            firstUntrustedHash = null,
-            reason = null
-        )
-    }
-
     private data class MemoryClassification(
         val memoryKind: String,
         val tags: List<String>,
         val confidence: Int,
         val userConfirmed: Boolean,
         val importance: Int
-    )
-
-    private data class MemoryTailIntegrity(
-        val trusted: Boolean,
-        val appendPreviousEventHash: String?,
-        val lastTrustedEventHash: String?,
-        val firstUntrustedHash: String?,
-        val reason: String?
     )
 
     companion object {
