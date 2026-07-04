@@ -1,0 +1,120 @@
+package com.morimil.app.data.repository
+
+import com.morimil.app.data.local.MemoryOrganDatabase
+import com.morimil.app.data.local.MigrationRecordEntity
+import kotlinx.coroutines.flow.Flow
+import org.json.JSONArray
+
+class MigrationRecordRepository(organDatabase: MemoryOrganDatabase) {
+    private val organDao = organDatabase.memoryOrganDao()
+
+    val recentMigrationRecords: Flow<List<MigrationRecordEntity>> = organDao.observeRecentMigrationRecords(RECENT_MIGRATION_LIMIT)
+
+    suspend fun planMigration(
+        instanceId: String,
+        genesisCoreHash: String,
+        proposalId: String?,
+        migrationType: String,
+        fromVersion: String,
+        toVersion: String,
+        affectedArtifacts: List<String>,
+        preSnapshotId: String,
+        chainVerified: Boolean,
+        backupRequired: Boolean,
+        steps: List<String>,
+        expectedEffect: String,
+        riskLevel: String,
+        rollbackAvailable: Boolean,
+        rollbackStrategy: String,
+        approvedByUser: Boolean,
+        approvalId: String?
+    ): String {
+        val now = System.currentTimeMillis()
+        val migrationId = buildMigrationId(now, migrationType, fromVersion, toVersion)
+        organDao.insertMigrationRecord(
+            MigrationRecordEntity(
+                migrationId = migrationId,
+                instanceId = instanceId,
+                genesisCoreHash = genesisCoreHash,
+                proposalId = proposalId,
+                migrationType = migrationType,
+                fromVersion = fromVersion,
+                toVersion = toVersion,
+                affectedArtifactsJson = JSONArray(affectedArtifacts).toString(),
+                preSnapshotId = preSnapshotId,
+                chainVerified = chainVerified,
+                backupRequired = backupRequired,
+                stepsJson = JSONArray(steps).toString(),
+                expectedEffect = expectedEffect,
+                riskLevel = riskLevel,
+                approvalRequired = true,
+                approvedByUser = approvedByUser,
+                approvalId = approvalId,
+                status = STATUS_PLANNED,
+                postSnapshotId = null,
+                errorsJson = "[]",
+                rollbackAvailable = rollbackAvailable,
+                rollbackStrategy = rollbackStrategy,
+                createdBy = CREATED_BY_LOCAL_RUNTIME,
+                createdAtMillis = now,
+                updatedAtMillis = now
+            )
+        )
+        return migrationId
+    }
+
+    suspend fun markMigrationCompleted(migrationId: String, postSnapshotId: String?) {
+        updateMigrationResult(
+            migrationId = migrationId,
+            status = STATUS_COMPLETED,
+            postSnapshotId = postSnapshotId,
+            errors = emptyList()
+        )
+    }
+
+    suspend fun markMigrationFailed(migrationId: String, errors: List<String>) {
+        updateMigrationResult(
+            migrationId = migrationId,
+            status = STATUS_FAILED,
+            postSnapshotId = null,
+            errors = errors
+        )
+    }
+
+    private suspend fun updateMigrationResult(
+        migrationId: String,
+        status: String,
+        postSnapshotId: String?,
+        errors: List<String>
+    ) {
+        val rows = organDao.updateMigrationRecordResult(
+            migrationId = migrationId,
+            status = status,
+            postSnapshotId = postSnapshotId,
+            errorsJson = JSONArray(errors).toString(),
+            updatedAtMillis = System.currentTimeMillis()
+        )
+        require(rows > 0) { "Migration record update failed." }
+    }
+
+    companion object {
+        private const val CREATED_BY_LOCAL_RUNTIME = "local_runtime"
+        private const val STATUS_PLANNED = "planned"
+        private const val STATUS_COMPLETED = "completed"
+        private const val STATUS_FAILED = "failed"
+        private const val RECENT_MIGRATION_LIMIT = 20
+
+        fun buildMigrationId(
+            createdAtMillis: Long,
+            migrationType: String,
+            fromVersion: String,
+            toVersion: String
+        ): String {
+            val suffix = "$migrationType|$fromVersion|$toVersion"
+                .fold(0L) { acc, char -> ((acc * 31) + char.code.toLong()).and(0x7FFFFFFFL) }
+                .toString()
+                .padStart(10, '0')
+            return "mig_$createdAtMillis$suffix"
+        }
+    }
+}

@@ -76,4 +76,51 @@ interface MemoryOrganDao {
         """
     )
     suspend fun markRecallScheduleDegraded(recallId: Long, updatedAtMillis: Long): Int
+
+    @Query(
+        """
+        SELECT * FROM memory_links
+        WHERE (sourceId = :nodeId AND sourceType = :nodeType)
+           OR (targetId = :nodeId AND targetType = :nodeType)
+        ORDER BY strength DESC, createdAtMillis DESC
+        LIMIT :limit
+        """
+    )
+    fun observeMemoryLinksForNode(nodeId: String, nodeType: String, limit: Int): Flow<List<MemoryLinkEntity>>
+
+    @Query("SELECT * FROM memory_links ORDER BY createdAtMillis DESC LIMIT :limit")
+    fun observeRecentMemoryLinks(limit: Int): Flow<List<MemoryLinkEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertMemoryLink(link: MemoryLinkEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertMemoryLinks(links: List<MemoryLinkEntity>): List<Long>
+
+    @Query("SELECT * FROM migration_records ORDER BY createdAtMillis DESC LIMIT :limit")
+    fun observeRecentMigrationRecords(limit: Int): Flow<List<MigrationRecordEntity>>
+
+    @Query("SELECT * FROM migration_records WHERE migrationId = :migrationId LIMIT 1")
+    suspend fun loadMigrationRecord(migrationId: String): MigrationRecordEntity?
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertMigrationRecord(record: MigrationRecordEntity)
+
+    @Query(
+        """
+        UPDATE migration_records
+        SET status = :status,
+            postSnapshotId = :postSnapshotId,
+            errorsJson = :errorsJson,
+            updatedAtMillis = :updatedAtMillis
+        WHERE migrationId = :migrationId
+        """
+    )
+    suspend fun updateMigrationRecordResult(
+        migrationId: String,
+        status: String,
+        postSnapshotId: String?,
+        errorsJson: String,
+        updatedAtMillis: Long
+    ): Int
 }

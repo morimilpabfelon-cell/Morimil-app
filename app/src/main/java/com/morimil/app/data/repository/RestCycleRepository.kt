@@ -4,14 +4,19 @@ import androidx.room.withTransaction
 import com.morimil.app.core.memory.MemoryEventIntegrity
 import com.morimil.app.data.local.MemoryDao
 import com.morimil.app.data.local.MemoryEventEntity
+import com.morimil.app.data.local.MemoryOrganDatabase
 import com.morimil.app.data.local.MemorySnapshotEntity
 import com.morimil.app.data.local.MorimilDatabase
 import org.json.JSONArray
 import org.json.JSONObject
 
-class RestCycleRepository(private val database: MorimilDatabase) {
+class RestCycleRepository(
+    private val database: MorimilDatabase,
+    organDatabase: MemoryOrganDatabase
+) {
     private val memoryDao: MemoryDao = database.memoryDao()
     private val memoryEventIntegrity = MemoryEventIntegrity()
+    private val memoryLinkRepository = MemoryLinkRepository(organDatabase)
 
     suspend fun runLocalRestCycleIfDue(force: Boolean = false): Boolean {
         if (memoryDao.countGenesisCore() == 0) return false
@@ -36,14 +41,30 @@ class RestCycleRepository(private val database: MorimilDatabase) {
         val summary = buildRestCycleSummary(events, now)
         if (summary.isBlank()) return false
 
-        return appendRestCycleEvent(summary)
+        val restCycle = appendRestCycleEvent(summary) ?: return false
+        runCatching {
+            memoryLinkRepository.linkRestCycleToEvents(
+                instanceId = restCycle.instanceId,
+                genesisCoreHash = restCycle.genesisCoreHash,
+                restCycleEventHash = restCycle.eventHash,
+                sourceEvents = meaningfulEvents.sortedWith(
+                    compareByDescending<MemoryEventEntity> { it.userConfirmed }
+                        .thenByDescending { it.importance }
+                        .thenByDescending { it.confidence }
+                        .thenByDescending { it.createdAtMillis }
+                ),
+                createdAtMillis = restCycle.createdAtMillis
+            )
+        }
+        return true
     }
 
-    private suspend fun appendRestCycleEvent(summary: String): Boolean {
+    private suspend fun appendRestCycleEvent(summary: String): RestCycleAppendResult? {
         return database.withTransaction {
             val genesisCore = requireNotNull(memoryDao.loadGenesisCore()) {
                 "Cannot run rest cycle without a local Genesis Core."
             }
+            val localIdentity = memoryDao.loadLocalIdentity()
             val recoveryBoundary = memoryDao.loadLatestMemoryEventByType(MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE)
             val eventTail = if (recoveryBoundary == null) {
                 memoryDao.loadMemoryEventTail(MEMORY_EVENT_TAIL_VERIFICATION_LIMIT)
@@ -56,7 +77,7 @@ class RestCycleRepository(private val database: MorimilDatabase) {
 
             val createdAtMillis = System.currentTimeMillis()
             val tailTrusted = memoryEventIntegrity.verifyMemoryEventChain(eventTail, requireGenesisStart = false)
-            if (!tailTrusted && recoveryBoundary == null) return@withTransaction false
+            if (!tailTrusted && recoveryBoundary == null) return@withTransaction null
             val previousEventHash = if (tailTrusted) {
                 eventTail.lastOrNull()?.eventHash ?: recoveryBoundary?.eventHash
             } else {
@@ -120,7 +141,12 @@ class RestCycleRepository(private val database: MorimilDatabase) {
                 )
             )
             rebuildLivingMemorySnapshot()
-            true
+            RestCycleAppendResult(
+                eventHash = eventHash,
+                instanceId = localIdentity?.instanceId ?: "local_instance_pending",
+                genesisCoreHash = genesisCore.contentSha256,
+                createdAtMillis = createdAtMillis
+            )
         }
     }
 
@@ -201,6 +227,13 @@ class RestCycleRepository(private val database: MorimilDatabase) {
             )
         )
     }
+
+    private data class RestCycleAppendResult(
+        val eventHash: String,
+        val instanceId: String,
+        val genesisCoreHash: String,
+        val createdAtMillis: Long
+    )
 
     companion object {
         private const val REST_CYCLE_EVENT_TYPE = "rest_cycle.local_consolidation"

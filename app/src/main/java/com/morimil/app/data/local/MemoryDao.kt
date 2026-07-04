@@ -47,6 +47,9 @@ interface MemoryDao {
     @Query("SELECT * FROM local_instance_identity LIMIT 1")
     fun observeLocalIdentity(): Flow<LocalInstanceIdentityEntity?>
 
+    @Query("SELECT * FROM local_instance_identity LIMIT 1")
+    suspend fun loadLocalIdentity(): LocalInstanceIdentityEntity?
+
     @Query("SELECT COUNT(*) FROM local_instance_identity")
     suspend fun countLocalIdentity(): Int
 
