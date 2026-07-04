@@ -552,6 +552,7 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
     val projects by viewModel.projects.collectAsStateWithLifecycle()
     val snapshot by viewModel.livingMemorySnapshot.collectAsStateWithLifecycle()
     val events by viewModel.recentMemoryEvents.collectAsStateWithLifecycle()
+    val recalls by viewModel.activeRecallSchedules.collectAsStateWithLifecycle()
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Living Memory", style = MaterialTheme.typography.headlineMedium)
@@ -570,6 +571,39 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
         } else {
             decisions.take(3).forEach { decision ->
                 ProjectCard(decision.title, "Decision persisted locally.", decision.status)
+            }
+        }
+        Text("Recalls pendientes", style = MaterialTheme.typography.titleMedium)
+        Text("Recuerdos que conviene repasar para mantenerlos utiles sin convertir ruido en memoria fuerte.")
+        if (recalls.isEmpty()) {
+            ProjectCard("Recall schedule", "No hay recalls activos todavia.", "empty")
+            Button(onClick = { viewModel.seedRecallScheduleIfNeeded() }) {
+                Text("Crear recalls")
+            }
+        } else {
+            recalls.take(8).forEach { recall ->
+                ElevatedCard {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("${recall.targetMemoryKind} / priority=${recall.priority}", style = MaterialTheme.typography.titleMedium)
+                        Text(recall.prompt.take(360))
+                        Text("due=${recall.dueAtMillis} interval=${recall.intervalDays}d action=${recall.lastAction}")
+                        Text("reason=${recall.reason.take(180)}")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = { viewModel.reinforceRecall(recall.recallId) }) {
+                                Text("Reforzar")
+                            }
+                            Button(onClick = { viewModel.postponeRecall(recall.recallId) }) {
+                                Text("Posponer")
+                            }
+                        }
+                        Button(onClick = { viewModel.degradeRecall(recall.recallId) }) {
+                            Text("Degradar")
+                        }
+                    }
+                }
             }
         }
         Text("Memory review queue", style = MaterialTheme.typography.titleMedium)

@@ -10,9 +10,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [
         AutobiographicalSnapshotEntity::class,
-        KnowledgeCapsuleEntity::class
+        KnowledgeCapsuleEntity::class,
+        RecallScheduleEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class MemoryOrganDatabase : RoomDatabase() {
@@ -50,6 +51,35 @@ abstract class MemoryOrganDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS recall_schedules (
+                        recallId INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        genesisCoreId TEXT NOT NULL,
+                        targetEventHash TEXT NOT NULL,
+                        targetMemoryKind TEXT NOT NULL,
+                        prompt TEXT NOT NULL,
+                        reason TEXT NOT NULL,
+                        priority INTEGER NOT NULL,
+                        intervalDays INTEGER NOT NULL,
+                        dueAtMillis INTEGER NOT NULL,
+                        status TEXT NOT NULL,
+                        lastAction TEXT NOT NULL,
+                        source TEXT NOT NULL,
+                        createdAtMillis INTEGER NOT NULL,
+                        updatedAtMillis INTEGER NOT NULL,
+                        lastReviewedAtMillis INTEGER
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_recall_schedules_targetEventHash ON recall_schedules(targetEventHash)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_recall_schedules_status ON recall_schedules(status)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_recall_schedules_dueAtMillis ON recall_schedules(dueAtMillis)")
+            }
+        }
+
         fun getInstance(context: Context): MemoryOrganDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -57,7 +87,7 @@ abstract class MemoryOrganDatabase : RoomDatabase() {
                     MemoryOrganDatabase::class.java,
                     "morimil_memory_organs.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { instance = it }
             }

@@ -19,10 +19,12 @@ import com.morimil.app.data.local.MemorySnapshotEntity
 import com.morimil.app.data.local.MorimilDatabase
 import com.morimil.app.data.local.MemoryOrganDatabase
 import com.morimil.app.data.local.ProjectStateEntity
+import com.morimil.app.data.local.RecallScheduleEntity
 import com.morimil.app.data.local.UserWorkspaceEntity
 import com.morimil.app.data.repository.MemoryRepository
 import com.morimil.app.data.repository.RestCycleRepository
 import com.morimil.app.data.repository.MemoryOrganRepository
+import com.morimil.app.data.repository.RecallScheduleRepository
 import com.morimil.app.security.SecretVault
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +39,10 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     private val repository = MemoryRepository(MorimilDatabase.getInstance(application))
     private val restCycleRepository = RestCycleRepository(MorimilDatabase.getInstance(application))
     private val memoryOrganRepository = MemoryOrganRepository(MemoryOrganDatabase.getInstance(application))
+    private val recallScheduleRepository = RecallScheduleRepository(
+        organDatabase = MemoryOrganDatabase.getInstance(application),
+        memoryDatabase = MorimilDatabase.getInstance(application)
+    )
     private val genesisReader = GenesisReader(application)
     private val secretVault = SecretVault(application)
     private val reasoningConfigStore = ReasoningConfigStore(application)
@@ -89,6 +95,11 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = null
     )
+    val activeRecallSchedules: StateFlow<List<RecallScheduleEntity>> = recallScheduleRepository.activeRecallSchedules.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList()
+    )
 
     private val _genesisResult = MutableStateFlow<Result<GenesisIdentitySource>?>(null)
     val genesisResult: StateFlow<Result<GenesisIdentitySource>?> = _genesisResult.asStateFlow()
@@ -106,6 +117,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             repository.seedInitialStateIfNeeded()
             runCatching { restCycleRepository.runLocalRestCycleIfDue() }
+            runCatching { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
         }
         refreshGenesis()
     }
@@ -163,7 +175,38 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
             }
         }
     }
-    fun hasAnthropicKey(): Boolean = secretVault.hasReasoningKey()
+
+    fun seedRecallScheduleIfNeeded() {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                recallScheduleRepository.seedFromRecentMemoryIfNeeded()
+            }
+        }
+    }
+
+    fun reinforceRecall(recallId: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                recallScheduleRepository.reinforceRecall(recallId)
+            }
+        }
+    }
+
+    fun postponeRecall(recallId: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                recallScheduleRepository.postponeRecall(recallId)
+            }
+        }
+    }
+
+    fun degradeRecall(recallId: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                recallScheduleRepository.degradeRecall(recallId)
+            }
+        }
+    }    fun hasAnthropicKey(): Boolean = secretVault.hasReasoningKey()
 
     fun saveAnthropicKey(key: String): Result<Unit> = secretVault.saveReasoningKey(key)
 
@@ -184,6 +227,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                 repository.birthLocalIdentity(alias, genesis, sourceOrigin, genesisCoreHash, cachedDoctrineText, cachedPolicyText)
                 repository.seedInitialStateIfNeeded()
                 runCatching { restCycleRepository.runLocalRestCycleIfDue() }
+            runCatching { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
                 Unit
             } catch (error: Exception) {
                 genesisReader.clearInstalledGenesisBundle()
@@ -248,7 +292,8 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
 
                 response
                     .onSuccess { reply -> repository.addAssistantMessage(reply)
-                    runCatching { restCycleRepository.runLocalRestCycleIfDue() } }
+                    runCatching { restCycleRepository.runLocalRestCycleIfDue() }
+            runCatching { recallScheduleRepository.seedFromRecentMemoryIfNeeded() } }
                     .onFailure { error -> _chatError.value = error.message ?: "Error con el motor de razonamiento." }
             } finally {
                 _isSending.value = false

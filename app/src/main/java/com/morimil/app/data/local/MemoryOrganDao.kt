@@ -34,4 +34,46 @@ interface MemoryOrganDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertKnowledgeCapsule(capsule: KnowledgeCapsuleEntity)
+
+    @Query("SELECT * FROM recall_schedules WHERE status = 'active' ORDER BY dueAtMillis ASC, priority DESC, recallId ASC LIMIT 20")
+    fun observeActiveRecallSchedules(): Flow<List<RecallScheduleEntity>>
+
+    @Query("SELECT * FROM recall_schedules WHERE recallId = :recallId LIMIT 1")
+    suspend fun loadRecallSchedule(recallId: Long): RecallScheduleEntity?
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertRecallSchedule(schedule: RecallScheduleEntity): Long
+
+    @Query(
+        """
+        UPDATE recall_schedules
+        SET dueAtMillis = :dueAtMillis,
+            intervalDays = :intervalDays,
+            status = :status,
+            lastAction = :lastAction,
+            lastReviewedAtMillis = :lastReviewedAtMillis,
+            updatedAtMillis = :updatedAtMillis
+        WHERE recallId = :recallId
+        """
+    )
+    suspend fun updateRecallSchedule(
+        recallId: Long,
+        dueAtMillis: Long,
+        intervalDays: Int,
+        status: String,
+        lastAction: String,
+        lastReviewedAtMillis: Long?,
+        updatedAtMillis: Long
+    ): Int
+
+    @Query(
+        """
+        UPDATE recall_schedules
+        SET status = 'degraded',
+            lastAction = 'degraded',
+            updatedAtMillis = :updatedAtMillis
+        WHERE recallId = :recallId
+        """
+    )
+    suspend fun markRecallScheduleDegraded(recallId: Long, updatedAtMillis: Long): Int
 }
