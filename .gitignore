@@ -21,3 +21,5 @@ secrets.properties
 # OS
 .DS_Store
 Thumbs.db
+
+.kotlin/
