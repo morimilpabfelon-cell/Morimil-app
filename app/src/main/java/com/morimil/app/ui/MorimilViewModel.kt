@@ -206,9 +206,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                 recallScheduleRepository.degradeRecall(recallId)
             }
         }
-    }    fun hasAnthropicKey(): Boolean = secretVault.hasReasoningKey()
-
-    fun saveAnthropicKey(key: String): Result<Unit> = secretVault.saveReasoningKey(key)
+    }
 
     suspend fun bornInstance(alias: String): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
@@ -249,11 +247,12 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                 return@launch
             }
 
-            val runtimeConfig = reasoningConfigStore.load()
+            val runtimeSlot = reasoningConfigStore.loadActiveSlot()
+            val runtimeConfig = runtimeSlot.config
             ReasoningRuntimeState.set(runtimeConfig)
-            val runtimeAccess = secretVault.readReasoningKey().getOrNull().orEmpty()
+            val runtimeAccess = secretVault.readReasoningKey(runtimeSlot.id).getOrNull().orEmpty()
             if (runtimeConfig.requiresRuntimeKey && runtimeAccess.isBlank()) {
-                _chatError.value = "Falta la llave de razonamiento."
+                _chatError.value = "Falta la llave del motor activo: ${runtimeSlot.displayName}."
                 return@launch
             }
 

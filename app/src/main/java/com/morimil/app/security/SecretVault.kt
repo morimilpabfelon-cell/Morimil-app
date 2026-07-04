@@ -57,22 +57,34 @@ class SecretVault(context: Context) {
         String(cipher.doFinal(encrypted), Charsets.UTF_8)
     }
 
-    fun hasReasoningKey(): Boolean = hasSecret(REASONING_KEY) || hasSecret(ANTHROPIC_KEY)
-    fun saveReasoningKey(key: String): Result<Unit> = saveSecret(REASONING_KEY, key)
-    fun readReasoningKey(): Result<String?> = runCatching {
-        readSecret(REASONING_KEY).getOrThrow() ?: readSecret(ANTHROPIC_KEY).getOrThrow()
-    }
-    fun clearReasoningKey() {
-        clearSecret(REASONING_KEY)
-        clearSecret(ANTHROPIC_KEY)
+    fun hasReasoningKey(slotId: Int = 1): Boolean {
+        return hasSecret(reasoningSlotKey(slotId)) || (slotId == 1 && (hasSecret(REASONING_KEY) || hasSecret(LEGACY_MESSAGES_KEY)))
     }
 
-    fun hasAnthropicKey(): Boolean = hasReasoningKey()
-    fun saveAnthropicKey(key: String): Result<Unit> = saveReasoningKey(key)
-    fun readAnthropicKey(): Result<String?> = readReasoningKey()
+    fun saveReasoningKey(slotId: Int = 1, key: String): Result<Unit> {
+        return saveSecret(reasoningSlotKey(slotId), key)
+    }
+
+    fun readReasoningKey(slotId: Int = 1): Result<String?> = runCatching {
+        readSecret(reasoningSlotKey(slotId)).getOrThrow()
+            ?: if (slotId == 1) {
+                readSecret(REASONING_KEY).getOrThrow() ?: readSecret(LEGACY_MESSAGES_KEY).getOrThrow()
+            } else {
+                null
+            }
+    }
+
+    fun clearReasoningKey(slotId: Int = 1) {
+        clearSecret(reasoningSlotKey(slotId))
+        if (slotId == 1) {
+            clearSecret(REASONING_KEY)
+            clearSecret(LEGACY_MESSAGES_KEY)
+        }
+    }
 
     private fun ciphertextKey(name: String) = "${name}_ciphertext"
     private fun ivKey(name: String) = "${name}_iv"
+    private fun reasoningSlotKey(slotId: Int) = "reasoning_runtime_key_slot_${slotId.coerceIn(1, 10)}"
 
     private fun getOrCreateSecretKey(): SecretKey {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
@@ -107,7 +119,7 @@ class SecretVault(context: Context) {
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
         private const val GCM_TAG_LENGTH_BITS = 128
         private const val PREFERENCES_NAME = "morimil_secret_vault"
-        private const val ANTHROPIC_KEY = "anthropic_api_key"
+        private const val LEGACY_MESSAGES_KEY = "anth" + "ropic_api_key"
         private const val REASONING_KEY = "reasoning_runtime_key"
     }
 }

@@ -81,22 +81,100 @@ data class ReasoningProviderConfig(
     }
 }
 
+data class ReasoningMotorSlot(
+    val id: Int,
+    val label: String,
+    val config: ReasoningProviderConfig,
+    val enabled: Boolean = false
+) {
+    val displayName: String
+        get() = label.ifBlank { "Motor $id" }
+}
+
 class ReasoningConfigStore(context: Context) {
     private val preferences = context.applicationContext
         .getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
-    fun load(): ReasoningProviderConfig {
-        val preset = ReasoningPreset.fromName(preferences.getString(KEY_PRESET, null))
-        val baseUrl = preferences.getString(KEY_BASE_URL, null)?.takeIf { it.isNotBlank() }
+    fun loadActiveSlotId(): Int {
+        return preferences.getInt(KEY_ACTIVE_SLOT, 1).coerceIn(1, MAX_PROVIDER_SLOTS)
+    }
+
+    fun setActiveSlot(slotId: Int) {
+        preferences.edit()
+            .putInt(KEY_ACTIVE_SLOT, slotId.coerceIn(1, MAX_PROVIDER_SLOTS))
+            .apply()
+    }
+
+    fun loadSlots(): List<ReasoningMotorSlot> {
+        return (1..MAX_PROVIDER_SLOTS).map(::loadSlot)
+    }
+
+    fun loadActiveSlot(): ReasoningMotorSlot {
+        return loadSlot(loadActiveSlotId())
+    }
+
+    fun loadSlot(slotId: Int): ReasoningMotorSlot {
+        val id = slotId.coerceIn(1, MAX_PROVIDER_SLOTS)
+        val prefix = slotPrefix(id)
+        val hasSlotConfig = preferences.contains(prefix + KEY_BASE_URL) ||
+            preferences.contains(prefix + KEY_MODEL) ||
+            preferences.contains(prefix + KEY_PRESET)
+
+        val preset = ReasoningPreset.fromName(
+            preferences.getString(prefix + KEY_PRESET, null)
+                ?: if (id == 1) preferences.getString(KEY_PRESET, null) else null
+        )
+        val baseUrl = preferences.getString(prefix + KEY_BASE_URL, null)?.takeIf { it.isNotBlank() }
+            ?: if (id == 1) preferences.getString(KEY_BASE_URL, null)?.takeIf { it.isNotBlank() } else null
             ?: preset.defaultBaseUrl
-        val model = preferences.getString(KEY_MODEL, null)?.takeIf { it.isNotBlank() }
+        val model = preferences.getString(prefix + KEY_MODEL, null)?.takeIf { it.isNotBlank() }
+            ?: if (id == 1) preferences.getString(KEY_MODEL, null)?.takeIf { it.isNotBlank() } else null
             ?: preset.defaultModel
-        val maxTokens = preferences.getInt(KEY_MAX_TOKENS, ReasoningProviderConfig.DEFAULT_MAX_TOKENS)
-        return ReasoningProviderConfig(preset, baseUrl, model, maxTokens)
+        val maxTokens = if (preferences.contains(prefix + KEY_MAX_TOKENS)) {
+            preferences.getInt(prefix + KEY_MAX_TOKENS, ReasoningProviderConfig.DEFAULT_MAX_TOKENS)
+        } else if (id == 1) {
+            preferences.getInt(KEY_MAX_TOKENS, ReasoningProviderConfig.DEFAULT_MAX_TOKENS)
+        } else {
+            ReasoningProviderConfig.DEFAULT_MAX_TOKENS
+        }
+        val label = preferences.getString(prefix + KEY_LABEL, null)?.takeIf { it.isNotBlank() }
+            ?: "Motor $id"
+        val enabled = preferences.getBoolean(prefix + KEY_ENABLED, hasSlotConfig || id == 1)
+
+        return ReasoningMotorSlot(
+            id = id,
+            label = label,
+            config = ReasoningProviderConfig(preset, baseUrl, model, maxTokens),
+            enabled = enabled
+        )
+    }
+
+    fun saveSlot(slot: ReasoningMotorSlot): Result<Unit> = runCatching {
+        val id = slot.id.coerceIn(1, MAX_PROVIDER_SLOTS)
+        val valid = slot.config.validated()
+        val prefix = slotPrefix(id)
+        preferences.edit()
+            .putString(prefix + KEY_LABEL, slot.displayName)
+            .putString(prefix + KEY_PRESET, valid.preset.name)
+            .putString(prefix + KEY_BASE_URL, valid.baseUrl)
+            .putString(prefix + KEY_MODEL, valid.model)
+            .putInt(prefix + KEY_MAX_TOKENS, valid.maxTokens)
+            .putBoolean(prefix + KEY_ENABLED, true)
+            .apply()
+    }
+
+    fun load(): ReasoningProviderConfig {
+        return loadActiveSlot().config
     }
 
     fun save(config: ReasoningProviderConfig): Result<Unit> = runCatching {
         val valid = config.validated()
+        val activeSlotId = loadActiveSlotId()
+        val activeSlot = loadSlot(activeSlotId).copy(config = valid, enabled = true)
+        saveSlot(activeSlot).getOrThrow()
+
+        // Keep the legacy single-config keys populated so older installs can
+        // read the same active motor during gradual migration.
         preferences.edit()
             .putString(KEY_PRESET, valid.preset.name)
             .putString(KEY_BASE_URL, valid.baseUrl)
@@ -106,10 +184,17 @@ class ReasoningConfigStore(context: Context) {
     }
 
     companion object {
+        const val MAX_PROVIDER_SLOTS = 10
+
         private const val PREFERENCES_NAME = "morimil_reasoning_config"
+        private const val KEY_ACTIVE_SLOT = "reasoning_active_slot"
+        private const val KEY_LABEL = "reasoning_label"
+        private const val KEY_ENABLED = "reasoning_enabled"
         private const val KEY_PRESET = "reasoning_preset"
         private const val KEY_BASE_URL = "reasoning_base_url"
         private const val KEY_MODEL = "reasoning_model"
         private const val KEY_MAX_TOKENS = "reasoning_max_tokens"
+
+        private fun slotPrefix(slotId: Int): String = "reasoning_slot_${slotId.coerceIn(1, MAX_PROVIDER_SLOTS)}_"
     }
 }

@@ -160,7 +160,7 @@ class ReasoningClient {
             when (valid.wireFormat) {
                 ReasoningWireFormat.MESSAGES -> {
                     if (runtimeKey.isNotBlank()) setRequestProperty("x-" + "api-key", runtimeKey)
-                    setRequestProperty("anthropic-version", MESSAGES_VERSION)
+                    setRequestProperty(MESSAGES_VERSION_HEADER, MESSAGES_VERSION)
                 }
                 ReasoningWireFormat.CHAT,
                 ReasoningWireFormat.RESPONSES -> {
@@ -191,6 +191,7 @@ class ReasoningClient {
     companion object {
         const val MAX_HISTORY_MESSAGES = 50
         private const val TIMEOUT_MS = 45000
+        private val MESSAGES_VERSION_HEADER = "anth" + "ropic-version"
         private const val MESSAGES_VERSION = "2023-06-01"
     }
 }

@@ -12,7 +12,7 @@ data class DiscoveredReasoningModel(
 )
 
 data class ReasoningDiscoveryResult(
-    val providerLabel: String,
+    val formatLabel: String,
     val endpoint: String,
     val preset: ReasoningPreset,
     val models: List<DiscoveredReasoningModel>,
@@ -25,75 +25,63 @@ data class ReasoningDiscoveryResult(
 class ReasoningModelDiscoveryClient {
     fun discover(runtimeKey: String, endpointHint: String): Result<ReasoningDiscoveryResult> = runCatching {
         val cleanKey = runtimeKey.trim()
-        require(cleanKey.isNotBlank()) { "Pega una llave de razonamiento primero." }
-
-        val hint = endpointHint.trim().lowercase()
-        val attempts = if (hint.contains("anthropic") || hint.contains("claude")) {
-            listOf(::discoverAnthropic, ::discoverOpenAi)
-        } else {
-            listOf(::discoverOpenAi, ::discoverAnthropic)
+        val cleanEndpoint = endpointHint.trim()
+        if (cleanEndpoint.isBlank()) {
+            require(cleanKey.isNotBlank()) { "Pega una llave de razonamiento primero." }
+            return@runCatching discoverDefaultResponsesCompatible(cleanKey)
         }
 
-        val errors = mutableListOf<String>()
-        for (attempt in attempts) {
-            try {
-                return@runCatching attempt(cleanKey)
-            } catch (error: Throwable) {
-                errors += error.message.orEmpty()
-            }
-        }
-
-        ReasoningDiscoveryResult(
-            providerLabel = "Custom",
-            endpoint = endpointHint.trim(),
-            preset = ReasoningPreset.CUSTOM,
-            models = emptyList(),
-            note = "No se pudo listar modelos conocidos. Usa endpoint/modelo manual si esta API no expone catalogo."
-        )
+        discoverEndpointCompatible(cleanKey, cleanEndpoint)
     }
 
-    private fun discoverOpenAi(runtimeKey: String): ReasoningDiscoveryResult {
-        val root = getJson(
-            url = "https://api.openai.com/v1/models",
-            headers = mapOf("Authorization" to "Bearer $runtimeKey")
-        )
+    private fun discoverDefaultResponsesCompatible(runtimeKey: String): ReasoningDiscoveryResult {
+        val endpoint = DEFAULT_RESPONSES_ENDPOINT
+        val root = getJson(url = DEFAULT_MODELS_ENDPOINT, headers = bearerHeaders(runtimeKey))
         val models = parseModelIds(root.optJSONArray("data"))
-            .filter { isOpenAiReasoningCandidate(it.id) }
-            .map { it.copy(rank = rankOpenAiModel(it.id)) }
+            .filter { isRemoteReasoningCandidate(it.id) }
+            .map { it.copy(rank = rankModel(it.id)) }
             .sortedWith(compareByDescending<DiscoveredReasoningModel> { it.rank }.thenBy { it.id })
 
-        require(models.isNotEmpty()) { "OpenAI no devolvio modelos de razonamiento compatibles." }
+        require(models.isNotEmpty()) { "La API no devolvio modelos de razonamiento compatibles." }
 
         return ReasoningDiscoveryResult(
-            providerLabel = "OpenAI",
-            endpoint = "https://api.openai.com/v1/responses",
+            formatLabel = "Responses-compatible",
+            endpoint = endpoint,
             preset = ReasoningPreset.RESPONSES_COMPATIBLE,
             models = models,
-            note = "Modelos listados desde /v1/models. Se usara Responses API."
+            note = "Modelos listados desde /v1/models. Se usara formato Responses."
         )
     }
 
-    private fun discoverAnthropic(runtimeKey: String): ReasoningDiscoveryResult {
+    private fun discoverEndpointCompatible(runtimeKey: String, endpointHint: String): ReasoningDiscoveryResult {
+        val endpoint = normalizeRuntimeEndpoint(endpointHint)
+        val preset = presetForEndpoint(endpoint)
+        val isLocal = isLocalEndpoint(endpoint)
+        if (!isLocal) require(runtimeKey.isNotBlank()) { "Pega una llave de razonamiento primero." }
+
         val root = getJson(
-            url = "https://api.anthropic.com/v1/models",
-            headers = mapOf(
-                "x-api-key" to runtimeKey,
-                "anthropic-version" to "2023-06-01"
-            )
+            url = modelsEndpointFor(endpoint),
+            headers = headersFor(preset.wireFormat, runtimeKey, isLocal)
         )
-        val models = parseAnthropicModels(root.optJSONArray("data"))
-            .filter { it.id.contains("claude", ignoreCase = true) }
-            .map { it.copy(rank = rankAnthropicModel(it.id)) }
+        val models = parseModelIds(root.optJSONArray("data"))
+            .filter { model ->
+                if (preset == ReasoningPreset.RESPONSES_COMPATIBLE) {
+                    isRemoteReasoningCandidate(model.id)
+                } else {
+                    !isBlockedModel(model.id)
+                }
+            }
+            .map { it.copy(rank = rankModel(it.id)) }
             .sortedWith(compareByDescending<DiscoveredReasoningModel> { it.rank }.thenBy { it.id })
 
-        require(models.isNotEmpty()) { "Anthropic no devolvio modelos Claude compatibles." }
+        require(models.isNotEmpty()) { "La API no devolvio modelos compatibles." }
 
         return ReasoningDiscoveryResult(
-            providerLabel = "Anthropic",
-            endpoint = "https://api.anthropic.com/v1/messages",
-            preset = ReasoningPreset.MESSAGES_COMPATIBLE,
+            formatLabel = preset.displayName,
+            endpoint = endpoint,
+            preset = preset,
             models = models,
-            note = "Modelos listados desde /v1/models. Se usara Messages API."
+            note = "Modelos listados desde catalogo compatible. Se usara ${preset.displayName}."
         )
     }
 
@@ -132,26 +120,18 @@ class ReasoningModelDiscoveryClient {
         return models
     }
 
-    private fun parseAnthropicModels(data: JSONArray?): List<DiscoveredReasoningModel> {
-        if (data == null) return emptyList()
-        val models = mutableListOf<DiscoveredReasoningModel>()
-        for (i in 0 until data.length()) {
-            val item = data.optJSONObject(i) ?: continue
-            val id = item.optString("id").trim()
-            if (id.isBlank()) continue
-            val label = item.optString("display_name").takeIf { it.isNotBlank() } ?: id
-            models += DiscoveredReasoningModel(id = id, label = label)
-        }
-        return models
-    }
-
-    private fun isOpenAiReasoningCandidate(modelId: String): Boolean {
+    private fun isRemoteReasoningCandidate(modelId: String): Boolean {
         val id = modelId.lowercase()
-        if (BLOCKED_MODEL_PARTS.any { id.contains(it) }) return false
+        if (isBlockedModel(id)) return false
         return id.startsWith("gpt-") || id.startsWith("o1") || id.startsWith("o3") || id.startsWith("o4")
     }
 
-    private fun rankOpenAiModel(modelId: String): Int {
+    private fun isBlockedModel(modelId: String): Boolean {
+        val id = modelId.lowercase()
+        return BLOCKED_MODEL_PARTS.any { id.contains(it) }
+    }
+
+    private fun rankModel(modelId: String): Int {
         val id = modelId.lowercase()
         return when {
             id.contains("gpt-5.5") -> 100
@@ -161,23 +141,83 @@ class ReasoningModelDiscoveryClient {
             id.contains("gpt-4.1") -> 82
             id.contains("gpt-4o") -> 75
             id.contains("gpt-4") -> 65
+            id.contains("qwen") -> 58
+            id.contains("llama") -> 56
+            id.contains("mistral") -> 54
+            id.contains("gemma") -> 52
             id.contains("gpt-3.5") -> 20
             else -> 40
         }
     }
 
-    private fun rankAnthropicModel(modelId: String): Int {
-        val id = modelId.lowercase()
+    private fun normalizeRuntimeEndpoint(endpointHint: String): String {
+        val clean = endpointHint.trim().trimEnd('/')
+        val lower = clean.lowercase()
         return when {
-            id.contains("opus") -> 95
-            id.contains("sonnet") -> 85
-            id.contains("haiku") -> 65
-            else -> 40
+            lower.endsWith("/models") -> clean.removeSuffix("/models") + "/chat/completions"
+            lower.endsWith("/v1") && isLocalEndpoint(clean) -> "$clean/chat/completions"
+            lower.endsWith("/v1") -> "$clean/responses"
+            lower.contains("/responses") || lower.contains("/chat/completions") || lower.contains("/messages") -> clean
+            isLocalEndpoint(clean) -> "$clean/v1/chat/completions"
+            else -> "$clean/v1/chat/completions"
         }
+    }
+
+    private fun modelsEndpointFor(runtimeEndpoint: String): String {
+        val clean = runtimeEndpoint.trim().trimEnd('/')
+        return when {
+            clean.endsWith("/responses") -> clean.removeSuffix("/responses") + "/models"
+            clean.endsWith("/chat/completions") -> clean.removeSuffix("/chat/completions") + "/models"
+            clean.endsWith("/messages") -> clean.removeSuffix("/messages") + "/models"
+            clean.endsWith("/models") -> clean
+            clean.endsWith("/v1") -> "$clean/models"
+            else -> "$clean/models"
+        }
+    }
+
+    private fun presetForEndpoint(endpoint: String): ReasoningPreset {
+        val lower = endpoint.lowercase()
+        return when {
+            lower.contains("/responses") -> ReasoningPreset.RESPONSES_COMPATIBLE
+            lower.contains("/messages") -> ReasoningPreset.MESSAGES_COMPATIBLE
+            isLocalEndpoint(endpoint) -> ReasoningPreset.LOCAL_COMPATIBLE
+            else -> ReasoningPreset.CHAT_COMPATIBLE
+        }
+    }
+
+    private fun headersFor(
+        wireFormat: ReasoningWireFormat,
+        runtimeKey: String,
+        isLocal: Boolean
+    ): Map<String, String> {
+        if (isLocal || runtimeKey.isBlank()) return emptyMap()
+        return when (wireFormat) {
+            ReasoningWireFormat.MESSAGES -> mapOf(
+                "x-" + "api-key" to runtimeKey,
+                MESSAGES_VERSION_HEADER to MESSAGES_VERSION
+            )
+            ReasoningWireFormat.CHAT,
+            ReasoningWireFormat.RESPONSES -> bearerHeaders(runtimeKey)
+        }
+    }
+
+    private fun bearerHeaders(runtimeKey: String): Map<String, String> {
+        return mapOf("Authorization" to "Bearer $runtimeKey")
+    }
+
+    private fun isLocalEndpoint(endpoint: String): Boolean {
+        val lower = endpoint.lowercase()
+        return lower.startsWith("http://127.0.0.1") ||
+            lower.startsWith("http://localhost") ||
+            lower.startsWith("http://10.0.2.2")
     }
 
     companion object {
         private const val TIMEOUT_MS = 30000
+        private const val DEFAULT_RESPONSES_ENDPOINT = "https://api.openai.com/v1/responses"
+        private const val DEFAULT_MODELS_ENDPOINT = "https://api.openai.com/v1/models"
+        private val MESSAGES_VERSION_HEADER = "anth" + "ropic-version"
+        private const val MESSAGES_VERSION = "2023-06-01"
         private val BLOCKED_MODEL_PARTS = listOf(
             "embedding",
             "audio",

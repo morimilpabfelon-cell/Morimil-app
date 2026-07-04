@@ -2,23 +2,24 @@
 
 Morimil App is the native Android application for the Morimil living-memory companion system.
 
-## Phase 1 Goal
+## Current Goal
 
-Build the native Android foundation only.
+Build the native Android body for Morimil: local identity, local memory,
+memory organs, and a neutral reasoning motor layer.
 
 ```text
 Included:
-  Android native skeleton
-  Kotlin + Jetpack Compose UI shell
-  mock screens for Chat, Projects, Living Memory, and PC Handoff
-  placeholders for future memory, voice, Genesis sync, GitHub sync, and PC handoff
+  Android native app
+  Kotlin + Jetpack Compose UI
+  local Room/SQLite memory
+  hash-linked memory events
+  memory organs and recall schedule runtime
+  voice controls
+  bundled Genesis seed reader/verifier
+  neutral Motor/API screen with up to 10 reasoning API slots
+  model discovery through compatible model catalogs
 
 Not included yet:
-  real local database
-  voice capture
-  text-to-speech
-  GitHub write integration
-  Genesis sync
   PC executor automation
   production release
 ```
@@ -33,7 +34,8 @@ Morimil:
   Genesis Block / audited baseline repo
 
 Rule:
-  Phase 1 does not modify the Morimil Genesis repository.
+  Morimil-app does not mutate the Morimil Genesis repository.
+  Reasoning APIs are transport only; memory and identity remain local.
 ```
 
 ## Android Studio Build Setup
