@@ -584,7 +584,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
         var expectedPreviousHash = events.firstOrNull()?.previousEventHash ?: fallbackPreviousHash
         var lastTrustedEventHash = fallbackPreviousHash
         events.forEach { event ->
-            if (event.eventHash == LEGACY_EVENT_HASH) {
+            if (event.eventHash == MemoryEventIntegrity.LEGACY_EVENT_HASH) {
                 expectedPreviousHash = event.eventHash
                 lastTrustedEventHash = event.eventHash
                 return@forEach
