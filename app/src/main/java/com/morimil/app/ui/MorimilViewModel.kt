@@ -31,10 +31,12 @@ import com.morimil.app.data.repository.MigrationRecordRepository
 import com.morimil.app.data.repository.RecallScheduleRepository
 import com.morimil.app.security.SecretVault
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -116,6 +118,15 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList()
     )
+
+    private val _selectedMemoryEventHash = MutableStateFlow<String?>(null)
+    val selectedMemoryEventHash: StateFlow<String?> = _selectedMemoryEventHash.asStateFlow()
+
+    private val _selectedMemoryLinks = MutableStateFlow<List<MemoryLinkEntity>>(emptyList())
+    val selectedMemoryLinks: StateFlow<List<MemoryLinkEntity>> = _selectedMemoryLinks.asStateFlow()
+
+    private var selectedMemoryLinksJob: Job? = null
+
     val recentMigrationRecords: StateFlow<List<MigrationRecordEntity>> = migrationRecordRepository.recentMigrationRecords.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -179,6 +190,24 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
             action = "correccion_requerida",
             note = "El usuario marco este recuerdo para correccion futura."
         )
+    }
+
+    fun selectMemoryEvent(eventHash: String) {
+        if (_selectedMemoryEventHash.value == eventHash) return
+        _selectedMemoryEventHash.value = eventHash
+        selectedMemoryLinksJob?.cancel()
+        selectedMemoryLinksJob = viewModelScope.launch {
+            memoryLinkRepository.observeMemoryLinksForEvent(eventHash).collect { links ->
+                _selectedMemoryLinks.value = links
+            }
+        }
+    }
+
+    fun clearSelectedMemoryEvent() {
+        _selectedMemoryEventHash.value = null
+        selectedMemoryLinksJob?.cancel()
+        selectedMemoryLinksJob = null
+        _selectedMemoryLinks.value = emptyList()
     }
 
     private fun recordMemoryReview(
