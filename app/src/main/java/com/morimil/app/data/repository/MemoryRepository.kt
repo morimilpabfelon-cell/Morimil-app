@@ -217,7 +217,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
     }
 
     suspend fun auditLivingMemoryChain(): Boolean {
-        return verifyMemoryEventChain(memoryDao.loadMemoryEventChain())
+        return memoryEventIntegrity.verifyMemoryEventChain(memoryDao.loadMemoryEventChain())
     }
 
     suspend fun recordMemoryReview(
@@ -589,7 +589,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
                 lastTrustedEventHash = event.eventHash
                 return@forEach
             }
-            val failure = memoryEventIntegrityFailure(event, expectedPreviousHash)
+            val failure = memoryEventIntegrity.memoryEventIntegrityFailure(event, expectedPreviousHash)
             if (failure != null) {
                 return MemoryTailIntegrity(
                     trusted = false,
@@ -609,20 +609,6 @@ class MemoryRepository(private val database: MorimilDatabase) {
             firstUntrustedHash = null,
             reason = null
         )
-    }
-
-    private fun verifyMemoryEventChain(
-        events: List<MemoryEventEntity>,
-        requireGenesisStart: Boolean = true
-    ): Boolean {
-        return memoryEventIntegrity.verifyMemoryEventChain(events, requireGenesisStart)
-    }
-
-    private fun memoryEventIntegrityFailure(
-        event: MemoryEventEntity,
-        expectedPreviousHash: String?
-    ): String? {
-        return memoryEventIntegrity.memoryEventIntegrityFailure(event, expectedPreviousHash)
     }
 
     private data class MemoryClassification(

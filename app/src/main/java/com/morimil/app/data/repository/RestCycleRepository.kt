@@ -55,7 +55,7 @@ class RestCycleRepository(private val database: MorimilDatabase) {
             }.asReversed()
 
             val createdAtMillis = System.currentTimeMillis()
-            val tailTrusted = verifyMemoryEventChain(eventTail, requireGenesisStart = false)
+            val tailTrusted = memoryEventIntegrity.verifyMemoryEventChain(eventTail, requireGenesisStart = false)
             if (!tailTrusted && recoveryBoundary == null) return@withTransaction false
             val previousEventHash = if (tailTrusted) {
                 eventTail.lastOrNull()?.eventHash ?: recoveryBoundary?.eventHash
@@ -200,13 +200,6 @@ class RestCycleRepository(private val database: MorimilDatabase) {
                 updatedAtMillis = System.currentTimeMillis()
             )
         )
-    }
-
-    private fun verifyMemoryEventChain(
-        events: List<MemoryEventEntity>,
-        requireGenesisStart: Boolean = true
-    ): Boolean {
-        return memoryEventIntegrity.verifyMemoryEventChain(events, requireGenesisStart)
     }
 
     companion object {
