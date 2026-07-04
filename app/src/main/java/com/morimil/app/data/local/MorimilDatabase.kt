@@ -19,7 +19,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MemorySnapshotEntity::class
     ],
     version = 8,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class MorimilDatabase : RoomDatabase() {
     abstract fun memoryDao(): MemoryDao
@@ -28,7 +28,7 @@ abstract class MorimilDatabase : RoomDatabase() {
         @Volatile
         private var instance: MorimilDatabase? = null
 
-        private val MIGRATION_1_2 = object : Migration(1, 2) {
+        val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     """
@@ -48,7 +48,7 @@ abstract class MorimilDatabase : RoomDatabase() {
             }
         }
 
-        private val MIGRATION_2_3 = object : Migration(2, 3) {
+        val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     """
@@ -69,7 +69,7 @@ abstract class MorimilDatabase : RoomDatabase() {
             }
         }
 
-        private val MIGRATION_3_4 = object : Migration(3, 4) {
+        val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     """
@@ -122,7 +122,7 @@ abstract class MorimilDatabase : RoomDatabase() {
             }
         }
 
-        private val MIGRATION_4_5 = object : Migration(4, 5) {
+        val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     """
@@ -173,7 +173,7 @@ abstract class MorimilDatabase : RoomDatabase() {
             }
         }
 
-        private val MIGRATION_5_6 = object : Migration(5, 6) {
+        val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE memory_events ADD COLUMN previousEventHash TEXT")
                 db.execSQL("ALTER TABLE memory_events ADD COLUMN genesisCoreHash TEXT NOT NULL DEFAULT 'sha256:legacy-unverified'")
@@ -186,7 +186,7 @@ abstract class MorimilDatabase : RoomDatabase() {
             }
         }
 
-        private val MIGRATION_6_7 = object : Migration(6, 7) {
+        val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE memory_events ADD COLUMN source TEXT NOT NULL DEFAULT 'system'")
                 db.execSQL("ALTER TABLE memory_events ADD COLUMN contextTag TEXT NOT NULL DEFAULT 'local_runtime'")
@@ -195,7 +195,7 @@ abstract class MorimilDatabase : RoomDatabase() {
             }
         }
 
-        private val MIGRATION_7_8 = object : Migration(7, 8) {
+        val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE memory_events ADD COLUMN memoryKind TEXT NOT NULL DEFAULT 'observation'")
                 db.execSQL("ALTER TABLE memory_events ADD COLUMN tagsJson TEXT NOT NULL DEFAULT '[]'")

@@ -15,6 +15,7 @@ android {
         targetSdk = 35
         versionCode = 8
         versionName = "0.8.0-phase5d"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildFeatures {
@@ -54,6 +55,9 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.room:room-testing:$roomVersion")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
