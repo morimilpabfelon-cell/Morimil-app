@@ -2,6 +2,7 @@ package com.morimil.app.data.repository
 
 import androidx.room.withTransaction
 import com.morimil.app.core.memory.MemoryEventIntegrity
+import com.morimil.app.core.memory.MemoryIntegrityVerifier
 import com.morimil.app.data.local.MemoryDao
 import com.morimil.app.data.local.MemoryEventEntity
 import com.morimil.app.data.local.MemoryOrganDatabase
@@ -16,6 +17,7 @@ class RestCycleRepository(
 ) {
     private val memoryDao: MemoryDao = database.memoryDao()
     private val memoryEventIntegrity = MemoryEventIntegrity()
+    private val memoryIntegrityVerifier = MemoryIntegrityVerifier(memoryEventIntegrity)
     private val memoryLinkRepository = MemoryLinkRepository(organDatabase)
 
     suspend fun runLocalRestCycleIfDue(force: Boolean = false): Boolean {
@@ -76,7 +78,7 @@ class RestCycleRepository(
             }.asReversed()
 
             val createdAtMillis = System.currentTimeMillis()
-            val tailTrusted = memoryEventIntegrity.verifyMemoryEventChain(eventTail, requireGenesisStart = false)
+            val tailTrusted = memoryIntegrityVerifier.verifyMemoryEventChain(eventTail, requireGenesisStart = false)
             if (!tailTrusted && recoveryBoundary == null) return@withTransaction null
             val previousEventHash = if (tailTrusted) {
                 eventTail.lastOrNull()?.eventHash ?: recoveryBoundary?.eventHash
