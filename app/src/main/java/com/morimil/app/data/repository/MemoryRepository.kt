@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.Flow
 import org.json.JSONArray
 import org.json.JSONObject
 import java.security.MessageDigest
+import java.text.Normalizer
 
 class MemoryRepository(private val database: MorimilDatabase) {
     private val memoryDao: MemoryDao = database.memoryDao()
@@ -210,7 +211,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
             ${eventText.ifBlank { "- No memory events yet." }}
 
             MEMORY RULE:
-            Treat these local memory events as the valid phone memory. Prefer user-confirmed decisions, corrections and preferences over generic conversation text.
+            Treat these local memory events as the valid phone memory. Prefer user-confirmed decisions, corrections and preferences over generic conversation text. Ignore chat_noise unless the user explicitly confirms it.
         """.trimIndent()
     }
 
@@ -275,7 +276,11 @@ class MemoryRepository(private val database: MorimilDatabase) {
         val contextTag = "local_runtime"
         val privacyVisibility = PRIVATE_LOCAL
         val classification = classifyMemoryEvent(eventType, actor, cleanBody)
-        val cleanImportance = maxOf(importance, classification.importance).coerceIn(1, 100)
+        val cleanImportance = if (classification.memoryKind == "chat_noise") {
+            classification.importance.coerceIn(1, 20)
+        } else {
+            maxOf(importance, classification.importance).coerceIn(1, 100)
+        }
         val tagsJson = JSONArray(classification.tags).toString()
         val evidenceJson = buildEvidenceJson(
             eventType = eventType,
@@ -333,7 +338,8 @@ class MemoryRepository(private val database: MorimilDatabase) {
     }
 
     private suspend fun rebuildLivingMemorySnapshot() {
-        val events = memoryDao.loadMemoryContext(limit = 20)
+        val events = memoryDao.loadMemoryContext(limit = 50)
+            .filter { event -> event.memoryKind != "chat_noise" || event.userConfirmed || event.importance >= 40 }
         val eventCount = memoryDao.countMemoryEvents()
         val messageCount = memoryDao.countMessages()
         val prioritized = events
@@ -363,11 +369,33 @@ class MemoryRepository(private val database: MorimilDatabase) {
     private fun scoreImportance(body: String): Int {
         return classifyMemoryEvent("conversation.user_message", "user", body).importance
     }
+    private fun normalizeForMemoryClassifier(value: String): String {
+        val decomposed = Normalizer.normalize(value.lowercase(), Normalizer.Form.NFD)
+        return decomposed.replace(Regex("\\p{Mn}+"), "")
+    }
 
     private fun classifyMemoryEvent(eventType: String, actor: String, body: String): MemoryClassification {
-        val lower = body.lowercase()
+        val lower = normalizeForMemoryClassifier(body)
+        val compact = lower.trim().replace(Regex("\\s+"), " ")
+        val tokenCount = compact.split(" ").filter { it.isNotBlank() }.size
+        val isUser = actor == "user"
+        val isSystem = actor == "system"
+
+        val isExplicitMemoryCommand = listOf(
+            "recuerda", "decision", "decid", "regla", "prefer", "corrige",
+            "correccion", "aprende", "importante", "memoria fuerte", "aprob"
+        ).any { lower.contains(it) }
+
+        val isTinyAck = compact in setOf(
+            "ok", "okay", "dale", "si", "sÃ­", "ya", "listo", "gracias", "hola",
+            "hello", "bien", "correcto", "perfecto", "jaja", "aja", "ajÃ¡"
+        )
+        val isLowSignalChat = !isSystem && !eventType.startsWith("memory_review") && (
+            isTinyAck || (tokenCount <= 3 && !isExplicitMemoryCommand)
+        )
+
         val tags = linkedSetOf<String>()
-        if (lower.contains("genesis") || lower.contains("gÃ©nesis")) tags += "genesis"
+        if (lower.contains("genesis")) tags += "genesis"
         if (lower.contains("memoria") || lower.contains("recuerd")) tags += "memory"
         if (lower.contains("api") || lower.contains("motor") || lower.contains("razon")) tags += "reasoning"
         if (lower.contains("app") || lower.contains("celular") || lower.contains("local")) tags += "local_app"
@@ -375,18 +403,19 @@ class MemoryRepository(private val database: MorimilDatabase) {
         if (lower.contains("privad") || lower.contains("segur")) tags += "privacy"
         if (lower.contains("grafo") || lower.contains("backlink") || lower.contains("obsidian")) tags += "memory_graph"
 
-        val isUser = actor == "user"
-        val confirmed = isUser && listOf("correcto", "confirmo", "aprob", "sÃ­", "si,").any { lower.contains(it) }
-
         val kind = when {
             eventType.startsWith("genesis") -> "identity"
-            listOf("corrige", "correccion", "correcciÃ³n", "no es asi", "no es asÃ­", "te equivocas").any { lower.contains(it) } -> "correction"
+            eventType == "memory_review.aprobado" -> "approval"
+            eventType == "memory_review.ruido_degradado" -> "chat_noise"
+            eventType == "memory_review.correccion_requerida" -> "correction"
+            isLowSignalChat -> "chat_noise"
+            listOf("corrige", "correccion", "no es asi", "te equivocas", "esta mal").any { lower.contains(it) } -> "correction"
             listOf("error", "fallo", "bug", "no funciona").any { lower.contains(it) } -> "error_detected"
-            listOf("apruebo", "aprobado", "dale", "correcto").any { lower.contains(it) } && isUser -> "approval"
             listOf("rechazo", "no apruebo", "cancel", "no lo hagas").any { lower.contains(it) } -> "rejection"
-            listOf("decid", "queda", "regla", "nunca", "siempre", "se define").any { lower.contains(it) } -> "decision"
+            listOf("decision", "decid", "queda", "regla", "nunca", "siempre", "se define", "memoria fuerte").any { lower.contains(it) } -> "decision"
             listOf("prefiero", "me gusta", "quiero", "no quiero", "mi forma").any { lower.contains(it) } -> "preference"
             listOf("aprend", "actualiza", "libro", "program", "investiga").any { lower.contains(it) } -> "learning"
+            listOf("apruebo", "aprobado").any { lower.contains(it) } && isUser -> "approval"
             eventType.startsWith("decision") -> "decision"
             else -> "conversation"
         }
@@ -400,21 +429,30 @@ class MemoryRepository(private val database: MorimilDatabase) {
             "decision" -> "decision"
             "preference" -> "preference"
             "learning" -> "learning"
+            "chat_noise" -> "noise"
             else -> "conversation"
         }
 
         val importance = when (kind) {
             "identity" -> 100
-            "decision", "correction", "approval", "rejection" -> 92
+            "decision", "correction" -> 92
+            "approval", "rejection" -> 86
             "preference" -> 88
             "learning", "error_detected" -> 82
+            "chat_noise" -> 8
             "conversation" -> if (body.length > 240) 62 else 38
             else -> 50
         }
+
+        val userConfirmed = isUser && kind in setOf(
+            "decision", "correction", "preference", "approval", "rejection", "learning"
+        )
+
         val confidence = when {
-            confirmed -> 95
+            kind == "chat_noise" -> 40
+            userConfirmed -> 94
+            isSystem -> 90
             isUser && kind != "conversation" -> 88
-            actor == "system" -> 90
             else -> 70
         }
 
@@ -422,11 +460,10 @@ class MemoryRepository(private val database: MorimilDatabase) {
             memoryKind = kind,
             tags = tags.toList(),
             confidence = confidence,
-            userConfirmed = confirmed,
+            userConfirmed = userConfirmed,
             importance = importance
         )
     }
-
     private fun buildEvidenceJson(
         eventType: String,
         actor: String,
