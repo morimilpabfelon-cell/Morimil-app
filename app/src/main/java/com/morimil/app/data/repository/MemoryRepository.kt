@@ -1,8 +1,7 @@
 package com.morimil.app.data.repository
 
 import androidx.room.withTransaction
-import com.morimil.app.core.memory.MemoryEventIntegrity
-import com.morimil.app.core.memory.MemoryIntegrityVerifier
+import com.morimil.app.core.memory.MemoryIntegrityCore
 import com.morimil.app.data.genesis.GenesisIdentity
 import com.morimil.app.data.local.DecisionLogEntity
 import com.morimil.app.data.local.GenesisCoreEntity
@@ -21,8 +20,7 @@ import java.text.Normalizer
 
 class MemoryRepository(private val database: MorimilDatabase) {
     private val memoryDao: MemoryDao = database.memoryDao()
-    private val memoryEventIntegrity = MemoryEventIntegrity()
-    private val memoryIntegrityVerifier = MemoryIntegrityVerifier(memoryEventIntegrity)
+    private val memoryIntegrityCore = MemoryIntegrityCore()
 
     val messages: Flow<List<MemoryMessageEntity>> = memoryDao.observeMessages()
     val decisions: Flow<List<DecisionLogEntity>> = memoryDao.observeDecisions()
@@ -219,7 +217,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
     }
 
     suspend fun auditLivingMemoryChain(): Boolean {
-        return memoryIntegrityVerifier.verifyMemoryEventChain(memoryDao.loadMemoryEventAuditChain())
+        return memoryIntegrityCore.verifyMemoryEventChain(memoryDao.loadMemoryEventAuditChain())
     }
 
     suspend fun recordMemoryReview(
@@ -312,7 +310,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
             classification = classification,
             body = cleanBody
         )
-        val eventHash = memoryEventIntegrity.hashMemoryEventV3(
+        val eventHash = memoryIntegrityCore.hashMemoryEventV3(
             genesisCoreId = genesisCore.coreId,
             genesisCoreHash = genesisCore.contentSha256,
             previousEventHash = previousEventHash,
@@ -337,9 +335,9 @@ class MemoryRepository(private val database: MorimilDatabase) {
                 genesisCoreHash = genesisCore.contentSha256,
                 previousEventHash = previousEventHash,
                 eventHash = eventHash,
-                hashAlgorithm = "sha256",
-                canonicalization = MEMORY_EVENT_CANONICALIZATION_V3,
-                signatureAlgorithm = MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED,
+                hashAlgorithm = MemoryIntegrityCore.HASH_ALGORITHM_SHA256,
+                canonicalization = MemoryIntegrityCore.MEMORY_EVENT_CANONICALIZATION_V3,
+                signatureAlgorithm = MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED,
                 eventSignature = null,
                 eventType = eventType,
                 actor = actor,
@@ -520,7 +518,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
                 limit = MEMORY_EVENT_TAIL_VERIFICATION_LIMIT
             )
         }.asReversed()
-        val tailIntegrity = memoryIntegrityVerifier.inspectMemoryEventTail(
+        val tailIntegrity = memoryIntegrityCore.inspectMemoryEventTail(
             events = eventTail,
             fallbackPreviousHash = recoveryBoundary?.eventHash
         )
@@ -553,7 +551,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
         val body = "ALERTA_MEMORIA_LOCAL: Se detecto una ruptura de integridad en la cola de memoria. " +
             "El tramo no confiable quedo aislado y la memoria continua desde este marcador de cuarentena. " +
             "reason=$reason; first_untrusted_hash=${firstUntrustedHash ?: "unknown"}"
-        val eventHash = memoryEventIntegrity.hashMemoryEventV3(
+        val eventHash = memoryIntegrityCore.hashMemoryEventV3(
             genesisCoreId = genesisCore.coreId,
             genesisCoreHash = genesisCore.contentSha256,
             previousEventHash = previousEventHash,
@@ -578,9 +576,9 @@ class MemoryRepository(private val database: MorimilDatabase) {
                 genesisCoreHash = genesisCore.contentSha256,
                 previousEventHash = previousEventHash,
                 eventHash = eventHash,
-                hashAlgorithm = "sha256",
-                canonicalization = MEMORY_EVENT_CANONICALIZATION_V3,
-                signatureAlgorithm = MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED,
+                hashAlgorithm = MemoryIntegrityCore.HASH_ALGORITHM_SHA256,
+                canonicalization = MemoryIntegrityCore.MEMORY_EVENT_CANONICALIZATION_V3,
+                signatureAlgorithm = MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED,
                 eventSignature = null,
                 eventType = MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE,
                 actor = "system",
@@ -610,8 +608,6 @@ class MemoryRepository(private val database: MorimilDatabase) {
 
     companion object {
         private const val MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE = "memory_integrity.quarantine"
-        private const val MEMORY_EVENT_CANONICALIZATION_V3 = "morimil.memory_event_hash.v3"
-        private const val MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED = "unsigned_runtime_v1"
         private const val MEMORY_EVENT_TAIL_VERIFICATION_LIMIT = 12
         private const val PRIVATE_LOCAL = "private_local"
     }
