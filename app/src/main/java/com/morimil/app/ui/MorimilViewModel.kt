@@ -22,6 +22,7 @@ import com.morimil.app.data.local.MigrationRecordEntity
 import com.morimil.app.data.local.ProjectStateEntity
 import com.morimil.app.data.local.RecallScheduleEntity
 import com.morimil.app.data.local.UserWorkspaceEntity
+import com.morimil.app.data.repository.MemoryLinkRepository
 import com.morimil.app.data.repository.RestCycleRepository
 import com.morimil.app.runtime.RestCycleScheduler
 import com.morimil.app.runtime.RestCycleScheduleStatus
