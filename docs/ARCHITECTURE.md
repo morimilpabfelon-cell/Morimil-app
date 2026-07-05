@@ -95,6 +95,16 @@ MemoryOrganDatabase:
 
 The phone-local databases are the runtime memory body. Reasoning providers do not own memory, identity, doctrine, or continuity.
 
+`MorimilDatabase` and `MemoryOrganDatabase` are currently separate SQLite files. This keeps the first living-memory chain isolated from higher-level organs while the app is still evolving, but it also means Room cannot make one atomic transaction across events, capsules, links, recalls, and migration records. Cross-database references are therefore treated as append-only references plus reconciliation, not as foreign-key-enforced invariants.
+
+The rest cycle performs the compensating check:
+
+- full memory-chain audit against `memory_events`
+- cross-database reconciliation for links, recalls, capsules, and migration records that point at memory event hashes
+- orphaned `memory_links` are marked `verificationState = orphaned`
+- orphaned recall schedules are degraded
+- capsule and migration gaps are reported in rest-cycle audit notes and can require human approval before consolidation
+
 ## Living Memory
 
 Memory events are append-only. User messages, assistant messages, reviews, rest cycles, cognitive migrations, rollbacks, and quarantine markers are recorded as new events instead of rewriting old ones.
