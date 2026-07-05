@@ -54,10 +54,10 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     private val reasoningConfigStore = container.reasoningConfigStore
     private val reasoningClient = container.reasoningClient
 
-    val chatViewModel = ChatViewModel(this)
-    val memoryViewModel = MemoryViewModel(this)
-    val healthViewModel = HealthViewModel(this)
-    val motorViewModel = MotorViewModel(this)
+    val chatViewModel: ChatViewModel by lazy { ChatViewModel(this) }
+    val memoryViewModel: MemoryViewModel by lazy { MemoryViewModel(this) }
+    val healthViewModel: HealthViewModel by lazy { HealthViewModel(this) }
+    val motorViewModel: MotorViewModel by lazy { MotorViewModel(this) }
 
     val messages: StateFlow<List<MemoryMessageEntity>> = repository.messages.stateIn(
         scope = viewModelScope,
