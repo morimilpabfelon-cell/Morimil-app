@@ -1,43 +1,115 @@
 # Morimil App Scope
 
-## Phase 5C Scope
+## Current Scope
+
+Morimil App is the native Android body for a phone-local Morimil instance.
 
 ```text
-Add a controlled GitHub write proposal gate.
-Build and validate proposed file changes locally.
-Require human approval before a proposal can pass review.
-Keep actual GitHub write execution blocked.
+In scope:
+  Android native application
+  Genesis seed reader/verifier and local birth state
+  Room/SQLite local memory
+  append-only hash-linked memory events
+  living memory snapshot
+  memory organs
+  knowledge capsules
+  memory links/backlinks
+  recall schedule runtime
+  rest cycle runtime
+  cognitive migration flow
+  local integrity audit
+  voice controls
+  provider-neutral reasoning motor configuration
+  up to 10 encrypted reasoning API slots
+  compatible model discovery
+```
+
+## Runtime Boundary
+
+```text
+Genesis:
+  seed and doctrine source
+  read-only from Morimil-app runtime
+
+Phone:
+  primary memory body
+  identity, events, snapshots, organs, recalls, links, and migrations live here
+
+Reasoning APIs:
+  transport only
+  no provider owns memory, identity, doctrine, or continuity
+
+PC handoff:
+  placeholder only in this app version
+  no command execution from mobile yet
 ```
 
 ## Explicit Non-Scope
 
 ```text
-No repo creation, EXCEPT the single onboarding-time fork of the Genesis
-  repo under the token owner's own account (see docs/GENESIS_FORK_MODEL.md).
-No file upload execution.
-No PR creation.
+No autonomous PC command execution.
+No background shell access.
+No autonomous GitHub mutation from the app.
+No repository creation from the app.
+No pull request creation from the app.
 No merge.
 No delete.
 No workflow dispatch.
 No background sync.
-No autonomous mutation.
-No PC command execution from the app.
 No production release.
+No provider-owned memory.
+No provider-owned identity.
 ```
 
-## Repository Boundary
+## Local Write Policy
 
 ```text
-Morimil-app can preview its own GitHub repository metadata.
-Morimil-app can create local write proposals for docs/proposals/.
-Morimil Genesis repository remains read-only and is not modified.
+Allowed local writes:
+  Room/SQLite local identity
+  Room/SQLite memory messages
+  Room/SQLite memory events
+  Room/SQLite snapshots
+  Room/SQLite memory organs
+  Room/SQLite recalls
+  Room/SQLite links
+  Room/SQLite migration records
+  encrypted local reasoning slot secrets
+
+Not allowed as automatic runtime writes:
+  Morimil Genesis repository
+  GitHub repositories
+  PC filesystem
+  cloud storage
 ```
 
-## Allowed Proposal Target
+## Integrity Claims
 
 ```text
-owner: morimilpabfelon-cell
-repo: Morimil-app
-branch: main
-path prefix: docs/proposals/
+Implemented:
+  SHA-256 hash-linked memory events
+  event chain and tail verification
+  event quarantine boundary on local tail corruption
+  SHA-256 hash-linked knowledge capsules
+  shared MemoryIntegrityCore facade
+  explicit UI integrity audit
+
+Not implemented yet:
+  non-exportable AndroidKeyStore Ed25519 event signing
+  remote transparency log
+  cloud backup
+```
+
+The current hash chain gives local tamper evidence. It is not claimed as hardware-backed signature resistance.
+
+## Review Rule
+
+Architecture docs must be updated whenever runtime boundaries change, especially around:
+
+```text
+memory ownership
+reasoning providers
+integrity guarantees
+PC execution
+GitHub writes
+Genesis mutability
 ```
