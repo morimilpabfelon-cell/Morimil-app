@@ -82,11 +82,28 @@ class CognitiveMigrationRepository(
                     else -> 82
                 }
             )
-            migrationRecordRepository.markMigrationCompleted(
-                migrationId = migrationId,
-                postSnapshotId = eventHash
+            val postExecutionAuditVerified = memoryRepository.auditLivingMemoryChain()
+            val auditNotes = CognitiveMigrationPlanner.buildPostExecutionAuditNotes(
+                record = record,
+                executionEventHash = eventHash,
+                chainVerified = postExecutionAuditVerified,
+                checkedAtMillis = System.currentTimeMillis()
             )
-            true
+            if (postExecutionAuditVerified) {
+                migrationRecordRepository.markMigrationCompleted(
+                    migrationId = migrationId,
+                    postSnapshotId = eventHash,
+                    resultNotes = auditNotes
+                )
+                true
+            } else {
+                migrationRecordRepository.markMigrationFailed(
+                    migrationId = migrationId,
+                    errors = auditNotes,
+                    postSnapshotId = eventHash
+                )
+                false
+            }
         }.getOrElse { error ->
             migrationRecordRepository.markMigrationFailed(
                 migrationId = migrationId,
