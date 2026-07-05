@@ -70,7 +70,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     private val cognitiveMigrationRepository = CognitiveMigrationRepository(
         organDatabase = organDatabase,
         memoryDatabase = memoryDatabase,
-        memoryIntegrityCore = memoryIntegrityCore
+        memoryRepository = repository
     )
     private val recallScheduleRepository = RecallScheduleRepository(
         organDatabase = organDatabase,

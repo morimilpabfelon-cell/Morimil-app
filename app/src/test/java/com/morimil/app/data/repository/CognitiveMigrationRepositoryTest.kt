@@ -1,8 +1,10 @@
 package com.morimil.app.data.repository
 
 import com.morimil.app.core.memory.CognitiveMigrationPlanner
+import com.morimil.app.core.memory.MemoryIntegrityCore
 import com.morimil.app.data.local.MemoryEventEntity
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -13,6 +15,16 @@ class CognitiveMigrationRepositoryTest {
             "cognitive.memory_refinement",
             CognitiveMigrationRepository.COGNITIVE_MIGRATION_TYPE
         )
+    }
+
+    @Test
+    fun cognitiveMigrationRepositoryRequiresSharedSignedMemoryRepository() {
+        val constructorParameterTypes = CognitiveMigrationRepository::class.java
+            .constructors
+            .flatMap { constructor -> constructor.parameterTypes.toList() }
+
+        assertTrue(constructorParameterTypes.contains(MemoryRepository::class.java))
+        assertFalse(constructorParameterTypes.contains(MemoryIntegrityCore::class.java))
     }
 
     @Test
