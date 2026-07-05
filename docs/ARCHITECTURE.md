@@ -1,5 +1,34 @@
 # Morimil App Architecture
 
+## Source Of Truth
+
+This document describes the current `provider-neutral-motor` runtime, not the old Phase 1 skeleton. Older `PHASE*_STATUS.md` files are historical records and must not be used as the current architecture unless they match this document and the code.
+
+Current implemented runtime includes:
+
+```text
+implemented:
+  phone-local Room/SQLite memory
+  append-only hash-linked memory events
+  memory organs database
+  voice input and TTS controls
+  bundled Genesis reader/verifier
+  provider-neutral Motor/API screen
+  up to 10 encrypted reasoning API slots
+  compatible model discovery
+  recall schedule runtime
+  WorkManager rest cycle runtime
+  cognitive migration records with approval/rollback flow
+  memory links, backlinks, and visual graph canvas
+  manual memory integrity audit
+
+not implemented:
+  autonomous PC command execution
+  background shell access from the phone
+  production release hardening
+  AndroidKeyStore non-exportable event signatures
+```
+
 ## Current Runtime
 
 Morimil App is the Android body for a phone-local Morimil instance. Genesis is the seed, the phone stores the living memory, and reasoning APIs are interchangeable transport for the current turn.
@@ -38,7 +67,7 @@ Memory:
   rest cycle history, cognitive migrations, memory organs, capsules, and integrity audit
 
 PC:
-  placeholder for future approved PC handoff; no command execution yet
+  approved handoff planning surface; no command execution yet
 ```
 
 ## Persistence Model
@@ -152,7 +181,7 @@ Important rest-cycle consolidations require user approval before execution. `mig
 
 ## Recall Schedule
 
-Recall schedules are active local reminders for memory reinforcement. Recalls are prioritized by due time, importance, and memory kind. The UI separates overdue and future recalls and lets the user reinforce, postpone, degrade, or open the target memory event.
+Recall schedules are active local reminders for memory reinforcement. Recalls are prioritized by importance, confidence, confirmation, memory kind, due time, priority band, and urgency score. The UI separates overdue and future recalls and lets the user reinforce, postpone, degrade, or open the target memory event in the graph/backlink flow.
 
 ## Cognitive Migrations
 
@@ -220,7 +249,7 @@ Use Android Studio or Gradle with JDK 17.
 .\gradlew.bat :app:assembleDebug
 ```
 
-Instrumentation migration tests require a connected device or emulator.
+Room full-chain migration tests exist for `MorimilDatabase` 1 -> 8 and `MemoryOrganDatabase` 1 -> 5. These are instrumentation tests and require a connected device or emulator.
 
 ```powershell
 .\gradlew.bat :app:connectedDebugAndroidTest
