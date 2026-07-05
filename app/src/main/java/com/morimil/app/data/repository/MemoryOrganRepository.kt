@@ -47,17 +47,17 @@ class MemoryOrganRepository(database: MemoryOrganDatabase) {
         genesisCoreId: String,
         text: String,
         sourceEventHash: String? = null
-    ): Boolean {
+    ): KnowledgeCapsuleEntity? {
         val clean = text.trim()
-        if (!hasExplicitCapsuleIntent(clean)) return false
+        if (!hasExplicitCapsuleIntent(clean)) return null
 
         val title = inferTitle(clean)
         val category = inferCategory(clean)
         val tags = inferTags(clean, category)
         val claims = inferClaims(clean)
-        if (claims.isEmpty() && clean.length < 120) return false
+        if (claims.isEmpty() && clean.length < 120) return null
 
-        appendKnowledgeCapsule(
+        return appendKnowledgeCapsule(
             genesisCoreId = genesisCoreId,
             capsuleCategory = category,
             capsuleType = "knowledge_capsule",
@@ -70,7 +70,6 @@ class MemoryOrganRepository(database: MemoryOrganDatabase) {
             confidence = 92,
             sourceEventHash = sourceEventHash
         )
-        return true
     }
 
     suspend fun appendKnowledgeCapsule(
@@ -85,7 +84,7 @@ class MemoryOrganRepository(database: MemoryOrganDatabase) {
         tags: List<String> = emptyList(),
         confidence: Int,
         sourceEventHash: String?
-    ) {
+    ): KnowledgeCapsuleEntity {
         val cleanTitle = title.trim().ifBlank { "untitled" }
         val now = System.currentTimeMillis()
         val existingChain = dao.loadKnowledgeCapsuleChain()
@@ -132,31 +131,31 @@ class MemoryOrganRepository(database: MemoryOrganDatabase) {
         if (versionsForTitle.any { it.status == "active" }) {
             dao.markActiveCapsulesSuperseded(cleanTitle, now)
         }
-        dao.insertKnowledgeCapsule(
-            KnowledgeCapsuleEntity(
-                capsuleId = capsuleId,
-                genesisCoreId = genesisCoreId,
-                capsuleVersion = nextVersion,
-                capsuleCategory = capsuleCategory,
-                capsuleType = capsuleType,
-                status = "active",
-                title = cleanTitle,
-                source = source,
-                privacyVisibility = privacyVisibility,
-                summary = cleanSummary,
-                claimsJson = cleanClaims,
-                tags = cleanTags,
-                evidenceJson = evidenceJson,
-                confidence = cleanConfidence,
-                sourceEventHash = sourceEventHash,
-                previousCapsuleHash = previousCapsuleHash,
-                capsuleHash = capsuleHash,
-                hashAlgorithm = MemoryIntegrityCore.HASH_ALGORITHM_SHA256,
-                canonicalization = MemoryIntegrityCore.CAPSULE_CANONICALIZATION_V2,
-                createdAtMillis = now,
-                updatedAtMillis = now
-            )
+        val capsule = KnowledgeCapsuleEntity(
+            capsuleId = capsuleId,
+            genesisCoreId = genesisCoreId,
+            capsuleVersion = nextVersion,
+            capsuleCategory = capsuleCategory,
+            capsuleType = capsuleType,
+            status = "active",
+            title = cleanTitle,
+            source = source,
+            privacyVisibility = privacyVisibility,
+            summary = cleanSummary,
+            claimsJson = cleanClaims,
+            tags = cleanTags,
+            evidenceJson = evidenceJson,
+            confidence = cleanConfidence,
+            sourceEventHash = sourceEventHash,
+            previousCapsuleHash = previousCapsuleHash,
+            capsuleHash = capsuleHash,
+            hashAlgorithm = MemoryIntegrityCore.HASH_ALGORITHM_SHA256,
+            canonicalization = MemoryIntegrityCore.CAPSULE_CANONICALIZATION_V2,
+            createdAtMillis = now,
+            updatedAtMillis = now
         )
+        dao.insertKnowledgeCapsule(capsule)
+        return capsule
     }
 
     suspend fun buildKnowledgeCapsuleContext(limit: Int = 8): String {

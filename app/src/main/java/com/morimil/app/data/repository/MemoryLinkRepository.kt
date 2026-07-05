@@ -102,6 +102,7 @@ class MemoryLinkRepository(organDatabase: MemoryOrganDatabase) {
 
     companion object {
         const val MEMORY_EVENT_NODE_TYPE = "memory_event"
+        const val KNOWLEDGE_CAPSULE_NODE_TYPE = "knowledge_capsule"
         const val RELATION_DERIVED_FROM = "derived_from"
 
         private const val CREATED_BY_LOCAL_RUNTIME = "local_runtime"

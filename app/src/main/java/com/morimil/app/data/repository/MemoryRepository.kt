@@ -35,8 +35,8 @@ class MemoryRepository(
     val recentMemoryEvents: Flow<List<MemoryEventEntity>> = memoryDao.observeRecentMemoryEvents()
     val livingMemorySnapshot: Flow<MemorySnapshotEntity?> = memoryDao.observeLivingMemorySnapshot()
 
-    suspend fun addUserMessage(body: String) {
-        MemoryAppendGate.withAppendLock {
+    suspend fun addUserMessage(body: String): AppendedMemoryEventReference? {
+        return MemoryAppendGate.withAppendLock {
             database.withTransaction {
                 memoryDao.insertMessage(
                     MemoryMessageEntity(
@@ -289,12 +289,18 @@ class MemoryRepository(
         actor: String,
         body: String,
         importance: Int
-    ) {
-        if (body.isBlank()) return
-        require(memoryDao.countGenesisCore() > 0) {
+    ): AppendedMemoryEventReference? {
+        if (body.isBlank()) return null
+        val genesisCore = requireNotNull(memoryDao.loadGenesisCore()) {
             "Cannot append living memory without a local Genesis Core."
         }
-        insertMemoryEventAndRebuildSnapshot(eventType, actor, body, importance)
+        val eventHash = insertMemoryEventAndRebuildSnapshot(eventType, actor, body, importance)
+        return AppendedMemoryEventReference(
+            eventHash = eventHash,
+            genesisCoreId = genesisCore.coreId,
+            genesisCoreHash = genesisCore.contentSha256,
+            instanceId = genesisCore.instanceId
+        )
     }
 
     private suspend fun insertMemoryEventAndRebuildSnapshot(
@@ -528,3 +534,10 @@ class MemoryRepository(
         private const val PRIVATE_LOCAL = "private_local"
     }
 }
+
+data class AppendedMemoryEventReference(
+    val eventHash: String,
+    val genesisCoreId: String,
+    val genesisCoreHash: String,
+    val instanceId: String
+)

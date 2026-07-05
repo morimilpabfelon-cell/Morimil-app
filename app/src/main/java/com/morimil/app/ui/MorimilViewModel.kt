@@ -622,9 +622,28 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                     .map { ChatTurn(role = if (it.author == "user") "user" else "assistant", content = it.body) }
                 val recent = priorHistory + ChatTurn(role = "user", content = cleanBody)
 
-                repository.addUserMessage(cleanBody)
-                val activeGenesisCoreId = genesisCore.value?.coreId ?: "primary_genesis"
-                memoryOrganRepository.captureKnowledgeCapsuleFromText(activeGenesisCoreId, cleanBody)
+                val userMemoryEvent = repository.addUserMessage(cleanBody)
+                val activeGenesisCoreId = userMemoryEvent?.genesisCoreId
+                    ?: genesisCore.value?.coreId
+                    ?: "primary_genesis"
+                val capturedCapsule = memoryOrganRepository.captureKnowledgeCapsuleFromText(
+                    genesisCoreId = activeGenesisCoreId,
+                    text = cleanBody,
+                    sourceEventHash = userMemoryEvent?.eventHash
+                )
+                if (capturedCapsule != null && userMemoryEvent != null) {
+                    memoryLinkRepository.createMemoryLink(
+                        instanceId = userMemoryEvent.instanceId,
+                        genesisCoreHash = userMemoryEvent.genesisCoreHash,
+                        sourceId = capturedCapsule.capsuleId,
+                        sourceType = MemoryLinkRepository.KNOWLEDGE_CAPSULE_NODE_TYPE,
+                        targetId = userMemoryEvent.eventHash,
+                        targetType = MemoryLinkRepository.MEMORY_EVENT_NODE_TYPE,
+                        relation = MemoryLinkRepository.RELATION_DERIVED_FROM,
+                        strength = 0.96,
+                        reason = "capsule_source_event:${capturedCapsule.capsuleHash.take(19)}"
+                    )
+                }
 
                 val memoryContext = repository.buildLivingMemoryContext()
                 val knowledgeCapsuleContext = memoryOrganRepository.buildKnowledgeCapsuleContext()
