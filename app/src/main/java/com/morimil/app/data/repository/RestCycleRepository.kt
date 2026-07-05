@@ -130,73 +130,49 @@ class RestCycleRepository(
         migrationId: String,
         approvalId: String?
     ): RestCycleAppendResult? {
-        return database.withTransaction {
-            val genesisCore = requireNotNull(memoryDao.loadGenesisCore()) {
-                "Cannot run rest cycle without a local Genesis Core."
-            }
-            val localIdentity = memoryDao.loadLocalIdentity()
-            val recoveryBoundary = memoryDao.loadLatestMemoryEventByType(MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE)
-            val eventTail = if (recoveryBoundary == null) {
-                memoryDao.loadMemoryEventTail(MEMORY_EVENT_TAIL_VERIFICATION_LIMIT)
-            } else {
-                memoryDao.loadMemoryEventTailAfterLatestEventType(
-                    eventType = MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE,
-                    limit = MEMORY_EVENT_TAIL_VERIFICATION_LIMIT
-                )
-            }.asReversed()
+        return MemoryAppendGate.withAppendLock {
+            database.withTransaction {
+                val genesisCore = requireNotNull(memoryDao.loadGenesisCore()) {
+                    "Cannot run rest cycle without a local Genesis Core."
+                }
+                val localIdentity = memoryDao.loadLocalIdentity()
+                val recoveryBoundary = memoryDao.loadLatestMemoryEventByType(MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE)
+                val eventTail = if (recoveryBoundary == null) {
+                    memoryDao.loadMemoryEventTail(MEMORY_EVENT_TAIL_VERIFICATION_LIMIT)
+                } else {
+                    memoryDao.loadMemoryEventTailAfterLatestEventType(
+                        eventType = MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE,
+                        limit = MEMORY_EVENT_TAIL_VERIFICATION_LIMIT
+                    )
+                }.asReversed()
 
-            val createdAtMillis = System.currentTimeMillis()
-            val tailTrusted = memoryIntegrityCore.verifyMemoryEventChain(eventTail, requireGenesisStart = false)
-            if (!tailTrusted && recoveryBoundary == null) return@withTransaction null
-            val previousEventHash = if (tailTrusted) {
-                eventTail.lastOrNull()?.eventHash ?: recoveryBoundary?.eventHash
-            } else {
-                recoveryBoundary?.eventHash
-            }
-            val tagsJson = JSONArray(listOf("rest_cycle", "local_consolidation", "snapshot")).toString()
-            val evidenceJson = JSONObject()
-                .put("schema", "morimil.memory_evidence.v1")
-                .put("classifier", "local_rest_cycle_v1")
-                .put("event_type", REST_CYCLE_EVENT_TYPE)
-                .put("actor", "system")
-                .put("source", "local_rest_cycle")
-                .put("memory_kind", "rest_cycle")
-                .put("user_confirmed", false)
-                .put("confidence", 90)
-                .put("migration_id", migrationId)
-                .put("approval_id", approvalId)
-                .put("excerpt", summary.take(240))
-                .toString()
+                val createdAtMillis = System.currentTimeMillis()
+                val tailTrusted = memoryIntegrityCore.verifyMemoryEventChain(eventTail, requireGenesisStart = false)
+                if (!tailTrusted && recoveryBoundary == null) return@withTransaction null
+                val previousEventHash = if (tailTrusted) {
+                    eventTail.lastOrNull()?.eventHash ?: recoveryBoundary?.eventHash
+                } else {
+                    recoveryBoundary?.eventHash
+                }
+                val tagsJson = JSONArray(listOf("rest_cycle", "local_consolidation", "snapshot")).toString()
+                val evidenceJson = JSONObject()
+                    .put("schema", "morimil.memory_evidence.v1")
+                    .put("classifier", "local_rest_cycle_v1")
+                    .put("event_type", REST_CYCLE_EVENT_TYPE)
+                    .put("actor", "system")
+                    .put("source", "local_rest_cycle")
+                    .put("memory_kind", "rest_cycle")
+                    .put("user_confirmed", false)
+                    .put("confidence", 90)
+                    .put("migration_id", migrationId)
+                    .put("approval_id", approvalId)
+                    .put("excerpt", summary.take(240))
+                    .toString()
 
-            val eventHash = memoryIntegrityCore.hashMemoryEventV3(
-                genesisCoreId = genesisCore.coreId,
-                genesisCoreHash = genesisCore.contentSha256,
-                previousEventHash = previousEventHash,
-                eventType = REST_CYCLE_EVENT_TYPE,
-                actor = "system",
-                source = "local_rest_cycle",
-                contextTag = "local_rest_cycle",
-                privacyVisibility = PRIVATE_LOCAL,
-                memoryKind = "rest_cycle",
-                tagsJson = tagsJson,
-                evidenceJson = evidenceJson,
-                confidence = 90,
-                userConfirmed = false,
-                body = summary,
-                importance = 88,
-                createdAtMillis = createdAtMillis
-            )
-
-            memoryDao.insertMemoryEvent(
-                MemoryEventEntity(
+                val eventHash = memoryIntegrityCore.hashMemoryEventV3(
                     genesisCoreId = genesisCore.coreId,
                     genesisCoreHash = genesisCore.contentSha256,
                     previousEventHash = previousEventHash,
-                    eventHash = eventHash,
-                    hashAlgorithm = MemoryIntegrityCore.HASH_ALGORITHM_SHA256,
-                    canonicalization = MemoryIntegrityCore.MEMORY_EVENT_CANONICALIZATION_V3,
-                    signatureAlgorithm = MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED,
-                    eventSignature = null,
                     eventType = REST_CYCLE_EVENT_TYPE,
                     actor = "system",
                     source = "local_rest_cycle",
@@ -211,14 +187,40 @@ class RestCycleRepository(
                     importance = 88,
                     createdAtMillis = createdAtMillis
                 )
-            )
-            rebuildLivingMemorySnapshot()
-            RestCycleAppendResult(
-                eventHash = eventHash,
-                instanceId = localIdentity?.instanceId ?: "local_instance_pending",
-                genesisCoreHash = genesisCore.contentSha256,
-                createdAtMillis = createdAtMillis
-            )
+
+                memoryDao.insertMemoryEvent(
+                    MemoryEventEntity(
+                        genesisCoreId = genesisCore.coreId,
+                        genesisCoreHash = genesisCore.contentSha256,
+                        previousEventHash = previousEventHash,
+                        eventHash = eventHash,
+                        hashAlgorithm = MemoryIntegrityCore.HASH_ALGORITHM_SHA256,
+                        canonicalization = MemoryIntegrityCore.MEMORY_EVENT_CANONICALIZATION_V3,
+                        signatureAlgorithm = MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED,
+                        eventSignature = null,
+                        eventType = REST_CYCLE_EVENT_TYPE,
+                        actor = "system",
+                        source = "local_rest_cycle",
+                        contextTag = "local_rest_cycle",
+                        privacyVisibility = PRIVATE_LOCAL,
+                        memoryKind = "rest_cycle",
+                        tagsJson = tagsJson,
+                        evidenceJson = evidenceJson,
+                        confidence = 90,
+                        userConfirmed = false,
+                        body = summary,
+                        importance = 88,
+                        createdAtMillis = createdAtMillis
+                    )
+                )
+                rebuildLivingMemorySnapshot()
+                RestCycleAppendResult(
+                    eventHash = eventHash,
+                    instanceId = localIdentity?.instanceId ?: "local_instance_pending",
+                    genesisCoreHash = genesisCore.contentSha256,
+                    createdAtMillis = createdAtMillis
+                )
+            }
         }
     }
 
