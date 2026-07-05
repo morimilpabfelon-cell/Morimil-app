@@ -32,38 +32,42 @@ class MemoryRepository(private val database: MorimilDatabase) {
     val livingMemorySnapshot: Flow<MemorySnapshotEntity?> = memoryDao.observeLivingMemorySnapshot()
 
     suspend fun addUserMessage(body: String) {
-        database.withTransaction {
-            memoryDao.insertMessage(
-                MemoryMessageEntity(
-                    author = "user",
-                    body = body,
-                    createdAtMillis = System.currentTimeMillis()
+        MemoryAppendGate.withAppendLock {
+            database.withTransaction {
+                memoryDao.insertMessage(
+                    MemoryMessageEntity(
+                        author = "user",
+                        body = body,
+                        createdAtMillis = System.currentTimeMillis()
+                    )
                 )
-            )
-            appendMemoryEvent(
-                eventType = "conversation.user_message",
-                actor = "user",
-                body = body,
-                importance = scoreImportance(body)
-            )
+                appendMemoryEvent(
+                    eventType = "conversation.user_message",
+                    actor = "user",
+                    body = body,
+                    importance = scoreImportance(body)
+                )
+            }
         }
     }
 
     suspend fun addAssistantMessage(body: String) {
-        database.withTransaction {
-            memoryDao.insertMessage(
-                MemoryMessageEntity(
-                    author = "morimil",
-                    body = body,
-                    createdAtMillis = System.currentTimeMillis()
+        MemoryAppendGate.withAppendLock {
+            database.withTransaction {
+                memoryDao.insertMessage(
+                    MemoryMessageEntity(
+                        author = "morimil",
+                        body = body,
+                        createdAtMillis = System.currentTimeMillis()
+                    )
                 )
-            )
-            appendMemoryEvent(
-                eventType = "conversation.assistant_message",
-                actor = "morimil",
-                body = body,
-                importance = scoreImportance(body)
-            )
+                appendMemoryEvent(
+                    eventType = "conversation.assistant_message",
+                    actor = "morimil",
+                    body = body,
+                    importance = scoreImportance(body)
+                )
+            }
         }
     }
 
@@ -87,71 +91,73 @@ class MemoryRepository(private val database: MorimilDatabase) {
         val instanceId = "${genesis.agentId}.${cleanAlias.lowercase().replace(Regex("[^a-z0-9]+"), "-")}"
         val localMemoryRef = "local://morimil/$instanceId"
 
-        database.withTransaction {
-            require(memoryDao.countLocalIdentity() == 0) { "This Morimil instance has already been born." }
-            require(memoryDao.countGenesisCore() == 0) { "Genesis Core already exists on this device." }
+        MemoryAppendGate.withAppendLock {
+            database.withTransaction {
+                require(memoryDao.countLocalIdentity() == 0) { "This Morimil instance has already been born." }
+                require(memoryDao.countGenesisCore() == 0) { "Genesis Core already exists on this device." }
 
-            memoryDao.insertLocalIdentity(
-                LocalInstanceIdentityEntity(
+                memoryDao.insertLocalIdentity(
+                    LocalInstanceIdentityEntity(
+                        instanceId = instanceId,
+                        alias = cleanAlias,
+                        bornAtMillis = System.currentTimeMillis(),
+                        genesisAgentId = genesis.agentId,
+                        genesisRole = genesis.role,
+                        genesisRiskTier = genesis.riskTier,
+                        genesisSchemaVersion = genesis.schemaVersion,
+                        localMemoryOwner = "local_device",
+                        localMemoryName = "morimil_local_memory",
+                        localMemoryUri = localMemoryRef
+                    )
+                )
+
+                val core = GenesisCoreEntity(
                     instanceId = instanceId,
-                    alias = cleanAlias,
-                    bornAtMillis = System.currentTimeMillis(),
-                    genesisAgentId = genesis.agentId,
-                    genesisRole = genesis.role,
-                    genesisRiskTier = genesis.riskTier,
-                    genesisSchemaVersion = genesis.schemaVersion,
-                    localMemoryOwner = "local_device",
-                    localMemoryName = "morimil_local_memory",
-                    localMemoryUri = localMemoryRef
+                    aliasAtBirth = cleanAlias,
+                    copiedAtMillis = System.currentTimeMillis(),
+                    sourceOrigin = sourceOrigin,
+                    schemaVersion = genesis.schemaVersion,
+                    agentId = genesis.agentId,
+                    role = genesis.role,
+                    owner = genesis.owner,
+                    riskTier = genesis.riskTier,
+                    doctrineRef = genesis.doctrineRef,
+                    policyRef = genesis.policyRef,
+                    allowedActionsJson = JSONArray(genesis.allowedActions).toString(),
+                    disallowedActionsJson = JSONArray(genesis.disallowedActions).toString(),
+                    doctrineText = doctrineText,
+                    policyText = policyText,
+                    contentSha256 = genesisCoreHash
                 )
-            )
+                memoryDao.insertGenesisCore(core)
 
-            val core = GenesisCoreEntity(
-                instanceId = instanceId,
-                aliasAtBirth = cleanAlias,
-                copiedAtMillis = System.currentTimeMillis(),
-                sourceOrigin = sourceOrigin,
-                schemaVersion = genesis.schemaVersion,
-                agentId = genesis.agentId,
-                role = genesis.role,
-                owner = genesis.owner,
-                riskTier = genesis.riskTier,
-                doctrineRef = genesis.doctrineRef,
-                policyRef = genesis.policyRef,
-                allowedActionsJson = JSONArray(genesis.allowedActions).toString(),
-                disallowedActionsJson = JSONArray(genesis.disallowedActions).toString(),
-                doctrineText = doctrineText,
-                policyText = policyText,
-                contentSha256 = genesisCoreHash
-            )
-            memoryDao.insertGenesisCore(core)
-
-            memoryDao.upsertWorkspace(
-                UserWorkspaceEntity(
-                    workspaceId = "local_primary",
-                    displayName = cleanAlias,
-                    genesisSource = genesis.agentId,
-                    localPrimary = true,
-                    optionalRepoOwner = null,
-                    optionalRepoName = null,
-                    optionalRepoPrivate = false,
-                    repoProposalApproved = true,
-                    updatedAtMillis = System.currentTimeMillis()
+                memoryDao.upsertWorkspace(
+                    UserWorkspaceEntity(
+                        workspaceId = "local_primary",
+                        displayName = cleanAlias,
+                        genesisSource = genesis.agentId,
+                        localPrimary = true,
+                        optionalRepoOwner = null,
+                        optionalRepoName = null,
+                        optionalRepoPrivate = false,
+                        repoProposalApproved = true,
+                        updatedAtMillis = System.currentTimeMillis()
+                    )
                 )
-            )
 
-            insertMemoryEventAndRebuildSnapshot(
-                eventType = "genesis.birth",
-                actor = "system",
-                body = "Instancia $cleanAlias nacida desde Genesis Core ${genesis.agentId}. Memoria local: $localMemoryRef.",
-                importance = 100
-            )
+                insertMemoryEventAndRebuildSnapshot(
+                    eventType = "genesis.birth",
+                    actor = "system",
+                    body = "Instancia $cleanAlias nacida desde Genesis Core ${genesis.agentId}. Memoria local: $localMemoryRef.",
+                    importance = 100
+                )
 
-            require(memoryDao.countLocalIdentity() == 1) { "Birth invariant failed: local identity missing." }
-            require(memoryDao.countGenesisCore() == 1) { "Birth invariant failed: Genesis Core missing." }
-            require(memoryDao.countWorkspaces() >= 1) { "Birth invariant failed: workspace missing." }
-            require(memoryDao.countMemoryEvents() >= 1) { "Birth invariant failed: birth event missing." }
-            require(memoryDao.countLivingMemorySnapshot() == 1) { "Birth invariant failed: living memory snapshot missing." }
+                require(memoryDao.countLocalIdentity() == 1) { "Birth invariant failed: local identity missing." }
+                require(memoryDao.countGenesisCore() == 1) { "Birth invariant failed: Genesis Core missing." }
+                require(memoryDao.countWorkspaces() >= 1) { "Birth invariant failed: workspace missing." }
+                require(memoryDao.countMemoryEvents() >= 1) { "Birth invariant failed: birth event missing." }
+                require(memoryDao.countLivingMemorySnapshot() == 1) { "Birth invariant failed: living memory snapshot missing." }
+            }
         }
     }
 
@@ -173,21 +179,23 @@ class MemoryRepository(private val database: MorimilDatabase) {
         )
 
         if (memoryDao.countDecisions() == 0) {
-            database.withTransaction {
-                if (memoryDao.countDecisions() == 0) {
-                    memoryDao.insertDecision(
-                        DecisionLogEntity(
-                            title = "Phase 2 local Room memory enabled",
-                            status = "accepted_for_local_persistence",
-                            createdAtMillis = System.currentTimeMillis()
+            MemoryAppendGate.withAppendLock {
+                database.withTransaction {
+                    if (memoryDao.countDecisions() == 0) {
+                        memoryDao.insertDecision(
+                            DecisionLogEntity(
+                                title = "Phase 2 local Room memory enabled",
+                                status = "accepted_for_local_persistence",
+                                createdAtMillis = System.currentTimeMillis()
+                            )
                         )
-                    )
-                    appendMemoryEvent(
-                        eventType = "decision.local_memory_enabled",
-                        actor = "system",
-                        body = "Room/SQLite local memory enabled as persistent phone memory.",
-                        importance = 90
-                    )
+                        appendMemoryEvent(
+                            eventType = "decision.local_memory_enabled",
+                            actor = "system",
+                            body = "Room/SQLite local memory enabled as persistent phone memory.",
+                            importance = 90
+                        )
+                    }
                 }
             }
         }
@@ -236,16 +244,18 @@ class MemoryRepository(private val database: MorimilDatabase) {
             else -> 60
         }
 
-        database.withTransaction {
-            insertMemoryEventAndRebuildSnapshot(
-                eventType = "memory_review.$cleanAction",
-                actor = "user",
-                body = "Revision local de memoria: action=$cleanAction; " +
-                    "target_event_hash=${targetEvent.eventHash}; " +
-                    "target_kind=${targetEvent.memoryKind}; " +
-                    "note=$cleanNote; excerpt=${targetEvent.body.take(220)}",
-                importance = reviewImportance
-            )
+        MemoryAppendGate.withAppendLock {
+            database.withTransaction {
+                insertMemoryEventAndRebuildSnapshot(
+                    eventType = "memory_review.$cleanAction",
+                    actor = "user",
+                    body = "Revision local de memoria: action=$cleanAction; " +
+                        "target_event_hash=${targetEvent.eventHash}; " +
+                        "target_kind=${targetEvent.memoryKind}; " +
+                        "note=$cleanNote; excerpt=${targetEvent.body.take(220)}",
+                    importance = reviewImportance
+                )
+            }
         }
     }
 
@@ -255,16 +265,18 @@ class MemoryRepository(private val database: MorimilDatabase) {
         importance: Int
     ): String? {
         if (body.isBlank()) return null
-        require(memoryDao.countGenesisCore() > 0) {
-            "Cannot append living memory without a local Genesis Core."
-        }
-        return database.withTransaction {
-            insertMemoryEventAndRebuildSnapshot(
-                eventType = eventType,
-                actor = "system",
-                body = body,
-                importance = importance
-            )
+        return MemoryAppendGate.withAppendLock {
+            database.withTransaction {
+                require(memoryDao.countGenesisCore() > 0) {
+                    "Cannot append living memory without a local Genesis Core."
+                }
+                insertMemoryEventAndRebuildSnapshot(
+                    eventType = eventType,
+                    actor = "system",
+                    body = body,
+                    importance = importance
+                )
+            }
         }
     }
 
