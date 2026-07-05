@@ -46,7 +46,7 @@ fun MemoryGraphCanvasPanel(
     Text("Canvas navegable de recuerdos conectados por memory_links.")
 
     if (selectedEventHash == null) {
-        ProjectCard("Canvas de memoria", "Selecciona un recuerdo para ver sus nodos conectados.", "empty")
+        MemoryGraphEmptyCard()
         return
     }
 
@@ -74,6 +74,17 @@ fun MemoryGraphCanvasPanel(
                 snapshot = snapshot,
                 onSelectEventHash = onSelectEventHash
             )
+        }
+    }
+}
+
+@Composable
+private fun MemoryGraphEmptyCard() {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Canvas de memoria", style = MaterialTheme.typography.titleMedium)
+            Text("Selecciona un recuerdo para ver sus nodos conectados.")
+            AssistChip(onClick = {}, label = { Text("empty") })
         }
     }
 }
