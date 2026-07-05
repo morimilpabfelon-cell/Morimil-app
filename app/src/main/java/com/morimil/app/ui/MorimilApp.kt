@@ -58,6 +58,7 @@ import java.util.Locale
 
 private const val MEMORY_EVENT_NODE_TYPE = "memory_event"
 private const val REST_CYCLE_MIGRATION_TYPE = "rest_cycle.local_consolidation"
+private const val COGNITIVE_MIGRATION_TYPE = "cognitive.memory_refinement"
 
 private enum class MorimilTab(val label: String, val icon: String) {
     Chat("Chat", "Ch"),
@@ -639,6 +640,13 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
             onApproveRestCycle = viewModel::approveRestCycleConsolidation,
             onRunRestCycleNow = viewModel::runRestCycleNow
         )
+        CognitiveMigrationPanel(
+            migrations = migrations,
+            onProposeMigration = viewModel::proposeCognitiveMigration,
+            onApproveMigration = viewModel::approveCognitiveMigration,
+            onExecuteMigration = viewModel::executeCognitiveMigration,
+            onRollbackMigration = viewModel::rollbackCognitiveMigration
+        )
         MemoryBacklinksPanel(
             selectedEventHash = selectedMemoryEventHash,
             selectedEvent = selectedMemoryEvent,
@@ -748,6 +756,67 @@ private fun RecallScheduleSection(
                     }
                     Button(onClick = { onDegradeRecall(recall.recallId) }) {
                         Text("Degradar")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CognitiveMigrationPanel(
+    migrations: List<MigrationRecordEntity>,
+    onProposeMigration: () -> Unit,
+    onApproveMigration: (String) -> Unit,
+    onExecuteMigration: (String) -> Unit,
+    onRollbackMigration: (String) -> Unit
+) {
+    val cognitiveMigrations = migrations
+        .filter { migration -> migration.migrationType == COGNITIVE_MIGRATION_TYPE }
+        .take(8)
+
+    Text("Migraciones cognitivas", style = MaterialTheme.typography.titleMedium)
+    Text("Propuestas auditables para refinar memoria sin reescribir eventos originales.")
+    Button(onClick = onProposeMigration) {
+        Text("Proponer migracion")
+    }
+
+    if (cognitiveMigrations.isEmpty()) {
+        ProjectCard("Auditoria cognitiva", "Todavia no hay migraciones cognitivas propuestas.", "empty")
+        return
+    }
+
+    cognitiveMigrations.forEach { migration ->
+        ElevatedCard {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("${migration.status} / risk=${migration.riskLevel}", style = MaterialTheme.typography.titleMedium)
+                Text(migration.expectedEffect.take(360))
+                Text(
+                    "approved=${migration.approvedByUser} chain=${migration.chainVerified} " +
+                        "backup=${migration.backupRequired} rollback=${migration.rollbackAvailable}"
+                )
+                Text("affected=${migration.affectedArtifactsJson.take(220)}")
+                Text("steps=${migration.stepsJson.take(220)}")
+                Text("errors=${migration.errorsJson.take(180)}")
+                Text("strategy=${migration.rollbackStrategy.take(220)}")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (migration.status == "planned" && !migration.approvedByUser) {
+                        Button(onClick = { onApproveMigration(migration.migrationId) }) {
+                            Text("Aprobar")
+                        }
+                    }
+                    if (migration.status == "approved") {
+                        Button(onClick = { onExecuteMigration(migration.migrationId) }) {
+                            Text("Ejecutar")
+                        }
+                    }
+                }
+                if (migration.rollbackAvailable && migration.status in setOf("approved", "completed", "failed")) {
+                    Button(onClick = { onRollbackMigration(migration.migrationId) }) {
+                        Text("Rollback")
                     }
                 }
             }

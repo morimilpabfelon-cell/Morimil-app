@@ -103,6 +103,19 @@ class MigrationRecordRepository(organDatabase: MemoryOrganDatabase) {
         )
     }
 
+    suspend fun markMigrationRolledBack(
+        migrationId: String,
+        rollbackEventHash: String?,
+        notes: List<String>
+    ) {
+        updateMigrationResult(
+            migrationId = migrationId,
+            status = STATUS_ROLLED_BACK,
+            postSnapshotId = rollbackEventHash,
+            errors = notes
+        )
+    }
+
     private suspend fun updateMigrationResult(
         migrationId: String,
         status: String,
@@ -125,6 +138,7 @@ class MigrationRecordRepository(organDatabase: MemoryOrganDatabase) {
         private const val STATUS_APPROVED = "approved"
         private const val STATUS_COMPLETED = "completed"
         private const val STATUS_FAILED = "failed"
+        private const val STATUS_ROLLED_BACK = "rolled_back"
         private const val RECENT_MIGRATION_LIMIT = 20
 
         fun buildMigrationId(

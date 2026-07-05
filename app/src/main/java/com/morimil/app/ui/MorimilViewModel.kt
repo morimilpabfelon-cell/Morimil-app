@@ -23,6 +23,7 @@ import com.morimil.app.data.local.MigrationRecordEntity
 import com.morimil.app.data.local.ProjectStateEntity
 import com.morimil.app.data.local.RecallScheduleEntity
 import com.morimil.app.data.local.UserWorkspaceEntity
+import com.morimil.app.data.repository.CognitiveMigrationRepository
 import com.morimil.app.data.repository.MemoryLinkRepository
 import com.morimil.app.data.repository.MemoryRepository
 import com.morimil.app.data.repository.RestCycleRepository
@@ -53,6 +54,10 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     private val memoryOrganRepository = MemoryOrganRepository(organDatabase)
     private val memoryLinkRepository = MemoryLinkRepository(organDatabase)
     private val migrationRecordRepository = MigrationRecordRepository(organDatabase)
+    private val cognitiveMigrationRepository = CognitiveMigrationRepository(
+        organDatabase = organDatabase,
+        memoryDatabase = memoryDatabase
+    )
     private val recallScheduleRepository = RecallScheduleRepository(
         organDatabase = organDatabase,
         memoryDatabase = memoryDatabase
@@ -272,6 +277,38 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 restCycleRepository.approvePlannedRestCycle(migrationId)
+            }
+        }
+    }
+
+    fun proposeCognitiveMigration() {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                cognitiveMigrationRepository.proposeCognitiveMigration()
+            }
+        }
+    }
+
+    fun approveCognitiveMigration(migrationId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                cognitiveMigrationRepository.approveCognitiveMigration(migrationId)
+            }
+        }
+    }
+
+    fun executeCognitiveMigration(migrationId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                cognitiveMigrationRepository.executeCognitiveMigration(migrationId)
+            }
+        }
+    }
+
+    fun rollbackCognitiveMigration(migrationId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                cognitiveMigrationRepository.rollbackCognitiveMigration(migrationId)
             }
         }
     }

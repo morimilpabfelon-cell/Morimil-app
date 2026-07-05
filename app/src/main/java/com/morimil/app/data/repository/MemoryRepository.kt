@@ -250,6 +250,26 @@ class MemoryRepository(private val database: MorimilDatabase) {
             )
         }
     }
+
+    suspend fun recordSystemMemoryEvent(
+        eventType: String,
+        body: String,
+        importance: Int
+    ): String? {
+        if (body.isBlank()) return null
+        require(memoryDao.countGenesisCore() > 0) {
+            "Cannot append living memory without a local Genesis Core."
+        }
+        return database.withTransaction {
+            insertMemoryEventAndRebuildSnapshot(
+                eventType = eventType,
+                actor = "system",
+                body = body,
+                importance = importance
+            )
+        }
+    }
+
     private suspend fun appendMemoryEvent(
         eventType: String,
         actor: String,
@@ -268,7 +288,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
         actor: String,
         body: String,
         importance: Int
-    ) {
+    ): String {
         val cleanBody = body.trim()
         val createdAtMillis = System.currentTimeMillis()
         val genesisCore = requireNotNull(memoryDao.loadGenesisCore()) {
@@ -337,6 +357,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
             )
         )
         rebuildLivingMemorySnapshot()
+        return eventHash
     }
 
     private suspend fun rebuildLivingMemorySnapshot() {
