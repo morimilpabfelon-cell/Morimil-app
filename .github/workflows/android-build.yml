@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   assemble-debug:
-    name: Assemble debug APK
+    name: Test and assemble debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -30,20 +30,14 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK packages
-        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-
       - name: Make Gradle wrapper executable
-        run: chmod +x gradlew
+        run: chmod +x ./gradlew
 
       - name: Print Gradle version
         run: ./gradlew --version --console=plain
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --console=plain
 
       - name: Assemble debug
         run: ./gradlew :app:assembleDebug --console=plain
