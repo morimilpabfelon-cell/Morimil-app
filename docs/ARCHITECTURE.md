@@ -34,8 +34,8 @@ Projects:
   persisted project state
 
 Memory:
-  living snapshot, event review queue, recalls, backlinks, rest cycle history,
-  cognitive migrations, memory organs, capsules, and integrity audit
+  living snapshot, event review queue, recalls, visual graph canvas, backlinks,
+  rest cycle history, cognitive migrations, memory organs, capsules, and integrity audit
 
 PC:
   placeholder for future approved PC handoff; no command execution yet
@@ -140,7 +140,7 @@ migration records:
   rest cycle and cognitive migration proposals, approvals, execution, rollback notes
 ```
 
-The Memory UI exposes capsules, consolidated categories, links, migrations, and manual integrity audit. Backlinks are navigable from recent memory events.
+The Memory UI exposes capsules, consolidated categories, links, migrations, and manual integrity audit. Backlinks are navigable from recent memory events. The visual graph canvas builds a read-only Obsidian-style view from `memory_links`, loads connected memory events by hash, distinguishes external node types, and lets memory-event nodes open their connected memories.
 
 ## Rest Cycle
 
@@ -199,6 +199,7 @@ Allowed now:
   provider-neutral reasoning configuration
   local recall/rest/migration workflows
   local integrity audit
+  local visual memory graph navigation
 
 Blocked now:
   autonomous PC command execution
