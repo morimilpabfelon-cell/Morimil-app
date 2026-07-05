@@ -1,4 +1,4 @@
-# Morimil App Architecture
+﻿# Morimil App Architecture
 
 ## Source Of Truth
 
@@ -278,3 +278,9 @@ Room schema export is enabled for both active databases. Current database versio
 ```powershell
 .\gradlew.bat :app:connectedDebugAndroidTest
 ```
+
+## Threat Model Gate
+
+Before adding security-sensitive features, device mesh, agent orchestration, PC execution, backup/export, or memory migration behavior, the implementation must be checked against `docs/THREAT_MODEL.md`.
+
+Every security feature must define the protected asset, threat actor, defense type, user-visible signal, and failure behavior.

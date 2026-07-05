@@ -1,4 +1,4 @@
-# Morimil App Scope
+﻿# Morimil App Scope
 
 ## Current Scope
 
@@ -136,3 +136,9 @@ GitHub writes
 Genesis mutability
 graph navigation and editing
 ```
+
+## Threat Model
+
+Security claims for Morimil App are bounded by `docs/THREAT_MODEL.md`.
+
+The app currently claims local traceability, tamper evidence, authority boundaries, and explicit approval for high-risk future actions. It does not claim absolute security against rooted devices, compromised operating systems, or total device loss.
