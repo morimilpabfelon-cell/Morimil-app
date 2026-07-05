@@ -53,6 +53,11 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     private val reasoningConfigStore = container.reasoningConfigStore
     private val reasoningClient = container.reasoningClient
 
+    val chatViewModel = ChatViewModel(this)
+    val memoryViewModel = MemoryViewModel(this)
+    val healthViewModel = HealthViewModel(this)
+    val motorViewModel = MotorViewModel(this)
+
     val messages: StateFlow<List<MemoryMessageEntity>> = repository.messages.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
