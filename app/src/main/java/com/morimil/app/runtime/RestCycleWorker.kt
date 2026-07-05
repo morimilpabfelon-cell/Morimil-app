@@ -18,10 +18,10 @@ class RestCycleWorker(
     workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
     override suspend fun doWork(): Result {
-        val repository = MorimilAppContainer.from(applicationContext).restCycleRepository
+        val runRestCycle = MorimilAppContainer.from(applicationContext).runRestCycleUseCase
 
         return runCatching {
-            val didConsolidate = repository.runLocalRestCycleIfDue()
+            val didConsolidate = runRestCycle()
             RestCycleNotifier.notifyRestCycleChecked(
                 context = applicationContext,
                 didConsolidate = didConsolidate

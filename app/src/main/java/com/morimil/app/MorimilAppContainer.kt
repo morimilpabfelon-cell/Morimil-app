@@ -14,6 +14,9 @@ import com.morimil.app.data.repository.MemoryRepository
 import com.morimil.app.data.repository.MigrationRecordRepository
 import com.morimil.app.data.repository.RecallScheduleRepository
 import com.morimil.app.data.repository.RestCycleRepository
+import com.morimil.app.domain.usecase.AppendLivingMemoryUseCase
+import com.morimil.app.domain.usecase.ProposeCognitiveMigrationUseCase
+import com.morimil.app.domain.usecase.RunRestCycleUseCase
 import com.morimil.app.security.AndroidKeyStoreMemoryEventSigner
 import com.morimil.app.security.SecretVault
 import com.morimil.app.security.SharedPreferencesMemorySignatureEpochPolicy
@@ -91,6 +94,18 @@ class MorimilAppContainer(context: Context) {
             organDatabase = organDatabase,
             memoryDatabase = memoryDatabase
         )
+    }
+
+    val appendLivingMemoryUseCase: AppendLivingMemoryUseCase by lazy {
+        AppendLivingMemoryUseCase(memoryRepository)
+    }
+
+    val runRestCycleUseCase: RunRestCycleUseCase by lazy {
+        RunRestCycleUseCase(restCycleRepository)
+    }
+
+    val proposeCognitiveMigrationUseCase: ProposeCognitiveMigrationUseCase by lazy {
+        ProposeCognitiveMigrationUseCase(cognitiveMigrationRepository)
     }
 
     val genesisReader: GenesisReader by lazy {

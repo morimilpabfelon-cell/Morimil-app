@@ -18,5 +18,8 @@ class MorimilAppContainerContractTest {
         assertTrue(methodNames.contains("getMemoryOrganRepository"))
         assertTrue(methodNames.contains("getCognitiveMigrationRepository"))
         assertTrue(methodNames.contains("getRecallScheduleRepository"))
+        assertTrue(methodNames.contains("getAppendLivingMemoryUseCase"))
+        assertTrue(methodNames.contains("getRunRestCycleUseCase"))
+        assertTrue(methodNames.contains("getProposeCognitiveMigrationUseCase"))
     }
 }
