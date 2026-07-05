@@ -1,8 +1,7 @@
 package com.morimil.app.data.repository
 
-import com.morimil.app.data.local.MemoryEventEntity
+import com.morimil.app.core.memory.CognitiveMigrationPlanner
 import com.morimil.app.data.local.MemoryOrganDatabase
-import com.morimil.app.data.local.MigrationRecordEntity
 import com.morimil.app.data.local.MorimilDatabase
 
 class CognitiveMigrationRepository(
@@ -17,40 +16,43 @@ class CognitiveMigrationRepository(
         val genesisCore = memoryDao.loadGenesisCore() ?: return null
         val localIdentity = memoryDao.loadLocalIdentity()
         val snapshot = memoryDao.getLivingMemorySnapshot()
-        val events = memoryDao.loadMemoryContext(40)
+        val events = memoryDao.loadMemoryContext(60)
             .filter { event -> event.memoryKind != "chat_noise" }
             .sortedWith(
-                compareByDescending<MemoryEventEntity> { it.userConfirmed }
+                compareByDescending<com.morimil.app.data.local.MemoryEventEntity> { it.userConfirmed }
                     .thenByDescending { it.importance }
                     .thenByDescending { it.confidence }
                     .thenByDescending { it.createdAtMillis }
             )
-            .take(12)
+            .take(16)
         if (events.isEmpty()) return null
 
         val chainVerified = memoryRepository.auditLivingMemoryChain()
+        val preSnapshotId = snapshot?.updatedAtMillis?.let { "snapshot:$it" } ?: "snapshot:none"
+        val plan = CognitiveMigrationPlanner.buildPlan(
+            events = events,
+            chainVerified = chainVerified,
+            preSnapshotId = preSnapshotId,
+            createdAtMillis = System.currentTimeMillis()
+        )
+
         return migrationRecordRepository.planMigration(
             instanceId = localIdentity?.instanceId ?: "local_instance_pending",
             genesisCoreHash = genesisCore.contentSha256,
-            proposalId = "cognitive_refinement:${System.currentTimeMillis()}",
+            proposalId = plan.proposalId,
             migrationType = COGNITIVE_MIGRATION_TYPE,
             fromVersion = "living_memory_current",
-            toVersion = "living_memory_refined_v1",
-            affectedArtifacts = events.map { event -> event.eventHash },
-            preSnapshotId = snapshot?.updatedAtMillis?.let { "snapshot:$it" } ?: "snapshot:none",
+            toVersion = "living_memory_refined_v2",
+            affectedArtifacts = plan.affectedArtifacts,
+            preSnapshotId = preSnapshotId,
             chainVerified = chainVerified,
             backupRequired = true,
-            steps = listOf(
-                "review_high_value_memory_events",
-                "append_cognitive_migration_execution_event",
-                "preserve_original_events",
-                "allow_append_only_rollback_marker"
-            ),
-            expectedEffect = buildExpectedEffect(events),
-            riskLevel = if (events.any { event -> event.importance >= 90 || event.userConfirmed }) "medium" else "low",
+            steps = plan.steps,
+            expectedEffect = plan.expectedEffect,
+            riskLevel = plan.riskLevel,
             approvalRequired = true,
             rollbackAvailable = true,
-            rollbackStrategy = "append_only: original memories stay untouched; rollback appends a compensating cognitive_migration.rollback event",
+            rollbackStrategy = plan.rollbackStrategy,
             approvedByUser = false,
             approvalId = null
         )
@@ -73,8 +75,12 @@ class CognitiveMigrationRepository(
         return runCatching {
             val eventHash = memoryRepository.recordSystemMemoryEvent(
                 eventType = "cognitive_migration.executed",
-                body = buildExecutionBody(record),
-                importance = if (record.riskLevel == "medium") 92 else 82
+                body = CognitiveMigrationPlanner.buildExecutionBody(record),
+                importance = when (record.riskLevel) {
+                    "high" -> 96
+                    "medium" -> 92
+                    else -> 82
+                }
             )
             migrationRecordRepository.markMigrationCompleted(
                 migrationId = migrationId,
@@ -97,35 +103,15 @@ class CognitiveMigrationRepository(
 
         val eventHash = memoryRepository.recordSystemMemoryEvent(
             eventType = "cognitive_migration.rollback",
-            body = buildRollbackBody(record),
+            body = CognitiveMigrationPlanner.buildRollbackBody(record),
             importance = 95
         )
         migrationRecordRepository.markMigrationRolledBack(
             migrationId = migrationId,
             rollbackEventHash = eventHash,
-            notes = listOf("rollback_requested_by_user", "append_only_compensation")
+            notes = listOf("rollback_requested_by_user", "append_only_compensation", "cognitive_migration_plan_v2")
         )
         return true
-    }
-
-    private fun buildExpectedEffect(events: List<MemoryEventEntity>): String {
-        val digest = events.take(6).joinToString("\n") { event ->
-            "- ${event.memoryKind}/i${event.importance}/c${event.confidence}/${event.eventHash.take(19)}: " +
-                event.body.replace("\n", " ").take(220)
-        }
-        return "Propuesta de migracion cognitiva local: revisar y consolidar memoria de alto valor sin reescribir eventos originales.\n$digest"
-    }
-
-    private fun buildExecutionBody(record: MigrationRecordEntity): String {
-        return "MIGRACION_COGNITIVA_EJECUTADA: migration_id=${record.migrationId}; " +
-            "risk=${record.riskLevel}; approved=${record.approvedByUser}; approval_id=${record.approvalId}; " +
-            "affected=${record.affectedArtifactsJson}; expected_effect=${record.expectedEffect.take(500)}"
-    }
-
-    private fun buildRollbackBody(record: MigrationRecordEntity): String {
-        return "ROLLBACK_MIGRACION_COGNITIVA: migration_id=${record.migrationId}; " +
-            "previous_status=${record.status}; strategy=${record.rollbackStrategy}; " +
-            "affected=${record.affectedArtifactsJson}; note=append_only_compensation"
     }
 
     companion object {
