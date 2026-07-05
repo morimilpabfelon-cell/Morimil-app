@@ -16,20 +16,24 @@ import java.security.Signature
 import java.security.spec.ECGenParameterSpec
 
 class AndroidKeyStoreMemoryEventSigner(
-    private val keyAlias: String = MEMORY_EVENT_KEY_ALIAS
+    private val keyAlias: String = MEMORY_EVENT_KEY_ALIAS,
+    private val signingIssueReporter: MemorySigningIssueReporter = MemorySigningRuntimeIssues,
+    private val privateKeyProvider: (() -> PrivateKey)? = null
 ) : MemoryEventSigner, MemoryEventSignatureVerifier {
     override fun signEventHash(eventHash: String): SignedMemoryEvent {
         return runCatching {
-            val privateKey = ensurePrivateKey()
+            val privateKey = privateKeyProvider?.invoke() ?: ensurePrivateKey()
             val signer = Signature.getInstance(SIGNATURE_ALGORITHM).apply {
                 initSign(privateKey)
                 update(signaturePayload(eventHash))
             }
+            signingIssueReporter.clearKeystoreSigningFallback(keyAlias)
             SignedMemoryEvent(
                 signatureAlgorithm = MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_ANDROID_KEYSTORE_EC,
                 eventSignature = Base64.encodeToString(signer.sign(), Base64.NO_WRAP)
             )
-        }.getOrElse {
+        }.getOrElse { error ->
+            signingIssueReporter.reportKeystoreSigningFallback(keyAlias, error)
             UnsignedMemoryEventSigner.signEventHash(eventHash)
         }
     }

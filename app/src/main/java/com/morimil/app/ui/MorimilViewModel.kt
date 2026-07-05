@@ -35,6 +35,7 @@ import com.morimil.app.data.repository.RestCycleRepository
 import com.morimil.app.runtime.RestCycleScheduler
 import com.morimil.app.runtime.RestCycleScheduleStatus
 import com.morimil.app.security.AndroidKeyStoreMemoryEventSigner
+import com.morimil.app.security.MemorySigningRuntimeIssues
 import com.morimil.app.security.SecretVault
 import com.morimil.app.core.memory.MemoryIntegrityCore
 import kotlinx.coroutines.Dispatchers
@@ -199,6 +200,22 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     init {
         RestCycleScheduler.schedule(application)
         refreshRestCycleScheduleStatus()
+        viewModelScope.launch(Dispatchers.IO) {
+            MemorySigningRuntimeIssues.latestIssue.collect { issue ->
+                if (issue == null) {
+                    clearInternalRuntimeIssue(MemorySigningRuntimeIssues.KEYSTORE_FALLBACK_COMPONENT)
+                } else {
+                    recordInternalRuntimeIssue(
+                        component = issue.component,
+                        message = issue.message,
+                        failureCount = issue.failureCount,
+                        occurredAtMillis = issue.occurredAtMillis
+                    )
+                }
+                runCatching { refreshOrganismHealthOnWorker() }
+                    .onFailure { error -> recordInternalRuntimeIssue("organism_health.refresh", error) }
+            }
+        }
         viewModelScope.launch {
             repository.seedInitialStateIfNeeded()
             runObservedInternalTask("rest_cycle.startup") { restCycleRepository.runLocalRestCycleIfDue() }
@@ -517,11 +534,25 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
 
     private fun recordInternalRuntimeIssue(component: String, error: Throwable) {
         val previous = _internalRuntimeIssue.value
-        _internalRuntimeIssue.value = InternalRuntimeIssueUiState(
+        recordInternalRuntimeIssue(
             component = component,
             message = error.message?.take(180) ?: error::class.java.simpleName,
             failureCount = if (previous?.component == component) previous.failureCount + 1 else 1,
             occurredAtMillis = System.currentTimeMillis()
+        )
+    }
+
+    private fun recordInternalRuntimeIssue(
+        component: String,
+        message: String,
+        failureCount: Int,
+        occurredAtMillis: Long
+    ) {
+        _internalRuntimeIssue.value = InternalRuntimeIssueUiState(
+            component = component,
+            message = message.take(180),
+            failureCount = failureCount,
+            occurredAtMillis = occurredAtMillis
         )
     }
 
