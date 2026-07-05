@@ -17,7 +17,7 @@ data class MemoryGraphExplorerSnapshot(
     val gaps: List<MemoryGraphGap>,
     val narrativePath: List<String>
 ) {
-    val isEmpty: Boolean = nodes.isEmpty()
+    val isEmpty: Boolean = nodes.none { node -> node.nodeType != "identity" }
     val issueCount: Int = gaps.count { gap -> gap.severity != "ok" } +
         edges.count { edge -> edge.health == "critical" } +
         nodes.count { node -> node.health == "critical" }
@@ -230,12 +230,12 @@ object MemoryGraphExplorer {
             capsules.sortedByDescending { capsule -> capsule.confidence }.take(24).forEach { capsule ->
                 val nodeId = "capsule:${capsule.capsuleId}"
                 val sourceHash = capsule.sourceEventHash
-                val sourceMissing = sourceHash != null && sourceHash !in eventsByHash
-                if (sourceMissing) {
+                val sourceNotLoaded = sourceHash != null && sourceHash !in eventsByHash
+                if (sourceNotLoaded) {
                     gaps += MemoryGraphGap(
-                        gapId = "capsule:${capsule.capsuleId}:source_missing",
-                        severity = "critical",
-                        title = "Capsula sin recuerdo fuente visible",
+                        gapId = "capsule:${capsule.capsuleId}:source_not_loaded",
+                        severity = "watch",
+                        title = "Capsula con recuerdo fuente no cargado",
                         detail = "${capsule.title} apunta a ${sourceHash?.take(24)}"
                     )
                 }
@@ -248,15 +248,15 @@ object MemoryGraphExplorer {
                         subtitle = "${capsule.capsuleCategory} / confidence=${capsule.confidence}",
                         memoryKind = "knowledge_capsule",
                         weight = capsule.confidence.coerceIn(0, 100) / 100.0,
-                        health = if (sourceMissing) "critical" else "ok",
+                        health = if (sourceNotLoaded) "watch" else "ok",
                         selected = false,
                         sourceEventHash = sourceHash
                     )
                 )
-                addEdge(edge("morimil:identity", nodeId, "knows", 0.52, if (sourceMissing) "critical" else "ok", "Capsula consolidada"))
+                addEdge(edge("morimil:identity", nodeId, "knows", 0.52, if (sourceNotLoaded) "watch" else "ok", "Capsula consolidada"))
                 sourceHash?.let { hash ->
                     ensureEventEndpoint(hash, eventsByHash, nodes, activeLayers, selectedHash)
-                    addEdge(edge(nodeId, hash, "based_on", 0.82, if (sourceMissing) "critical" else "ok", "Fuente de conocimiento"))
+                    addEdge(edge(nodeId, hash, "based_on", 0.82, if (sourceNotLoaded) "watch" else "ok", "Fuente de conocimiento"))
                 }
             }
         }
@@ -264,13 +264,13 @@ object MemoryGraphExplorer {
         if (layerEnabled(LAYER_RECALLS)) {
             recalls.sortedWith(compareBy<RecallScheduleEntity> { it.dueAtMillis }.thenByDescending { it.priority }).take(24).forEach { recall ->
                 val nodeId = "recall:${recall.recallId}"
-                val missing = recall.targetEventHash !in eventsByHash
+                val targetNotLoaded = recall.targetEventHash !in eventsByHash
                 val overdue = recall.dueAtMillis <= nowMillis
-                if (missing) {
+                if (targetNotLoaded) {
                     gaps += MemoryGraphGap(
-                        gapId = "recall:${recall.recallId}:target_missing",
-                        severity = "critical",
-                        title = "Recall sin recuerdo objetivo visible",
+                        gapId = "recall:${recall.recallId}:target_not_loaded",
+                        severity = "watch",
+                        title = "Recall con recuerdo objetivo no cargado",
                         detail = recall.targetEventHash.take(24)
                     )
                 }
@@ -284,7 +284,7 @@ object MemoryGraphExplorer {
                         memoryKind = "recall",
                         weight = recall.priority.coerceIn(0, 100) / 100.0,
                         health = when {
-                            missing -> "critical"
+                            targetNotLoaded -> "watch"
                             overdue -> "watch"
                             else -> "ok"
                         },
@@ -293,7 +293,7 @@ object MemoryGraphExplorer {
                     )
                 )
                 ensureEventEndpoint(recall.targetEventHash, eventsByHash, nodes, activeLayers, selectedHash)
-                addEdge(edge(nodeId, recall.targetEventHash, "recalls", 0.74, if (missing) "critical" else "ok", recall.reason))
+                addEdge(edge(nodeId, recall.targetEventHash, "recalls", 0.74, if (targetNotLoaded) "watch" else "ok", recall.reason))
             }
         }
 
@@ -304,15 +304,15 @@ object MemoryGraphExplorer {
                 val missingRefs = refs.filter { ref -> ref !in eventsByHash }
                 if (missingRefs.isNotEmpty()) {
                     gaps += MemoryGraphGap(
-                        gapId = "migration:${migration.migrationId}:missing_refs",
-                        severity = "critical",
-                        title = "Migracion con referencias no visibles",
+                        gapId = "migration:${migration.migrationId}:refs_not_loaded",
+                        severity = "watch",
+                        title = "Migracion con referencias no cargadas en el grafo",
                         detail = missingRefs.take(3).joinToString(", ") { it.take(24) }
                     )
                 }
                 val health = when {
                     migration.status == "failed" -> "critical"
-                    missingRefs.isNotEmpty() -> "critical"
+                    missingRefs.isNotEmpty() -> "watch"
                     migration.approvalRequired && !migration.approvedByUser -> "watch"
                     else -> "ok"
                 }
@@ -333,7 +333,7 @@ object MemoryGraphExplorer {
                 addEdge(edge("morimil:identity", nodeId, "changes_memory", 0.62, health, "Migracion cognitiva o runtime"))
                 refs.take(8).forEach { ref ->
                     ensureEventEndpoint(ref, eventsByHash, nodes, activeLayers, selectedHash)
-                    addEdge(edge(nodeId, ref, "references", 0.58, if (ref in missingRefs) "critical" else "ok", "Artifact referenciado"))
+                    addEdge(edge(nodeId, ref, "references", 0.58, if (ref in missingRefs) "watch" else "ok", "Artifact referenciado"))
                 }
             }
         }

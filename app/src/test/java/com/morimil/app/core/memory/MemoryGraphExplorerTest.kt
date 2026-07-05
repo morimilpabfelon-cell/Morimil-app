@@ -56,6 +56,44 @@ class MemoryGraphExplorerTest {
         assertTrue(snapshot.nodes.any { node -> node.nodeId == selectedHash && node.selected })
     }
 
+    @Test
+    fun emptyGraphTreatsOnlyIdentityRootAsEmpty() {
+        val snapshot = MemoryGraphExplorer.build(
+            mode = MemoryGraphExplorer.MODE_GLOBAL,
+            selectedEventHash = null,
+            events = emptyList(),
+            links = emptyList(),
+            capsules = emptyList(),
+            recalls = emptyList(),
+            migrations = emptyList(),
+            projects = emptyList(),
+            decisions = emptyList()
+        )
+
+        assertTrue(snapshot.isEmpty)
+    }
+
+    @Test
+    fun unloadedReferencesAreWatchNotCritical() {
+        val missingHash = "sha256:older-event-not-loaded"
+        val snapshot = MemoryGraphExplorer.build(
+            mode = MemoryGraphExplorer.MODE_GLOBAL,
+            selectedEventHash = null,
+            events = emptyList(),
+            links = emptyList(),
+            capsules = listOf(capsule("c2", "Capsula con fuente antigua", missingHash)),
+            recalls = listOf(recall(2L, missingHash)),
+            migrations = listOf(migration("m2", """["$missingHash"]""")),
+            projects = emptyList(),
+            decisions = emptyList(),
+            nowMillis = 10L
+        )
+
+        assertTrue(snapshot.gaps.any { gap -> gap.severity == "watch" })
+        assertTrue(snapshot.nodes.none { node -> node.health == "critical" })
+        assertTrue(snapshot.edges.none { edge -> edge.health == "critical" })
+    }
+
     private fun event(hash: String, memoryKind: String, body: String): MemoryEventEntity {
         return MemoryEventEntity(
             id = 1L,
