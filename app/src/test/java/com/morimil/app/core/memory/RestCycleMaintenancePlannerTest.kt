@@ -61,6 +61,23 @@ class RestCycleMaintenancePlannerTest {
     }
 
     @Test
+    fun brokenCapsuleChainRequiresHighRiskHumanReview() {
+        val report = RestCycleMaintenancePlanner.build(
+            mode = RestCycleMode.Deep,
+            fullChainVerified = true,
+            organReconciliation = cleanReconciliation().copy(capsuleChainVerified = false),
+            sourceEventCount = 20,
+            meaningfulEventCount = 7,
+            policyApprovalRequired = false,
+            policyReason = "confirmed=0 high_impact=0 critical_kinds=0"
+        )
+
+        assertEquals("high", report.riskLevel)
+        assertTrue(report.approvalRequired)
+        assertTrue(report.expectedEffectLines().any { line -> line == "organ_reconciliation_has_issues=true" })
+    }
+
+    @Test
     fun sensitiveCleanCycleRequiresMediumRiskReview() {
         val report = RestCycleMaintenancePlanner.build(
             mode = RestCycleMode.Normal,

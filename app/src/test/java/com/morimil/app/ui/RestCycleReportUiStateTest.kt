@@ -14,6 +14,7 @@ class RestCycleReportUiStateTest {
                 meaningful_events=8
                 full_chain_verified=true
                 organ_reconciliation_has_issues=false
+                organ_reconciliation_capsule_chain_verified=true
                 maintenance_risk=medium
                 maintenance_approval_required=true
                 policy_reason=meaningful_event_threshold
@@ -39,6 +40,7 @@ class RestCycleReportUiStateTest {
         assertEquals("meaningful_event_threshold", report.policyReason)
         assertEquals("true", report.fullChainVerified)
         assertEquals("false", report.organReconciliation)
+        assertEquals("true", report.capsuleChainVerified)
         assertEquals("42", report.sourceEvents)
         assertEquals("8", report.meaningfulEvents)
         assertEquals(2, report.tasks.size)

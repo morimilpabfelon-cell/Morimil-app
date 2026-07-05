@@ -32,7 +32,11 @@ class RestCycleWorker(
         )
 
         return runCatching {
-            repository.runLocalRestCycleIfDue()
+            val didConsolidate = repository.runLocalRestCycleIfDue()
+            RestCycleNotifier.notifyRestCycleChecked(
+                context = applicationContext,
+                didConsolidate = didConsolidate
+            )
             Result.success()
         }.getOrElse {
             Result.retry()

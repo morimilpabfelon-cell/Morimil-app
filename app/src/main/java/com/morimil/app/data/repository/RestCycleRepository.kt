@@ -25,7 +25,10 @@ class RestCycleRepository(
     private val memoryDao: MemoryDao = database.memoryDao()
     private val memoryLinkRepository = MemoryLinkRepository(organDatabase)
     private val migrationRecordRepository = MigrationRecordRepository(organDatabase)
-    private val organReconciliationRepository = MemoryOrganReconciliationRepository(organDatabase)
+    private val organReconciliationRepository = MemoryOrganReconciliationRepository(
+        organDatabase = organDatabase,
+        memoryIntegrityCore = memoryIntegrityCore
+    )
 
     suspend fun runLocalRestCycleIfDue(force: Boolean = false): Boolean {
         return runLocalRestCycleIfDue(force = force, approvedMigrationId = null)
@@ -328,6 +331,7 @@ class RestCycleRepository(
             appendLine("organ_reconciliation_orphaned_links=${organReconciliation.orphanedLinkIds.size}")
             appendLine("organ_reconciliation_orphaned_recalls=${organReconciliation.orphanedRecallIds.size}")
             appendLine("organ_reconciliation_orphaned_capsules=${organReconciliation.orphanedCapsuleIds.size}")
+            appendLine("organ_reconciliation_capsule_chain_verified=${organReconciliation.capsuleChainVerified}")
             appendLine("organ_reconciliation_migrations_with_missing_refs=${organReconciliation.migrationMissingRefs.size}")
             appendLine("approval_required=$approvalRequired")
             appendLine("source_events=${meaningfulEvents.size}")

@@ -10,6 +10,7 @@ data class RestCycleReportUiState(
     val policyReason: String,
     val fullChainVerified: String,
     val organReconciliation: String,
+    val capsuleChainVerified: String,
     val sourceEvents: String,
     val meaningfulEvents: String,
     val tasks: List<RestCycleTaskUiState>,
@@ -52,6 +53,7 @@ object RestCycleReportUiStateBuilder {
             fullChainVerified = fields["full_chain_verified"]
                 ?: migration.chainVerified.toString(),
             organReconciliation = fields["organ_reconciliation_has_issues"].orUnknown(),
+            capsuleChainVerified = fields["organ_reconciliation_capsule_chain_verified"].orUnknown(),
             sourceEvents = fields["source_events"].orUnknown(),
             meaningfulEvents = fields["meaningful_events"].orUnknown(),
             tasks = tasks,

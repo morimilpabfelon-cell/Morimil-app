@@ -929,7 +929,10 @@ private fun RestCycleHistoryPanel(
                     StatusChip("riesgo=${report.risk}", attention = report.risk != "low")
                     StatusChip("cadena=${report.fullChainVerified}", attention = report.fullChainVerified != "true")
                 }
-                Text("organos_con_alerta=${report.organReconciliation} eventos=${report.sourceEvents} utiles=${report.meaningfulEvents}")
+                Text(
+                    "organos_con_alerta=${report.organReconciliation} " +
+                        "capsulas_ok=${report.capsuleChainVerified} eventos=${report.sourceEvents} utiles=${report.meaningfulEvents}"
+                )
                 Text("policy=${report.policyReason}")
                 report.tasks.take(6).forEach { task ->
                     RestCycleTaskLine(task)

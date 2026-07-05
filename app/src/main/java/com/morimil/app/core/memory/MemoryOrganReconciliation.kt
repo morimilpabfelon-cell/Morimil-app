@@ -12,7 +12,8 @@ class MemoryOrganReconciliation {
         links: List<MemoryLinkEntity>,
         recalls: List<RecallScheduleEntity>,
         capsules: List<KnowledgeCapsuleEntity>,
-        migrations: List<MigrationRecordEntity>
+        migrations: List<MigrationRecordEntity>,
+        capsuleChainVerified: Boolean = true
     ): MemoryOrganReconciliationReport {
         val orphanedLinks = links.filter { link ->
             link.referencesMissingMemoryEvent(validMemoryEventHashes)
@@ -37,6 +38,7 @@ class MemoryOrganReconciliation {
             orphanedRecallIds = orphanedRecalls.map { recall -> recall.recallId },
             scannedCapsules = capsules.size,
             orphanedCapsuleIds = orphanedCapsules.map { capsule -> capsule.capsuleId },
+            capsuleChainVerified = capsuleChainVerified,
             scannedMigrations = migrations.size,
             migrationMissingRefs = migrationMissingRefs
         )
@@ -78,6 +80,7 @@ data class MemoryOrganReconciliationReport(
     val orphanedRecallIds: List<Long>,
     val scannedCapsules: Int,
     val orphanedCapsuleIds: List<String>,
+    val capsuleChainVerified: Boolean = true,
     val scannedMigrations: Int,
     val migrationMissingRefs: Map<String, List<String>>,
     val markedOrphanedLinks: Int = 0,
@@ -87,6 +90,7 @@ data class MemoryOrganReconciliationReport(
         get() = orphanedLinkIds.isNotEmpty() ||
             orphanedRecallIds.isNotEmpty() ||
             orphanedCapsuleIds.isNotEmpty() ||
+            !capsuleChainVerified ||
             migrationMissingRefs.isNotEmpty()
 
     fun toAuditNotes(): List<String> {
@@ -100,6 +104,7 @@ data class MemoryOrganReconciliationReport(
             "organ_reconciliation_degraded_recalls:$degradedRecalls",
             "organ_reconciliation_scanned_capsules:$scannedCapsules",
             "organ_reconciliation_orphaned_capsules:${orphanedCapsuleIds.size}",
+            "organ_reconciliation_capsule_chain_verified:$capsuleChainVerified",
             "organ_reconciliation_scanned_migrations:$scannedMigrations",
             "organ_reconciliation_migrations_with_missing_refs:${migrationMissingRefs.size}"
         )

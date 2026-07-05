@@ -5,6 +5,7 @@ import com.morimil.app.data.local.MemoryLinkEntity
 import com.morimil.app.data.local.MigrationRecordEntity
 import com.morimil.app.data.local.RecallScheduleEntity
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -40,6 +41,22 @@ class MemoryOrganReconciliationTest {
         assertEquals(listOf("capsule-orphan"), report.orphanedCapsuleIds)
         assertEquals(listOf(missingHash), report.migrationMissingRefs["migration-with-gap"])
         assertTrue(report.hasIssues)
+    }
+
+    @Test
+    fun brokenCapsuleChainMakesOrganReconciliationUnsafe() {
+        val report = reconciler.buildReport(
+            validMemoryEventHashes = emptySet(),
+            links = emptyList(),
+            recalls = emptyList(),
+            capsules = emptyList(),
+            migrations = emptyList(),
+            capsuleChainVerified = false
+        )
+
+        assertFalse(report.capsuleChainVerified)
+        assertTrue(report.hasIssues)
+        assertTrue(report.toAuditNotes().contains("organ_reconciliation_capsule_chain_verified:false"))
     }
 
     private fun memoryLink(linkId: String, sourceId: String, targetId: String): MemoryLinkEntity {
