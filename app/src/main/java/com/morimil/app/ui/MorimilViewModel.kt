@@ -10,8 +10,10 @@ import com.morimil.app.ai.ReasoningRuntimeState
 import com.morimil.app.ai.SystemPromptBuilder
 import com.morimil.app.data.genesis.GenesisIdentitySource
 import com.morimil.app.data.genesis.GenesisReader
+import com.morimil.app.data.local.AutobiographicalSnapshotEntity
 import com.morimil.app.data.local.DecisionLogEntity
 import com.morimil.app.data.local.GenesisCoreEntity
+import com.morimil.app.data.local.KnowledgeCapsuleEntity
 import com.morimil.app.data.local.LocalInstanceIdentityEntity
 import com.morimil.app.data.local.MemoryEventEntity
 import com.morimil.app.data.local.MemoryLinkEntity
@@ -114,6 +116,19 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = null
     )
+
+    val selfSnapshot: StateFlow<AutobiographicalSnapshotEntity?> = memoryOrganRepository.selfSnapshot.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = null
+    )
+
+    val knowledgeCapsules: StateFlow<List<KnowledgeCapsuleEntity>> = memoryOrganRepository.knowledgeCapsules.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList()
+    )
+
     val activeRecallSchedules: StateFlow<List<RecallScheduleEntity>> = recallScheduleRepository.activeRecallSchedules.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -130,6 +145,9 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
 
     private val _selectedMemoryLinks = MutableStateFlow<List<MemoryLinkEntity>>(emptyList())
     val selectedMemoryLinks: StateFlow<List<MemoryLinkEntity>> = _selectedMemoryLinks.asStateFlow()
+
+    private val _memoryIntegrityAudit = MutableStateFlow(MemoryIntegrityAuditUiState())
+    val memoryIntegrityAudit: StateFlow<MemoryIntegrityAuditUiState> = _memoryIntegrityAudit.asStateFlow()
 
     private var selectedMemoryLinksJob: Job? = null
 
@@ -230,6 +248,29 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                     note = note
                 )
             }
+        }
+    }
+
+    fun runMemoryIntegrityAudit() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = runCatching {
+                val memoryVerified = repository.auditLivingMemoryChain()
+                val capsulesVerified = memoryOrganRepository.auditKnowledgeCapsuleChain()
+                MemoryIntegrityAuditUiState(
+                    memoryChainVerified = memoryVerified,
+                    capsuleChainVerified = capsulesVerified,
+                    checkedAtMillis = System.currentTimeMillis(),
+                    errorMessage = null
+                )
+            }.getOrElse { error ->
+                MemoryIntegrityAuditUiState(
+                    memoryChainVerified = null,
+                    capsuleChainVerified = null,
+                    checkedAtMillis = System.currentTimeMillis(),
+                    errorMessage = error.message ?: error::class.java.simpleName
+                )
+            }
+            _memoryIntegrityAudit.value = result
         }
     }
 
