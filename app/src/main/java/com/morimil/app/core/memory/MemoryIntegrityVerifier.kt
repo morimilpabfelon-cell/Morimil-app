@@ -26,6 +26,10 @@ class MemoryIntegrityVerifier(
                 if (fallbackPreviousHash == null) {
                     expectedPreviousHash = event.eventHash
                     lastTrustedEventHash = event.eventHash
+                } else {
+                    // An anchored tail is loaded after a recovery boundary. Legacy
+                    // markers belong before that boundary; if a future query widens
+                    // this window, ignore them so they cannot reseed the append anchor.
                 }
                 return@forEach
             }

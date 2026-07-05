@@ -3,7 +3,6 @@ package com.morimil.app.data.repository
 import androidx.room.withTransaction
 import com.morimil.app.core.memory.MemoryEventSigner
 import com.morimil.app.core.memory.MemoryIntegrityCore
-import com.morimil.app.core.memory.UnsignedMemoryEventSigner
 import com.morimil.app.data.genesis.GenesisIdentity
 import com.morimil.app.data.local.DecisionLogEntity
 import com.morimil.app.data.local.GenesisCoreEntity
@@ -21,8 +20,8 @@ import org.json.JSONObject
 
 class MemoryRepository(
     private val database: MorimilDatabase,
-    private val memoryIntegrityCore: MemoryIntegrityCore = MemoryIntegrityCore(),
-    private val memoryEventSigner: MemoryEventSigner = UnsignedMemoryEventSigner
+    private val memoryIntegrityCore: MemoryIntegrityCore,
+    private val memoryEventSigner: MemoryEventSigner
 ) {
     private val memoryDao: MemoryDao = database.memoryDao()
 

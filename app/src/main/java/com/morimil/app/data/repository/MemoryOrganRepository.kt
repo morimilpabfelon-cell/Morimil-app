@@ -8,9 +8,11 @@ import kotlinx.coroutines.flow.Flow
 import org.json.JSONArray
 import org.json.JSONObject
 
-class MemoryOrganRepository(database: MemoryOrganDatabase) {
+class MemoryOrganRepository(
+    database: MemoryOrganDatabase,
+    private val memoryIntegrityCore: MemoryIntegrityCore
+) {
     private val dao = database.memoryOrganDao()
-    private val memoryIntegrityCore = MemoryIntegrityCore()
 
     val selfSnapshot: Flow<AutobiographicalSnapshotEntity?> = dao.observeCurrentSelfSnapshot()
     val knowledgeCapsules: Flow<List<KnowledgeCapsuleEntity>> = dao.observeRecentKnowledgeCapsules()

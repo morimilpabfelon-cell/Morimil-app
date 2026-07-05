@@ -76,6 +76,28 @@ class MemoryIntegrityVerifierTest {
         assertEquals("previous_hash_mismatch", result.reason)
     }
 
+    @Test
+    fun anchoredTailIgnoresLegacyMarkerWithoutReseedingAppendAnchor() {
+        val trustedCheckpointHash = "sha256:trusted-quarantine-marker"
+        val legacy = sampleEvent(previousEventHash = "sha256:legacy-previous").copy(
+            eventHash = MemoryEventIntegrity.LEGACY_EVENT_HASH
+        )
+        val first = sampleEvent(
+            previousEventHash = trustedCheckpointHash,
+            body = "The real tail still continues from the trusted checkpoint.",
+            createdAtMillis = SAMPLE_CREATED_AT_MILLIS + 1
+        )
+
+        val result = verifier.inspectMemoryEventTail(
+            events = listOf(legacy, first),
+            fallbackPreviousHash = trustedCheckpointHash
+        )
+
+        assertTrue(result.trusted)
+        assertEquals(first.eventHash, result.appendPreviousEventHash)
+        assertEquals(first.eventHash, result.lastTrustedEventHash)
+    }
+
     private fun sampleEvent(
         previousEventHash: String?,
         body: String = SAMPLE_BODY,

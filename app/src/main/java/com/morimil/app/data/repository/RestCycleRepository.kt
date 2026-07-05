@@ -7,7 +7,6 @@ import com.morimil.app.core.memory.MemoryOrganReconciliationReport
 import com.morimil.app.core.memory.RestCycleMaintenancePlanner
 import com.morimil.app.core.memory.RestCycleMaintenanceReport
 import com.morimil.app.core.memory.RestCycleMode
-import com.morimil.app.core.memory.UnsignedMemoryEventSigner
 import com.morimil.app.data.local.MemoryDao
 import com.morimil.app.data.local.MemoryEventEntity
 import com.morimil.app.data.local.MemoryOrganDatabase
@@ -19,8 +18,8 @@ import org.json.JSONObject
 class RestCycleRepository(
     private val database: MorimilDatabase,
     organDatabase: MemoryOrganDatabase,
-    private val memoryIntegrityCore: MemoryIntegrityCore = MemoryIntegrityCore(),
-    private val memoryEventSigner: MemoryEventSigner = UnsignedMemoryEventSigner
+    private val memoryIntegrityCore: MemoryIntegrityCore,
+    private val memoryEventSigner: MemoryEventSigner
 ) {
     private val memoryDao: MemoryDao = database.memoryDao()
     private val memoryLinkRepository = MemoryLinkRepository(organDatabase)

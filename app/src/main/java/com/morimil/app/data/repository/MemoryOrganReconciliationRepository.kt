@@ -7,7 +7,7 @@ import com.morimil.app.data.local.MemoryOrganDatabase
 
 class MemoryOrganReconciliationRepository(
     organDatabase: MemoryOrganDatabase,
-    private val memoryIntegrityCore: MemoryIntegrityCore = MemoryIntegrityCore()
+    private val memoryIntegrityCore: MemoryIntegrityCore
 ) {
     private val organDao = organDatabase.memoryOrganDao()
     private val reconciliation = MemoryOrganReconciliation()

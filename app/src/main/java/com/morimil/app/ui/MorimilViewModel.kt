@@ -72,7 +72,10 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         memoryIntegrityCore = memoryIntegrityCore,
         memoryEventSigner = memoryEventSigner
     )
-    private val memoryOrganRepository = MemoryOrganRepository(organDatabase)
+    private val memoryOrganRepository = MemoryOrganRepository(
+        database = organDatabase,
+        memoryIntegrityCore = memoryIntegrityCore
+    )
     private val memoryLinkRepository = MemoryLinkRepository(organDatabase)
     private val migrationRecordRepository = MigrationRecordRepository(organDatabase)
     private val cognitiveMigrationRepository = CognitiveMigrationRepository(
