@@ -20,6 +20,7 @@ import com.morimil.app.domain.usecase.RunRestCycleUseCase
 import com.morimil.app.security.AndroidKeyStoreMemoryEventSigner
 import com.morimil.app.security.SecretVault
 import com.morimil.app.security.SharedPreferencesMemorySignatureEpochPolicy
+import com.morimil.app.data.repository.AgentOrchestrationRepository
 
 class MorimilAppContainer(context: Context) {
     private val appContext = context.applicationContext
@@ -94,6 +95,10 @@ class MorimilAppContainer(context: Context) {
             organDatabase = organDatabase,
             memoryDatabase = memoryDatabase
         )
+    }
+
+    val agentOrchestrationRepository: AgentOrchestrationRepository by lazy {
+        AgentOrchestrationRepository(organDatabase)
     }
 
     val appendLivingMemoryUseCase: AppendLivingMemoryUseCase by lazy {
