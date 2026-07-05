@@ -18,20 +18,20 @@ import com.morimil.app.data.local.LocalInstanceIdentityEntity
 import com.morimil.app.data.local.MemoryEventEntity
 import com.morimil.app.data.local.MemoryLinkEntity
 import com.morimil.app.data.local.MemoryMessageEntity
-import com.morimil.app.data.local.MemorySnapshotEntity
-import com.morimil.app.data.local.MorimilDatabase
 import com.morimil.app.data.local.MemoryOrganDatabase
+import com.morimil.app.data.local.MemorySnapshotEntity
 import com.morimil.app.data.local.MigrationRecordEntity
+import com.morimil.app.data.local.MorimilDatabase
 import com.morimil.app.data.local.ProjectStateEntity
 import com.morimil.app.data.local.RecallScheduleEntity
 import com.morimil.app.data.local.UserWorkspaceEntity
 import com.morimil.app.data.repository.CognitiveMigrationRepository
 import com.morimil.app.data.repository.MemoryLinkRepository
-import com.morimil.app.data.repository.MemoryRepository
-import com.morimil.app.data.repository.RestCycleRepository
 import com.morimil.app.data.repository.MemoryOrganRepository
+import com.morimil.app.data.repository.MemoryRepository
 import com.morimil.app.data.repository.MigrationRecordRepository
 import com.morimil.app.data.repository.RecallScheduleRepository
+import com.morimil.app.data.repository.RestCycleRepository
 import com.morimil.app.runtime.RestCycleScheduler
 import com.morimil.app.security.SecretVault
 import kotlinx.coroutines.Dispatchers
@@ -146,6 +146,9 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     private val _selectedMemoryLinks = MutableStateFlow<List<MemoryLinkEntity>>(emptyList())
     val selectedMemoryLinks: StateFlow<List<MemoryLinkEntity>> = _selectedMemoryLinks.asStateFlow()
 
+    private val _selectedGraphEvents = MutableStateFlow<List<MemoryEventEntity>>(emptyList())
+    val selectedGraphEvents: StateFlow<List<MemoryEventEntity>> = _selectedGraphEvents.asStateFlow()
+
     private val _memoryIntegrityAudit = MutableStateFlow(MemoryIntegrityAuditUiState())
     val memoryIntegrityAudit: StateFlow<MemoryIntegrityAuditUiState> = _memoryIntegrityAudit.asStateFlow()
 
@@ -192,7 +195,6 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-
     fun approveMemoryEvent(event: MemoryEventEntity) {
         recordMemoryReview(
             event = event,
@@ -224,6 +226,10 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         selectedMemoryLinksJob = viewModelScope.launch {
             memoryLinkRepository.observeMemoryLinksForEvent(eventHash).collect { links ->
                 _selectedMemoryLinks.value = links
+                _selectedGraphEvents.value = loadConnectedGraphEvents(
+                    selectedEventHash = eventHash,
+                    links = links
+                )
             }
         }
     }
@@ -233,6 +239,28 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         selectedMemoryLinksJob?.cancel()
         selectedMemoryLinksJob = null
         _selectedMemoryLinks.value = emptyList()
+        _selectedGraphEvents.value = emptyList()
+    }
+
+    private suspend fun loadConnectedGraphEvents(
+        selectedEventHash: String,
+        links: List<MemoryLinkEntity>
+    ): List<MemoryEventEntity> {
+        val hashes = buildList {
+            add(selectedEventHash)
+            links.forEach { link ->
+                if (link.sourceType == MEMORY_EVENT_NODE_TYPE) add(link.sourceId)
+                if (link.targetType == MEMORY_EVENT_NODE_TYPE) add(link.targetId)
+            }
+        }
+            .filter { hash -> hash.isNotBlank() }
+            .distinct()
+            .take(MAX_GRAPH_EVENT_LOOKUP)
+
+        if (hashes.isEmpty()) return emptyList()
+        return withContext(Dispatchers.IO) {
+            memoryDatabase.memoryDao().loadMemoryEventsByHashes(hashes)
+        }
     }
 
     private fun recordMemoryReview(
@@ -371,7 +399,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                 repository.birthLocalIdentity(alias, genesis, sourceOrigin, genesisCoreHash, cachedDoctrineText, cachedPolicyText)
                 repository.seedInitialStateIfNeeded()
                 runCatching { restCycleRepository.runLocalRestCycleIfDue() }
-            runCatching { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
+                runCatching { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
                 Unit
             } catch (error: Exception) {
                 genesisReader.clearInstalledGenesisBundle()
@@ -436,9 +464,11 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                 }
 
                 response
-                    .onSuccess { reply -> repository.addAssistantMessage(reply)
-                    runCatching { restCycleRepository.runLocalRestCycleIfDue() }
-            runCatching { recallScheduleRepository.seedFromRecentMemoryIfNeeded() } }
+                    .onSuccess { reply ->
+                        repository.addAssistantMessage(reply)
+                        runCatching { restCycleRepository.runLocalRestCycleIfDue() }
+                        runCatching { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
+                    }
                     .onFailure { error -> _chatError.value = error.message ?: "Error con el motor de razonamiento." }
             } finally {
                 _isSending.value = false
@@ -448,5 +478,10 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
 
     suspend fun renameWorkspace(displayName: String): List<String> {
         return repository.renameWorkspace(displayName)
+    }
+
+    companion object {
+        private const val MEMORY_EVENT_NODE_TYPE = "memory_event"
+        private const val MAX_GRAPH_EVENT_LOOKUP = 60
     }
 }
