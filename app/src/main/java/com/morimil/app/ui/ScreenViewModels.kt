@@ -81,6 +81,7 @@ class ChatViewModel internal constructor(private val owner: MorimilViewModel) {
 
     fun refreshChatOrganismStatus() = owner.refreshChatOrganismStatus()
     fun refreshOrganismHealth() = owner.refreshOrganismHealth()
+    fun runMemoryIntegrityAudit() = owner.runMemoryIntegrityAudit()
     fun sendMessage(body: String) = owner.sendMessage(body)
 }
 
