@@ -603,12 +603,19 @@ private fun CognitiveMigrationPanel(
         ElevatedCard {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("${migration.status} / risk=${migration.riskLevel}", style = MaterialTheme.typography.titleMedium)
-                Text(migration.expectedEffect.take(360))
                 Text("approved=${migration.approvedByUser} chain=${migration.chainVerified} backup=${migration.backupRequired} rollback=${migration.rollbackAvailable}")
-                Text("affected=${migration.affectedArtifactsJson.take(220)}")
-                Text("steps=${migration.stepsJson.take(220)}")
-                Text("errors=${migration.errorsJson.take(180)}")
-                Text("strategy=${migration.rollbackStrategy.take(220)}")
+                Text("pre=${migration.preSnapshotId} post=${migration.postSnapshotId?.take(32) ?: "pending"}")
+                Text("Diff logico", style = MaterialTheme.typography.titleMedium)
+                Text(migrationPlanSection(migration.expectedEffect, "diff_logico").ifBlank { "Sin diff visible." }.take(900))
+                Text("Capsulas propuestas", style = MaterialTheme.typography.titleMedium)
+                Text(migrationPlanSection(migration.expectedEffect, "capsulas_propuestas").ifBlank { "Sin capsulas propuestas." }.take(900))
+                Text("Backlinks propuestos", style = MaterialTheme.typography.titleMedium)
+                Text(migrationPlanSection(migration.expectedEffect, "backlinks_propuestos").ifBlank { "Sin backlinks propuestos." }.take(900))
+                Text("Auditoria y resultado", style = MaterialTheme.typography.titleMedium)
+                Text("steps=${migration.stepsJson.take(360)}")
+                Text("result=${migration.errorsJson.take(360)}")
+                Text("strategy=${migration.rollbackStrategy.take(360)}")
+                Text("affected=${migration.affectedArtifactsJson.take(360)}")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (migration.status == "planned" && !migration.approvedByUser) {
                         Button(onClick = { onApproveMigration(migration.migrationId) }) { Text("Aprobar") }
@@ -623,6 +630,28 @@ private fun CognitiveMigrationPanel(
             }
         }
     }
+}
+
+private fun migrationPlanSection(plan: String, sectionName: String): String {
+    val header = "$sectionName:"
+    val lines = plan.lines()
+    val startIndex = lines.indexOfFirst { line -> line.trim() == header }
+    if (startIndex == -1) return ""
+
+    return lines
+        .drop(startIndex + 1)
+        .takeWhile { line -> !line.trim().isMigrationPlanHeader() }
+        .joinToString("\n")
+        .trim()
+}
+
+private fun String.isMigrationPlanHeader(): Boolean {
+    return this in setOf(
+        "diff_logico:",
+        "capsulas_propuestas:",
+        "backlinks_propuestos:",
+        "eventos_seleccionados:"
+    ) || startsWith("policy=")
 }
 
 @Composable
