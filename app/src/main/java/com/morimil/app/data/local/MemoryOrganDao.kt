@@ -91,14 +91,29 @@ interface MemoryOrganDao {
     @Query("SELECT * FROM memory_links ORDER BY createdAtMillis DESC LIMIT :limit")
     fun observeRecentMemoryLinks(limit: Int): Flow<List<MemoryLinkEntity>>
 
+    @Query("SELECT * FROM memory_links WHERE verificationState != 'orphaned'")
+    suspend fun loadMemoryLinksForReconciliation(): List<MemoryLinkEntity>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertMemoryLink(link: MemoryLinkEntity): Long
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertMemoryLinks(links: List<MemoryLinkEntity>): List<Long>
 
+    @Query("UPDATE memory_links SET verificationState = 'orphaned' WHERE linkId IN (:linkIds)")
+    suspend fun markMemoryLinksOrphaned(linkIds: List<String>): Int
+
+    @Query("SELECT * FROM recall_schedules WHERE status = 'active'")
+    suspend fun loadActiveRecallSchedulesForReconciliation(): List<RecallScheduleEntity>
+
+    @Query("SELECT * FROM knowledge_capsules WHERE status = 'active' AND sourceEventHash IS NOT NULL")
+    suspend fun loadKnowledgeCapsulesWithSourceEvents(): List<KnowledgeCapsuleEntity>
+
     @Query("SELECT * FROM migration_records ORDER BY createdAtMillis DESC LIMIT :limit")
     fun observeRecentMigrationRecords(limit: Int): Flow<List<MigrationRecordEntity>>
+
+    @Query("SELECT * FROM migration_records WHERE status IN ('planned', 'approved', 'completed')")
+    suspend fun loadMigrationRecordsForReconciliation(): List<MigrationRecordEntity>
 
     @Query("SELECT * FROM migration_records WHERE migrationId = :migrationId LIMIT 1")
     suspend fun loadMigrationRecord(migrationId: String): MigrationRecordEntity?
