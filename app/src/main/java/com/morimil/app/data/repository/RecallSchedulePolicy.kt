@@ -44,6 +44,34 @@ object RecallSchedulePolicy {
             .coerceIn(1, 100)
     }
 
+    fun priorityBand(priority: Int): String {
+        return when {
+            priority >= 90 -> "critical"
+            priority >= 75 -> "high"
+            priority >= 55 -> "medium"
+            else -> "low"
+        }
+    }
+
+    fun urgencyScore(
+        priority: Int,
+        dueAtMillis: Long,
+        nowMillis: Long
+    ): Int {
+        val daysOverdue = ((nowMillis - dueAtMillis) / ONE_DAY_MILLIS).toInt().coerceAtLeast(0)
+        val dueBoost = when {
+            dueAtMillis <= nowMillis -> 24
+            dueAtMillis - nowMillis <= ONE_DAY_MILLIS -> 12
+            dueAtMillis - nowMillis <= 3L * ONE_DAY_MILLIS -> 6
+            else -> 0
+        }
+        return (priority + dueBoost + (daysOverdue * 8)).coerceIn(1, 160)
+    }
+
+    fun isDueSoon(dueAtMillis: Long, nowMillis: Long): Boolean {
+        return dueAtMillis > nowMillis && dueAtMillis - nowMillis <= 3L * ONE_DAY_MILLIS
+    }
+
     fun priority(
         importance: Int,
         confidence: Int,
