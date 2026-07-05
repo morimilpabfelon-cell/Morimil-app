@@ -1,8 +1,10 @@
 package com.morimil.app.data.repository
 
 import androidx.room.withTransaction
+import com.morimil.app.core.memory.MemoryEventSigner
 import com.morimil.app.core.memory.MemoryIntegrityCore
 import com.morimil.app.core.memory.MemoryOrganReconciliationReport
+import com.morimil.app.core.memory.UnsignedMemoryEventSigner
 import com.morimil.app.data.local.MemoryDao
 import com.morimil.app.data.local.MemoryEventEntity
 import com.morimil.app.data.local.MemoryOrganDatabase
@@ -13,10 +15,11 @@ import org.json.JSONObject
 
 class RestCycleRepository(
     private val database: MorimilDatabase,
-    organDatabase: MemoryOrganDatabase
+    organDatabase: MemoryOrganDatabase,
+    private val memoryIntegrityCore: MemoryIntegrityCore = MemoryIntegrityCore(),
+    private val memoryEventSigner: MemoryEventSigner = UnsignedMemoryEventSigner
 ) {
     private val memoryDao: MemoryDao = database.memoryDao()
-    private val memoryIntegrityCore = MemoryIntegrityCore()
     private val memoryLinkRepository = MemoryLinkRepository(organDatabase)
     private val migrationRecordRepository = MigrationRecordRepository(organDatabase)
     private val organReconciliationRepository = MemoryOrganReconciliationRepository(organDatabase)
@@ -196,6 +199,7 @@ class RestCycleRepository(
                     importance = 88,
                     createdAtMillis = createdAtMillis
                 )
+                val signature = memoryEventSigner.signEventHash(eventHash)
 
                 memoryDao.insertMemoryEvent(
                     MemoryEventEntity(
@@ -205,8 +209,8 @@ class RestCycleRepository(
                         eventHash = eventHash,
                         hashAlgorithm = MemoryIntegrityCore.HASH_ALGORITHM_SHA256,
                         canonicalization = MemoryIntegrityCore.MEMORY_EVENT_CANONICALIZATION_V3,
-                        signatureAlgorithm = MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED,
-                        eventSignature = null,
+                        signatureAlgorithm = signature.signatureAlgorithm,
+                        eventSignature = signature.eventSignature,
                         eventType = REST_CYCLE_EVENT_TYPE,
                         actor = "system",
                         source = "local_rest_cycle",

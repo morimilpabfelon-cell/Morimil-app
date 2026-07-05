@@ -33,7 +33,9 @@ import com.morimil.app.data.repository.MigrationRecordRepository
 import com.morimil.app.data.repository.RecallScheduleRepository
 import com.morimil.app.data.repository.RestCycleRepository
 import com.morimil.app.runtime.RestCycleScheduler
+import com.morimil.app.security.AndroidKeyStoreMemoryEventSigner
 import com.morimil.app.security.SecretVault
+import com.morimil.app.core.memory.MemoryIntegrityCore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,17 +50,26 @@ import kotlinx.coroutines.withContext
 class MorimilViewModel(application: Application) : AndroidViewModel(application) {
     private val memoryDatabase = MorimilDatabase.getInstance(application)
     private val organDatabase = MemoryOrganDatabase.getInstance(application)
-    private val repository = MemoryRepository(memoryDatabase)
+    private val memoryEventSigner = AndroidKeyStoreMemoryEventSigner()
+    private val memoryIntegrityCore = MemoryIntegrityCore(signatureVerifier = memoryEventSigner)
+    private val repository = MemoryRepository(
+        database = memoryDatabase,
+        memoryIntegrityCore = memoryIntegrityCore,
+        memoryEventSigner = memoryEventSigner
+    )
     private val restCycleRepository = RestCycleRepository(
         database = memoryDatabase,
-        organDatabase = organDatabase
+        organDatabase = organDatabase,
+        memoryIntegrityCore = memoryIntegrityCore,
+        memoryEventSigner = memoryEventSigner
     )
     private val memoryOrganRepository = MemoryOrganRepository(organDatabase)
     private val memoryLinkRepository = MemoryLinkRepository(organDatabase)
     private val migrationRecordRepository = MigrationRecordRepository(organDatabase)
     private val cognitiveMigrationRepository = CognitiveMigrationRepository(
         organDatabase = organDatabase,
-        memoryDatabase = memoryDatabase
+        memoryDatabase = memoryDatabase,
+        memoryIntegrityCore = memoryIntegrityCore
     )
     private val recallScheduleRepository = RecallScheduleRepository(
         organDatabase = organDatabase,

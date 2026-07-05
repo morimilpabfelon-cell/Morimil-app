@@ -1,7 +1,9 @@
 package com.morimil.app.data.repository
 
 import androidx.room.withTransaction
+import com.morimil.app.core.memory.MemoryEventSigner
 import com.morimil.app.core.memory.MemoryIntegrityCore
+import com.morimil.app.core.memory.UnsignedMemoryEventSigner
 import com.morimil.app.data.genesis.GenesisIdentity
 import com.morimil.app.data.local.DecisionLogEntity
 import com.morimil.app.data.local.GenesisCoreEntity
@@ -18,9 +20,12 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.text.Normalizer
 
-class MemoryRepository(private val database: MorimilDatabase) {
+class MemoryRepository(
+    private val database: MorimilDatabase,
+    private val memoryIntegrityCore: MemoryIntegrityCore = MemoryIntegrityCore(),
+    private val memoryEventSigner: MemoryEventSigner = UnsignedMemoryEventSigner
+) {
     private val memoryDao: MemoryDao = database.memoryDao()
-    private val memoryIntegrityCore = MemoryIntegrityCore()
 
     val messages: Flow<List<MemoryMessageEntity>> = memoryDao.observeMessages()
     val decisions: Flow<List<DecisionLogEntity>> = memoryDao.observeDecisions()
@@ -340,6 +345,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
             importance = cleanImportance,
             createdAtMillis = createdAtMillis
         )
+        val signature = memoryEventSigner.signEventHash(eventHash)
 
         memoryDao.insertMemoryEvent(
             MemoryEventEntity(
@@ -349,8 +355,8 @@ class MemoryRepository(private val database: MorimilDatabase) {
                 eventHash = eventHash,
                 hashAlgorithm = MemoryIntegrityCore.HASH_ALGORITHM_SHA256,
                 canonicalization = MemoryIntegrityCore.MEMORY_EVENT_CANONICALIZATION_V3,
-                signatureAlgorithm = MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED,
-                eventSignature = null,
+                signatureAlgorithm = signature.signatureAlgorithm,
+                eventSignature = signature.eventSignature,
                 eventType = eventType,
                 actor = actor,
                 source = source,
@@ -581,6 +587,7 @@ class MemoryRepository(private val database: MorimilDatabase) {
             importance = 100,
             createdAtMillis = createdAtMillis
         )
+        val signature = memoryEventSigner.signEventHash(eventHash)
 
         memoryDao.insertMemoryEvent(
             MemoryEventEntity(
@@ -590,8 +597,8 @@ class MemoryRepository(private val database: MorimilDatabase) {
                 eventHash = eventHash,
                 hashAlgorithm = MemoryIntegrityCore.HASH_ALGORITHM_SHA256,
                 canonicalization = MemoryIntegrityCore.MEMORY_EVENT_CANONICALIZATION_V3,
-                signatureAlgorithm = MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED,
-                eventSignature = null,
+                signatureAlgorithm = signature.signatureAlgorithm,
+                eventSignature = signature.eventSignature,
                 eventType = MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE,
                 actor = "system",
                 source = "local_integrity",

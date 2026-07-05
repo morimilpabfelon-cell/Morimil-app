@@ -81,6 +81,52 @@ class MemoryEventIntegrityTest {
         assertFalse(integrity.verifyMemoryEventChain(listOf(firstTailEvent, secondTailEvent)))
     }
 
+    @Test
+    fun signedEventFailsWhenSignatureDoesNotMatchHash() {
+        val signedIntegrity = MemoryEventIntegrity(
+            signatureVerifier = object : MemoryEventSignatureVerifier {
+                override fun signatureIntegrityFailure(
+                    eventHash: String,
+                    signatureAlgorithm: String?,
+                    eventSignature: String?
+                ): String? {
+                    if (signatureAlgorithm == MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED) {
+                        return null
+                    }
+                    if (signatureAlgorithm != MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_ANDROID_KEYSTORE_EC) {
+                        return "unsupported_signature_algorithm:$signatureAlgorithm"
+                    }
+                    return if (eventSignature == "valid:$eventHash") null else "event_signature_mismatch"
+                }
+            }
+        )
+        val unsigned = sampleEvent(previousEventHash = null)
+        val signed = unsigned.copy(
+            signatureAlgorithm = MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_ANDROID_KEYSTORE_EC,
+            eventSignature = "valid:${unsigned.eventHash}"
+        )
+        val badSignature = signed.copy(eventSignature = "valid:sha256:other")
+
+        assertNull(signedIntegrity.memoryEventIntegrityFailure(signed, expectedPreviousHash = null))
+        assertEquals(
+            "event_signature_mismatch",
+            signedIntegrity.memoryEventIntegrityFailure(badSignature, expectedPreviousHash = null)
+        )
+    }
+
+    @Test
+    fun defaultVerifierRejectsSignedEventWhenPlatformVerifierIsUnavailable() {
+        val event = sampleEvent(previousEventHash = null).copy(
+            signatureAlgorithm = MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_ANDROID_KEYSTORE_EC,
+            eventSignature = "platform-signature"
+        )
+
+        assertEquals(
+            "signature_verifier_unavailable:${MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_ANDROID_KEYSTORE_EC}",
+            integrity.memoryEventIntegrityFailure(event, expectedPreviousHash = null)
+        )
+    }
+
     private fun sampleEvent(
         previousEventHash: String?,
         body: String = SAMPLE_BODY,

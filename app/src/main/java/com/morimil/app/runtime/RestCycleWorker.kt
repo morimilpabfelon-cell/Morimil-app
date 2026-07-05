@@ -12,6 +12,8 @@ import androidx.work.WorkerParameters
 import com.morimil.app.data.local.MemoryOrganDatabase
 import com.morimil.app.data.local.MorimilDatabase
 import com.morimil.app.data.repository.RestCycleRepository
+import com.morimil.app.core.memory.MemoryIntegrityCore
+import com.morimil.app.security.AndroidKeyStoreMemoryEventSigner
 import java.util.concurrent.TimeUnit
 
 class RestCycleWorker(
@@ -19,9 +21,13 @@ class RestCycleWorker(
     workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
     override suspend fun doWork(): Result {
+        val memoryEventSigner = AndroidKeyStoreMemoryEventSigner()
+        val memoryIntegrityCore = MemoryIntegrityCore(signatureVerifier = memoryEventSigner)
         val repository = RestCycleRepository(
             database = MorimilDatabase.getInstance(applicationContext),
-            organDatabase = MemoryOrganDatabase.getInstance(applicationContext)
+            organDatabase = MemoryOrganDatabase.getInstance(applicationContext),
+            memoryIntegrityCore = memoryIntegrityCore,
+            memoryEventSigner = memoryEventSigner
         )
 
         return runCatching {

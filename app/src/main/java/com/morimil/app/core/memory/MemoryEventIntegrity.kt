@@ -2,7 +2,10 @@ package com.morimil.app.core.memory
 
 import com.morimil.app.data.local.MemoryEventEntity
 
-class MemoryEventIntegrity(private val hasher: MemoryHasher = MemoryHasher()) {
+class MemoryEventIntegrity(
+    private val hasher: MemoryHasher = MemoryHasher(),
+    private val signatureVerifier: MemoryEventSignatureVerifier = UnsignedOnlyMemoryEventSignatureVerifier
+) {
     fun verifyMemoryEventChain(
         events: List<MemoryEventEntity>,
         requireGenesisStart: Boolean = true
@@ -27,6 +30,12 @@ class MemoryEventIntegrity(private val hasher: MemoryHasher = MemoryHasher()) {
         if (event.hashAlgorithm != "sha256") return "unsupported_hash_algorithm:${event.hashAlgorithm}"
         val expectedHash = expectedMemoryEventHash(event) ?: return "unknown_canonicalization:${event.canonicalization}"
         if (event.eventHash != expectedHash) return "event_hash_mismatch"
+        val signatureFailure = signatureVerifier.signatureIntegrityFailure(
+            eventHash = event.eventHash,
+            signatureAlgorithm = event.signatureAlgorithm,
+            eventSignature = event.eventSignature
+        )
+        if (signatureFailure != null) return signatureFailure
         return null
     }
 

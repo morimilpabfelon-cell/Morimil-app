@@ -4,7 +4,8 @@ import com.morimil.app.data.local.KnowledgeCapsuleEntity
 import com.morimil.app.data.local.MemoryEventEntity
 
 class MemoryIntegrityCore(
-    private val eventIntegrity: MemoryEventIntegrity = MemoryEventIntegrity(),
+    signatureVerifier: MemoryEventSignatureVerifier = UnsignedOnlyMemoryEventSignatureVerifier,
+    private val eventIntegrity: MemoryEventIntegrity = MemoryEventIntegrity(signatureVerifier = signatureVerifier),
     private val capsuleIntegrity: CapsuleHasher = CapsuleHasher(),
     private val verifier: MemoryIntegrityVerifier = MemoryIntegrityVerifier(eventIntegrity)
 ) {
@@ -137,5 +138,7 @@ class MemoryIntegrityCore(
         const val MEMORY_EVENT_CANONICALIZATION_V3 = "morimil.memory_event_hash.v3"
         const val CAPSULE_CANONICALIZATION_V2 = "morimil.knowledge_capsule_hash.v2"
         const val MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED = "unsigned_runtime_v1"
+        const val MEMORY_EVENT_SIGNATURE_ALGORITHM_ANDROID_KEYSTORE_EC =
+            "android_keystore_ec_p256_sha256_ecdsa_v1"
     }
 }

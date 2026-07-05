@@ -1,15 +1,20 @@
 package com.morimil.app.data.repository
 
 import com.morimil.app.core.memory.CognitiveMigrationPlanner
+import com.morimil.app.core.memory.MemoryIntegrityCore
 import com.morimil.app.data.local.MemoryOrganDatabase
 import com.morimil.app.data.local.MorimilDatabase
 
 class CognitiveMigrationRepository(
     organDatabase: MemoryOrganDatabase,
-    memoryDatabase: MorimilDatabase
+    memoryDatabase: MorimilDatabase,
+    memoryIntegrityCore: MemoryIntegrityCore = MemoryIntegrityCore()
 ) {
     private val memoryDao = memoryDatabase.memoryDao()
-    private val memoryRepository = MemoryRepository(memoryDatabase)
+    private val memoryRepository = MemoryRepository(
+        database = memoryDatabase,
+        memoryIntegrityCore = memoryIntegrityCore
+    )
     private val migrationRecordRepository = MigrationRecordRepository(organDatabase)
 
     suspend fun proposeCognitiveMigration(): String? {
