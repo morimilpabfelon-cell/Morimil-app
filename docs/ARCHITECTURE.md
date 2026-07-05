@@ -2,7 +2,12 @@
 
 ## Source Of Truth
 
-This document describes the current `provider-neutral-motor` runtime, not the old Phase 1 skeleton. Older `PHASE*_STATUS.md` files are historical records and must not be used as the current architecture unless they match this document and the code.
+This document describes the current `provider-neutral-motor` runtime, not the early skeleton. Older `PHASE*_STATUS.md` files are historical records and must not be used as the current architecture unless they match this document and the code.
+
+Related current docs:
+
+- `APP_ARCHITECTURE_V2.md`: concise architecture contract for the active Android body.
+- `MORIMIL_APP_V2_INTEGRATION.md`: integration rules for changing the active runtime safely.
 
 Current implemented runtime includes:
 
@@ -265,7 +270,7 @@ Use Android Studio or Gradle with JDK 17.
 .\gradlew.bat :app:assembleDebug
 ```
 
-Room full-chain migration tests exist for `MorimilDatabase` 1 -> 8 and `MemoryOrganDatabase` 1 -> 5. These are instrumentation tests and require a connected device or emulator.
+Room schema export is enabled for both active databases. Current database versions are `MorimilDatabase` v8 and `MemoryOrganDatabase` v5. Full-chain migration tests cover `MorimilDatabase` 1 -> 8 and `MemoryOrganDatabase` 1 -> 5; explicit per-DB migration tests may also exist when the migration hardening patch is applied. These are instrumentation tests and require a connected device or emulator.
 
 ```powershell
 .\gradlew.bat :app:connectedDebugAndroidTest
