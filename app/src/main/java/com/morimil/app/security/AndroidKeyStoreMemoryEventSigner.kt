@@ -2,7 +2,6 @@ package com.morimil.app.security
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
-import android.util.Base64
 import com.morimil.app.core.memory.MemoryEventSignatureVerifier
 import com.morimil.app.core.memory.MemoryEventSigner
 import com.morimil.app.core.memory.MemoryIntegrityCore
@@ -16,6 +15,7 @@ import java.security.KeyStore
 import java.security.PrivateKey
 import java.security.Signature
 import java.security.spec.ECGenParameterSpec
+import java.util.Base64
 
 class AndroidKeyStoreMemoryEventSigner(
     private val keyAlias: String = MEMORY_EVENT_KEY_ALIAS,
@@ -30,7 +30,7 @@ class AndroidKeyStoreMemoryEventSigner(
                 initSign(privateKey)
                 update(signaturePayload(eventHash))
             }
-            val eventSignature = Base64.encodeToString(signer.sign(), Base64.NO_WRAP)
+            val eventSignature = Base64.getEncoder().encodeToString(signer.sign())
             signatureEpochRecorder.recordSignedEvent(eventHash)
             signingIssueReporter.clearKeystoreSigningFallback(keyAlias)
             SignedMemoryEvent(
@@ -65,7 +65,7 @@ class AndroidKeyStoreMemoryEventSigner(
                 initVerify(publicKey)
                 update(signaturePayload(eventHash))
             }
-            val signatureBytes = Base64.decode(eventSignature, Base64.NO_WRAP)
+            val signatureBytes = Base64.getDecoder().decode(eventSignature)
             if (verifier.verify(signatureBytes)) null else "event_signature_mismatch"
         }.getOrElse { error ->
             "event_signature_error:${error::class.java.simpleName}"
