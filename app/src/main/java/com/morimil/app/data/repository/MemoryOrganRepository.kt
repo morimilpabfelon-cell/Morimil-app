@@ -15,6 +15,10 @@ class MemoryOrganRepository(database: MemoryOrganDatabase) {
     val selfSnapshot: Flow<AutobiographicalSnapshotEntity?> = dao.observeCurrentSelfSnapshot()
     val knowledgeCapsules: Flow<List<KnowledgeCapsuleEntity>> = dao.observeRecentKnowledgeCapsules()
 
+    suspend fun auditKnowledgeCapsuleChain(): Boolean {
+        return memoryIntegrityCore.verifyCapsuleChain(dao.loadKnowledgeCapsuleChain())
+    }
+
     suspend fun updateSelfSnapshot(
         genesisCoreId: String,
         alias: String,
