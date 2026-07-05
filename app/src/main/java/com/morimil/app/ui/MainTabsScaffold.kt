@@ -117,7 +117,7 @@ fun MainTabsScaffold(viewModel: MorimilViewModel) {
                 MorimilTab.Workspace -> UserWorkspaceScreen(viewModel)
                 MorimilTab.Projects -> ProjectsScreen(viewModel)
                 MorimilTab.Memory -> MemoryScreen(viewModel.memoryViewModel)
-                MorimilTab.Handoff -> PcHandoffScreen()
+                MorimilTab.Handoff -> PcHandoffScreen(viewModel.pcHandoffViewModel)
             }
         }
     }

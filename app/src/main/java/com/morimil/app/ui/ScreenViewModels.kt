@@ -19,6 +19,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import androidx.lifecycle.viewModelScope
+import com.morimil.app.data.local.AgentProfileEntity
+import com.morimil.app.data.local.DelegatedTaskEntity
+import com.morimil.app.data.local.OrchestratorDeviceEntity
 
 data class ChatUiState(
     val messages: List<MemoryMessageEntity> = emptyList(),
@@ -42,6 +45,12 @@ data class MemoryUiState(
     val integrityAudit: MemoryIntegrityAuditUiState = MemoryIntegrityAuditUiState(),
     val restCycleScheduleStatus: RestCycleScheduleStatus = RestCycleScheduleStatus(),
     val organismHealth: OrganismHealthUiState = OrganismHealthUiState()
+)
+
+data class PcHandoffUiState(
+    val devices: List<OrchestratorDeviceEntity> = emptyList(),
+    val agents: List<AgentProfileEntity> = emptyList(),
+    val tasks: List<DelegatedTaskEntity> = emptyList()
 )
 
 data class HealthUiState(
@@ -184,4 +193,25 @@ class MotorViewModel internal constructor(private val owner: MorimilViewModel) {
     val uiState: StateFlow<MotorUiState> = _uiState.asStateFlow()
 
     fun refreshHealth() = owner.refreshOrganismHealth()
+}
+
+
+class PcHandoffViewModel internal constructor(private val owner: MorimilViewModel) {
+    val uiState: StateFlow<PcHandoffUiState> = combine(
+        owner.orchestratorDevices,
+        owner.agentProfiles,
+        owner.delegatedTasks
+    ) { devices, agents, tasks ->
+        PcHandoffUiState(
+            devices = devices,
+            agents = agents,
+            tasks = tasks
+        )
+    }.stateIn(owner.viewModelScope, SharingStarted.WhileSubscribed(5_000), PcHandoffUiState())
+
+    fun seedOrchestration() = owner.seedAgentOrchestration()
+    fun proposeAndroidBuildTask() = owner.proposeDelegatedTask("Correr pruebas Android y assembleDebug en un entorno autorizado")
+    fun proposeRepoReviewTask() = owner.proposeDelegatedTask("Revisar repositorio GitHub, detectar riesgos y proponer mejoras")
+    fun approveTask(taskId: String) = owner.approveDelegatedTask(taskId)
+    fun rejectTask(taskId: String) = owner.rejectDelegatedTask(taskId)
 }

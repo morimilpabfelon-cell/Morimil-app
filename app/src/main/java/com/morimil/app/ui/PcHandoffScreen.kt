@@ -1,92 +1,133 @@
 package com.morimil.app.ui
 
-import android.Manifest
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
-import android.speech.tts.TextToSpeech
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.morimil.app.core.memory.MemoryBacklink
-import com.morimil.app.core.memory.MemoryBacklinkGraphBuilder
-import com.morimil.app.data.genesis.CurrentMobileAppCapabilities
-import com.morimil.app.data.genesis.GenesisIdentitySource
-import com.morimil.app.data.local.MemoryEventEntity
-import com.morimil.app.data.local.MemoryLinkEntity
-import com.morimil.app.data.local.MigrationRecordEntity
-import com.morimil.app.data.local.RecallScheduleEntity
-import com.morimil.app.runtime.RestCycleScheduleStatus
-import java.util.Locale
+import com.morimil.app.data.local.AgentProfileEntity
+import com.morimil.app.data.local.DelegatedTaskEntity
+import com.morimil.app.data.local.OrchestratorDeviceEntity
 
 @Composable
-fun PcHandoffScreen() {
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("PC Handoff", style = MaterialTheme.typography.headlineMedium)
-        Text("Fase 6 placeholder. Aqui estaran los comandos aprobados para PC.")
-        ProjectCard("Pending handoff", "No hay comandos reales todavia.", "empty")
-        ProjectCard("Boundary", "La app movil no ejecuta comandos de PC.", "protected")
+fun PcHandoffScreen(viewModel: PcHandoffViewModel) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Orquestacion", style = MaterialTheme.typography.headlineMedium)
+        Text("Morimil registra entornos propios, agentes especializados y tareas delegadas. La ejecucion real sigue bloqueada hasta autorizacion.")
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = viewModel::seedOrchestration) { Text("Inicializar") }
+            Button(onClick = viewModel::proposeAndroidBuildTask) { Text("Tarea Android") }
+            Button(onClick = viewModel::proposeRepoReviewTask) { Text("Tarea GitHub") }
+        }
+
+        ProjectCard(
+            title = "Limite actual",
+            description = "Wi-Fi, Bluetooth, USB e internet quedan registrados como transportes permitibles, pero no ejecutan nada hasta el protocolo y aprobacion.",
+            status = "protected"
+        )
+
+        Text("Entornos autorizables", style = MaterialTheme.typography.titleMedium)
+        if (uiState.devices.isEmpty()) {
+            ProjectCard("Dispositivos", "Aun no se inicializo el registro de entornos.", "empty")
+        } else {
+            uiState.devices.forEach { device -> DeviceCard(device) }
+        }
+
+        Text("Agentes disponibles", style = MaterialTheme.typography.titleMedium)
+        if (uiState.agents.isEmpty()) {
+            ProjectCard("Agentes", "Aun no hay perfiles de agente.", "empty")
+        } else {
+            uiState.agents.forEach { agent -> AgentCard(agent) }
+        }
+
+        Text("Tareas delegadas", style = MaterialTheme.typography.titleMedium)
+        if (uiState.tasks.isEmpty()) {
+            ProjectCard("Delegacion", "Morimil todavia no propuso tareas.", "empty")
+        } else {
+            uiState.tasks.forEach { task ->
+                TaskCard(
+                    task = task,
+                    onApprove = { viewModel.approveTask(task.taskId) },
+                    onReject = { viewModel.rejectTask(task.taskId) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeviceCard(device: OrchestratorDeviceEntity) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(device.displayName, style = MaterialTheme.typography.titleMedium)
+            Text("${device.deviceType} / owner=${device.trustedOwner}")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssistChip(onClick = {}, label = { Text(device.authorizationStatus) })
+                AssistChip(onClick = {}, label = { Text(device.pairingState) })
+                AssistChip(onClick = {}, label = { Text("riesgo=${device.riskLevel}") })
+            }
+            Text("transportes=${device.allowedTransportsJson}")
+        }
+    }
+}
+
+@Composable
+private fun AgentCard(agent: AgentProfileEntity) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(agent.displayName, style = MaterialTheme.typography.titleMedium)
+            Text(agent.description)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssistChip(onClick = {}, label = { Text(agent.role) })
+                AssistChip(onClick = {}, label = { Text("riesgo=${agent.riskLevel}") })
+                AssistChip(onClick = {}, label = { Text(if (agent.requiresHumanApproval) "requiere_aprobacion" else "auto") })
+            }
+        }
+    }
+}
+
+@Composable
+private fun TaskCard(
+    task: DelegatedTaskEntity,
+    onApprove: () -> Unit,
+    onReject: () -> Unit
+) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(task.goal, style = MaterialTheme.typography.titleMedium)
+            Text(task.contextSummary)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssistChip(onClick = {}, label = { Text(task.assignedAgentId) })
+                AssistChip(onClick = {}, label = { Text(task.status) })
+                AssistChip(onClick = {}, label = { Text("riesgo=${task.riskLevel}") })
+            }
+            Text("acciones=${task.allowedActionsJson}")
+            Text("transportes=${task.allowedTransportsJson}")
+            if (task.status == "awaiting_approval") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onApprove) { Text("Aprobar") }
+                    Button(onClick = onReject) { Text("Rechazar") }
+                }
+            }
+        }
     }
 }

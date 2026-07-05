@@ -37,6 +37,9 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.morimil.app.data.local.AgentProfileEntity
+import com.morimil.app.data.local.DelegatedTaskEntity
+import com.morimil.app.data.local.OrchestratorDeviceEntity
 
 class MorimilViewModel(application: Application) : AndroidViewModel(application) {
     private val container = MorimilAppContainer.from(application)
@@ -49,6 +52,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     private val appendLivingMemoryUseCase = container.appendLivingMemoryUseCase
     private val runRestCycleUseCase = container.runRestCycleUseCase
     private val proposeCognitiveMigrationUseCase = container.proposeCognitiveMigrationUseCase
+    private val agentOrchestrationRepository = container.agentOrchestrationRepository
     private val genesisReader = container.genesisReader
     private val secretVault = container.secretVault
     private val reasoningConfigStore = container.reasoningConfigStore
@@ -58,6 +62,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     val memoryViewModel: MemoryViewModel by lazy { MemoryViewModel(this) }
     val healthViewModel: HealthViewModel by lazy { HealthViewModel(this) }
     val motorViewModel: MotorViewModel by lazy { MotorViewModel(this) }
+    val pcHandoffViewModel: PcHandoffViewModel by lazy { PcHandoffViewModel(this) }
 
     val messages: StateFlow<List<MemoryMessageEntity>> = repository.messages.stateIn(
         scope = viewModelScope,
@@ -162,6 +167,23 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         initialValue = emptyList()
     )
 
+    val orchestratorDevices: StateFlow<List<OrchestratorDeviceEntity>> = agentOrchestrationRepository.orchestratorDevices.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList()
+    )
+
+    val agentProfiles: StateFlow<List<AgentProfileEntity>> = agentOrchestrationRepository.agentProfiles.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList()
+    )
+
+    val delegatedTasks: StateFlow<List<DelegatedTaskEntity>> = agentOrchestrationRepository.delegatedTasks.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList()
+    )
     private val _genesisResult = MutableStateFlow<Result<GenesisIdentitySource>?>(null)
     val genesisResult: StateFlow<Result<GenesisIdentitySource>?> = _genesisResult.asStateFlow()
 
@@ -195,6 +217,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         }
         viewModelScope.launch {
             repository.seedInitialStateIfNeeded()
+            agentOrchestrationRepository.seedDefaultOrchestrationIfNeeded()
             runObservedInternalTask("rest_cycle.startup") { runRestCycleUseCase() }
             runObservedInternalTask("recall.startup") { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
         }
@@ -571,6 +594,37 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun seedAgentOrchestration() {
+        viewModelScope.launch(Dispatchers.IO) {
+            runObservedInternalTask("agent_orchestration.seed") {
+                agentOrchestrationRepository.seedDefaultOrchestrationIfNeeded()
+            }
+        }
+    }
+
+    fun proposeDelegatedTask(goal: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runObservedInternalTask("agent_orchestration.propose_task") {
+                agentOrchestrationRepository.proposeDelegatedTask(goal)
+            }
+        }
+    }
+
+    fun approveDelegatedTask(taskId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runObservedInternalTask("agent_orchestration.approve_task") {
+                agentOrchestrationRepository.approveDelegatedTask(taskId)
+            }
+        }
+    }
+
+    fun rejectDelegatedTask(taskId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runObservedInternalTask("agent_orchestration.reject_task") {
+                agentOrchestrationRepository.rejectDelegatedTask(taskId, "rejected_by_founder")
+            }
+        }
+    }
     suspend fun bornInstance(alias: String): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val genesisSource = _genesisResult.value?.getOrNull()
@@ -587,6 +641,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
             try {
                 repository.birthLocalIdentity(alias, genesis, sourceOrigin, genesisCoreHash, cachedDoctrineText, cachedPolicyText)
                 repository.seedInitialStateIfNeeded()
+            agentOrchestrationRepository.seedDefaultOrchestrationIfNeeded()
                 runObservedInternalTask("rest_cycle.birth") { runRestCycleUseCase() }
                 runObservedInternalTask("recall.birth") { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
                 Unit
