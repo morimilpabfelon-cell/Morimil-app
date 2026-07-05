@@ -1,5 +1,6 @@
 package com.morimil.app.data.repository
 
+import com.morimil.app.core.identity.StableIdDigest
 import com.morimil.app.data.local.MemoryOrganDatabase
 import com.morimil.app.data.local.MigrationRecordEntity
 import kotlinx.coroutines.flow.Flow
@@ -162,11 +163,16 @@ class MigrationRecordRepository(organDatabase: MemoryOrganDatabase) {
             fromVersion: String,
             toVersion: String
         ): String {
-            val suffix = "$migrationType|$fromVersion|$toVersion"
-                .fold(0L) { acc, char -> ((acc * 31) + char.code.toLong()).and(0x7FFFFFFFL) }
-                .toString()
-                .padStart(10, '0')
-            return "mig_$createdAtMillis$suffix"
+            val suffix = StableIdDigest.shortSha256Hex(
+                namespace = "migration_record",
+                parts = listOf(
+                    createdAtMillis.toString(),
+                    migrationType,
+                    fromVersion,
+                    toVersion
+                )
+            )
+            return "mig_${createdAtMillis}_$suffix"
         }
     }
 }

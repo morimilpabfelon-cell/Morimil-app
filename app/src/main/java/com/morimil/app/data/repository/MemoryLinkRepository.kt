@@ -1,5 +1,6 @@
 package com.morimil.app.data.repository
 
+import com.morimil.app.core.identity.StableIdDigest
 import com.morimil.app.data.local.MemoryEventEntity
 import com.morimil.app.data.local.MemoryLinkEntity
 import com.morimil.app.data.local.MemoryOrganDatabase
@@ -118,11 +119,16 @@ class MemoryLinkRepository(organDatabase: MemoryOrganDatabase) {
             targetId: String,
             relation: String
         ): String {
-            val suffix = "$sourceId|$targetId|$relation"
-                .fold(0L) { acc, char -> ((acc * 31) + char.code.toLong()).and(0x7FFFFFFFL) }
-                .toString()
-                .padStart(10, '0')
-            return "mlink_$createdAtMillis$suffix"
+            val suffix = StableIdDigest.shortSha256Hex(
+                namespace = "memory_link",
+                parts = listOf(
+                    createdAtMillis.toString(),
+                    sourceId,
+                    targetId,
+                    relation
+                )
+            )
+            return "mlink_${createdAtMillis}_$suffix"
         }
     }
 }
