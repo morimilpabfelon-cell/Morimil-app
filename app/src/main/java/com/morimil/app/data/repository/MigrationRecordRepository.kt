@@ -10,6 +10,13 @@ class MigrationRecordRepository(organDatabase: MemoryOrganDatabase) {
 
     val recentMigrationRecords: Flow<List<MigrationRecordEntity>> = organDao.observeRecentMigrationRecords(RECENT_MIGRATION_LIMIT)
 
+    suspend fun loadLatestPlannedMigration(migrationType: String): MigrationRecordEntity? {
+        return organDao.loadLatestMigrationRecordByTypeAndStatus(
+            migrationType = migrationType,
+            status = STATUS_PLANNED
+        )
+    }
+
     suspend fun planMigration(
         instanceId: String,
         genesisCoreHash: String,
@@ -24,6 +31,7 @@ class MigrationRecordRepository(organDatabase: MemoryOrganDatabase) {
         steps: List<String>,
         expectedEffect: String,
         riskLevel: String,
+        approvalRequired: Boolean = true,
         rollbackAvailable: Boolean,
         rollbackStrategy: String,
         approvedByUser: Boolean,
@@ -47,7 +55,7 @@ class MigrationRecordRepository(organDatabase: MemoryOrganDatabase) {
                 stepsJson = JSONArray(steps).toString(),
                 expectedEffect = expectedEffect,
                 riskLevel = riskLevel,
-                approvalRequired = true,
+                approvalRequired = approvalRequired,
                 approvedByUser = approvedByUser,
                 approvalId = approvalId,
                 status = STATUS_PLANNED,
@@ -63,6 +71,10 @@ class MigrationRecordRepository(organDatabase: MemoryOrganDatabase) {
         return migrationId
     }
 
+    suspend fun loadMigration(migrationId: String): MigrationRecordEntity? {
+        return organDao.loadMigrationRecord(migrationId)
+    }
+
     suspend fun markMigrationCompleted(migrationId: String, postSnapshotId: String?) {
         updateMigrationResult(
             migrationId = migrationId,
@@ -70,6 +82,16 @@ class MigrationRecordRepository(organDatabase: MemoryOrganDatabase) {
             postSnapshotId = postSnapshotId,
             errors = emptyList()
         )
+    }
+
+    suspend fun markMigrationApproved(migrationId: String, approvalId: String) {
+        val rows = organDao.approveMigrationRecord(
+            migrationId = migrationId,
+            approvalId = approvalId,
+            status = STATUS_APPROVED,
+            updatedAtMillis = System.currentTimeMillis()
+        )
+        require(rows > 0) { "Migration approval update failed." }
     }
 
     suspend fun markMigrationFailed(migrationId: String, errors: List<String>) {
@@ -100,6 +122,7 @@ class MigrationRecordRepository(organDatabase: MemoryOrganDatabase) {
     companion object {
         private const val CREATED_BY_LOCAL_RUNTIME = "local_runtime"
         private const val STATUS_PLANNED = "planned"
+        private const val STATUS_APPROVED = "approved"
         private const val STATUS_COMPLETED = "completed"
         private const val STATUS_FAILED = "failed"
         private const val RECENT_MIGRATION_LIMIT = 20

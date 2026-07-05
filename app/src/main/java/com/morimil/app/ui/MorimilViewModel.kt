@@ -29,6 +29,7 @@ import com.morimil.app.data.repository.RestCycleRepository
 import com.morimil.app.data.repository.MemoryOrganRepository
 import com.morimil.app.data.repository.MigrationRecordRepository
 import com.morimil.app.data.repository.RecallScheduleRepository
+import com.morimil.app.runtime.RestCycleScheduler
 import com.morimil.app.security.SecretVault
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -146,6 +147,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     val chatError: StateFlow<String?> = _chatError.asStateFlow()
 
     init {
+        RestCycleScheduler.schedule(application)
         viewModelScope.launch {
             repository.seedInitialStateIfNeeded()
             runCatching { restCycleRepository.runLocalRestCycleIfDue() }
@@ -254,6 +256,22 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 recallScheduleRepository.degradeRecall(recallId)
+            }
+        }
+    }
+
+    fun runRestCycleNow() {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                restCycleRepository.runLocalRestCycleIfDue(force = true)
+            }
+        }
+    }
+
+    fun approveRestCycleConsolidation(migrationId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                restCycleRepository.approvePlannedRestCycle(migrationId)
             }
         }
     }

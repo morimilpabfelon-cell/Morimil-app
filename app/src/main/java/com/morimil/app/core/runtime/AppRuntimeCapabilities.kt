@@ -14,9 +14,13 @@ data class AppRuntimeCapabilities(
     val memoryOrganDatabase: Boolean = true,
     val autobiographicalSnapshotEntity: Boolean = true,
     val knowledgeCapsuleEntity: Boolean = true,
-    val recallSchedule: Boolean = false,
-    val restCycle: Boolean = false,
-    val migrationRecord: Boolean = false,
-    val memoryLink: Boolean = false,
+    val recallSchedule: Boolean = true,
+    val restCycle: Boolean = true,
+    val migrationRecord: Boolean = true,
+    val memoryLink: Boolean = true,
     val interactionState: Boolean = false
 )
+
+object CurrentRuntimeCapabilities {
+    val value = AppRuntimeCapabilities()
+}

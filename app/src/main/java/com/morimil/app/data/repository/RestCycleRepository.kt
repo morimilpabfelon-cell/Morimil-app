@@ -19,8 +19,29 @@ class RestCycleRepository(
     private val memoryEventIntegrity = MemoryEventIntegrity()
     private val memoryIntegrityVerifier = MemoryIntegrityVerifier(memoryEventIntegrity)
     private val memoryLinkRepository = MemoryLinkRepository(organDatabase)
+    private val migrationRecordRepository = MigrationRecordRepository(organDatabase)
 
     suspend fun runLocalRestCycleIfDue(force: Boolean = false): Boolean {
+        return runLocalRestCycleIfDue(force = force, approvedMigrationId = null)
+    }
+
+    suspend fun approvePlannedRestCycle(migrationId: String): Boolean {
+        val record = migrationRecordRepository.loadMigration(migrationId) ?: return false
+        if (record.migrationType != REST_CYCLE_MIGRATION_TYPE || record.status != MIGRATION_STATUS_PLANNED) {
+            return false
+        }
+
+        migrationRecordRepository.markMigrationApproved(
+            migrationId = migrationId,
+            approvalId = "user_approved:${System.currentTimeMillis()}"
+        )
+        return runLocalRestCycleIfDue(force = true, approvedMigrationId = migrationId)
+    }
+
+    private suspend fun runLocalRestCycleIfDue(
+        force: Boolean,
+        approvedMigrationId: String?
+    ): Boolean {
         if (memoryDao.countGenesisCore() == 0) return false
 
         val now = System.currentTimeMillis()
@@ -43,8 +64,31 @@ class RestCycleRepository(
         val summary = buildRestCycleSummary(events, now)
         if (summary.isBlank()) return false
 
-        val restCycle = appendRestCycleEvent(summary) ?: return false
-        runCatching {
+        val approvalRequired = !force && RestCyclePolicy.requiresHumanApproval(meaningfulEvents)
+        if (approvalRequired) {
+            planImportantRestCycleIfNeeded(
+                summary = summary,
+                meaningfulEvents = meaningfulEvents,
+                preSnapshotId = latestRestCycle?.eventHash ?: "none"
+            )
+            return false
+        }
+
+        val migrationId = approvedMigrationId ?: planRestCycleMigration(
+            summary = summary,
+            meaningfulEvents = meaningfulEvents,
+            preSnapshotId = latestRestCycle?.eventHash ?: "none",
+            approvalRequired = false,
+            approvedByUser = force,
+            approvalId = if (force) "manual_force:${System.currentTimeMillis()}" else null
+        )
+
+        return runCatching {
+            val restCycle = appendRestCycleEvent(
+                summary = summary,
+                migrationId = migrationId,
+                approvalId = approvedMigrationId
+            ) ?: error("Rest cycle append skipped because memory tail integrity was not trusted.")
             memoryLinkRepository.linkRestCycleToEvents(
                 instanceId = restCycle.instanceId,
                 genesisCoreHash = restCycle.genesisCoreHash,
@@ -57,11 +101,25 @@ class RestCycleRepository(
                 ),
                 createdAtMillis = restCycle.createdAtMillis
             )
+            migrationRecordRepository.markMigrationCompleted(
+                migrationId = migrationId,
+                postSnapshotId = restCycle.eventHash
+            )
+            true
+        }.getOrElse { error ->
+            migrationRecordRepository.markMigrationFailed(
+                migrationId = migrationId,
+                errors = listOf(error.message ?: error::class.java.simpleName)
+            )
+            false
         }
-        return true
     }
 
-    private suspend fun appendRestCycleEvent(summary: String): RestCycleAppendResult? {
+    private suspend fun appendRestCycleEvent(
+        summary: String,
+        migrationId: String,
+        approvalId: String?
+    ): RestCycleAppendResult? {
         return database.withTransaction {
             val genesisCore = requireNotNull(memoryDao.loadGenesisCore()) {
                 "Cannot run rest cycle without a local Genesis Core."
@@ -95,6 +153,8 @@ class RestCycleRepository(
                 .put("memory_kind", "rest_cycle")
                 .put("user_confirmed", false)
                 .put("confidence", 90)
+                .put("migration_id", migrationId)
+                .put("approval_id", approvalId)
                 .put("excerpt", summary.take(240))
                 .toString()
 
@@ -150,6 +210,67 @@ class RestCycleRepository(
                 createdAtMillis = createdAtMillis
             )
         }
+    }
+
+    private suspend fun planImportantRestCycleIfNeeded(
+        summary: String,
+        meaningfulEvents: List<MemoryEventEntity>,
+        preSnapshotId: String
+    ): String? {
+        val existing = migrationRecordRepository.loadLatestPlannedMigration(REST_CYCLE_MIGRATION_TYPE)
+        if (existing != null) return existing.migrationId
+
+        return planRestCycleMigration(
+            summary = summary,
+            meaningfulEvents = meaningfulEvents,
+            preSnapshotId = preSnapshotId,
+            approvalRequired = true,
+            approvedByUser = false,
+            approvalId = null
+        )
+    }
+
+    private suspend fun planRestCycleMigration(
+        summary: String,
+        meaningfulEvents: List<MemoryEventEntity>,
+        preSnapshotId: String,
+        approvalRequired: Boolean,
+        approvedByUser: Boolean,
+        approvalId: String?
+    ): String {
+        val genesisCore = requireNotNull(memoryDao.loadGenesisCore()) {
+            "Cannot plan rest cycle without a local Genesis Core."
+        }
+        val localIdentity = memoryDao.loadLocalIdentity()
+        val riskLevel = RestCyclePolicy.riskLevel(meaningfulEvents)
+        return migrationRecordRepository.planMigration(
+            instanceId = localIdentity?.instanceId ?: "local_instance_pending",
+            genesisCoreHash = genesisCore.contentSha256,
+            proposalId = null,
+            migrationType = REST_CYCLE_MIGRATION_TYPE,
+            fromVersion = "living_memory_current",
+            toVersion = "living_memory_after_rest_cycle",
+            affectedArtifacts = meaningfulEvents
+                .sortedByDescending { event -> event.importance }
+                .take(12)
+                .map { event -> event.eventHash },
+            preSnapshotId = preSnapshotId,
+            chainVerified = true,
+            backupRequired = approvalRequired,
+            steps = listOf(
+                "verify_recent_memory_tail",
+                "append_rest_cycle_event",
+                "link_rest_cycle_to_source_events",
+                "rebuild_living_memory_snapshot"
+            ),
+            expectedEffect = summary.take(500) + "\npolicy_reason=" + RestCyclePolicy.approvalReason(meaningfulEvents),
+            riskLevel = riskLevel,
+            approvalRequired = approvalRequired,
+            rollbackAvailable = true,
+            rollbackStrategy = "append_only: failed plans do not mutate memory; completed rest cycles can be superseded by a compensating correction/quarantine event",
+            approvedByUser = approvedByUser,
+            approvalId = approvalId
+        )
     }
 
     private fun buildRestCycleSummary(events: List<MemoryEventEntity>, now: Long): String {
@@ -239,8 +360,10 @@ class RestCycleRepository(
 
     companion object {
         private const val REST_CYCLE_EVENT_TYPE = "rest_cycle.local_consolidation"
+        const val REST_CYCLE_MIGRATION_TYPE = "rest_cycle.local_consolidation"
         private const val REST_CYCLE_MIN_INTERVAL_MILLIS = 6L * 60L * 60L * 1000L
         private const val REST_CYCLE_MIN_EVENTS = 6
+        private const val MIGRATION_STATUS_PLANNED = "planned"
         private const val MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE = "memory_integrity.quarantine"
         private const val MEMORY_EVENT_CANONICALIZATION_V3 = "morimil.memory_event_hash.v3"
         private const val MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED = "unsigned_runtime_v1"

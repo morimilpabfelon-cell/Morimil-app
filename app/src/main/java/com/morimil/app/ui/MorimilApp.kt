@@ -52,9 +52,11 @@ import com.morimil.app.data.genesis.CurrentMobileAppCapabilities
 import com.morimil.app.data.genesis.GenesisIdentitySource
 import com.morimil.app.data.local.MemoryEventEntity
 import com.morimil.app.data.local.MemoryLinkEntity
+import com.morimil.app.data.local.MigrationRecordEntity
 import java.util.Locale
 
 private const val MEMORY_EVENT_NODE_TYPE = "memory_event"
+private const val REST_CYCLE_MIGRATION_TYPE = "rest_cycle.local_consolidation"
 
 private enum class MorimilTab(val label: String, val icon: String) {
     Chat("Chat", "Ch"),
@@ -559,6 +561,7 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
     val snapshot by viewModel.livingMemorySnapshot.collectAsStateWithLifecycle()
     val events by viewModel.recentMemoryEvents.collectAsStateWithLifecycle()
     val recalls by viewModel.activeRecallSchedules.collectAsStateWithLifecycle()
+    val migrations by viewModel.recentMigrationRecords.collectAsStateWithLifecycle()
     val selectedMemoryEventHash by viewModel.selectedMemoryEventHash.collectAsStateWithLifecycle()
     val selectedMemoryLinks by viewModel.selectedMemoryLinks.collectAsStateWithLifecycle()
     val eventsByHash = events.associateBy { event -> event.eventHash }
@@ -654,6 +657,11 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
                 }
             }
         }
+        RestCycleHistoryPanel(
+            migrations = migrations,
+            onApproveRestCycle = viewModel::approveRestCycleConsolidation,
+            onRunRestCycleNow = viewModel::runRestCycleNow
+        )
         MemoryBacklinksPanel(
             selectedEventHash = selectedMemoryEventHash,
             selectedEvent = selectedMemoryEvent,
@@ -663,6 +671,50 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
             onClearSelection = viewModel::clearSelectedMemoryEvent
         )
         ProjectCard("Scope guardian", "Sin sincronizacion externa y sin ejecucion de PC.", "protected")
+    }
+}
+
+@Composable
+private fun RestCycleHistoryPanel(
+    migrations: List<MigrationRecordEntity>,
+    onApproveRestCycle: (String) -> Unit,
+    onRunRestCycleNow: () -> Unit
+) {
+    val restCycles = migrations
+        .filter { migration -> migration.migrationType == REST_CYCLE_MIGRATION_TYPE }
+        .take(8)
+
+    Text("Rest cycle", style = MaterialTheme.typography.titleMedium)
+    Text("Consolidaciones locales programadas, con aprobacion para cambios importantes.")
+    Button(onClick = onRunRestCycleNow) {
+        Text("Ejecutar descanso ahora")
+    }
+
+    if (restCycles.isEmpty()) {
+        ProjectCard("Historial de descanso", "Todavia no hay consolidaciones registradas.", "empty")
+        return
+    }
+
+    restCycles.forEach { migration ->
+        ElevatedCard {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("${migration.status} / risk=${migration.riskLevel}", style = MaterialTheme.typography.titleMedium)
+                Text(migration.expectedEffect.take(260))
+                Text(
+                    "approval_required=${migration.approvalRequired} approved=${migration.approvedByUser} " +
+                        "rollback=${migration.rollbackAvailable}"
+                )
+                Text("strategy=${migration.rollbackStrategy.take(220)}")
+                if (migration.status == "planned" && migration.approvalRequired && !migration.approvedByUser) {
+                    Button(onClick = { onApproveRestCycle(migration.migrationId) }) {
+                        Text("Aprobar consolidacion")
+                    }
+                }
+            }
+        }
     }
 }
 

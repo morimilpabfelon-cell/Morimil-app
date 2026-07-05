@@ -103,8 +103,38 @@ interface MemoryOrganDao {
     @Query("SELECT * FROM migration_records WHERE migrationId = :migrationId LIMIT 1")
     suspend fun loadMigrationRecord(migrationId: String): MigrationRecordEntity?
 
+    @Query(
+        """
+        SELECT * FROM migration_records
+        WHERE migrationType = :migrationType AND status = :status
+        ORDER BY createdAtMillis DESC
+        LIMIT 1
+        """
+    )
+    suspend fun loadLatestMigrationRecordByTypeAndStatus(
+        migrationType: String,
+        status: String
+    ): MigrationRecordEntity?
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertMigrationRecord(record: MigrationRecordEntity)
+
+    @Query(
+        """
+        UPDATE migration_records
+        SET approvedByUser = 1,
+            approvalId = :approvalId,
+            status = :status,
+            updatedAtMillis = :updatedAtMillis
+        WHERE migrationId = :migrationId
+        """
+    )
+    suspend fun approveMigrationRecord(
+        migrationId: String,
+        approvalId: String,
+        status: String,
+        updatedAtMillis: Long
+    ): Int
 
     @Query(
         """
