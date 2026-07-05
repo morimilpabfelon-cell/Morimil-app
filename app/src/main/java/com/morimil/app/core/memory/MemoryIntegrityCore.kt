@@ -132,10 +132,10 @@ class MemoryIntegrityCore(
 
     companion object {
         const val HASH_ALGORITHM_SHA256 = "sha256"
-        const val LEGACY_EVENT_HASH = MemoryEventIntegrity.LEGACY_EVENT_HASH
-        const val LEGACY_CAPSULE_HASH = CapsuleHasher.LEGACY_CAPSULE_HASH
-        const val MEMORY_EVENT_CANONICALIZATION_V3 = MemoryEventIntegrity.MEMORY_EVENT_CANONICALIZATION_V3
-        const val CAPSULE_CANONICALIZATION_V2 = CapsuleHasher.CAPSULE_CANONICALIZATION_V2
+        const val LEGACY_EVENT_HASH = "sha256:legacy-unverified"
+        const val LEGACY_CAPSULE_HASH = "sha256:legacy-unverified"
+        const val MEMORY_EVENT_CANONICALIZATION_V3 = "morimil.memory_event_hash.v3"
+        const val CAPSULE_CANONICALIZATION_V2 = "morimil.knowledge_capsule_hash.v2"
         const val MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED = "unsigned_runtime_v1"
     }
 }
