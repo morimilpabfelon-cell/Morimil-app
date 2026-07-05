@@ -14,6 +14,7 @@ In scope:
   memory organs
   knowledge capsules
   memory links/backlinks
+  visual memory graph navigation
   recall schedule runtime
   rest cycle runtime
   cognitive migration flow
@@ -59,6 +60,7 @@ No background sync.
 No production release.
 No provider-owned memory.
 No provider-owned identity.
+No free-form graph editing yet.
 ```
 
 ## Local Write Policy
@@ -101,6 +103,23 @@ Not implemented yet:
 
 The current hash chain gives local tamper evidence. It is not claimed as hardware-backed signature resistance.
 
+## Graph Claims
+
+```text
+Implemented:
+  read-only visual graph canvas from memory_links
+  connected memory-event lookup by event hash
+  tap navigation between memory-event nodes
+  external linked nodes shown by node type
+  textual backlinks beside the canvas
+
+Not implemented yet:
+  drag-and-drop graph editing
+  manual edge creation from the canvas
+  clustering/layout persistence
+  graph search/filter controls
+```
+
 ## Review Rule
 
 Architecture docs must be updated whenever runtime boundaries change, especially around:
@@ -112,4 +131,5 @@ integrity guarantees
 PC execution
 GitHub writes
 Genesis mutability
+graph navigation and editing
 ```
