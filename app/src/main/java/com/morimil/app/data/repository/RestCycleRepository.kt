@@ -4,6 +4,9 @@ import androidx.room.withTransaction
 import com.morimil.app.core.memory.MemoryEventSigner
 import com.morimil.app.core.memory.MemoryIntegrityCore
 import com.morimil.app.core.memory.MemoryOrganReconciliationReport
+import com.morimil.app.core.memory.RestCycleMaintenancePlanner
+import com.morimil.app.core.memory.RestCycleMaintenanceReport
+import com.morimil.app.core.memory.RestCycleMode
 import com.morimil.app.core.memory.UnsignedMemoryEventSigner
 import com.morimil.app.data.local.MemoryDao
 import com.morimil.app.data.local.MemoryEventEntity
@@ -72,15 +75,22 @@ class RestCycleRepository(
         val organReconciliation = organReconciliationRepository.reconcileAgainstMemoryEvents(
             validMemoryEventHashes = fullChainEvents.map { event -> event.eventHash }.toSet()
         )
-        val approvalRequired = !force && (
-            !fullChainVerified || organReconciliation.hasIssues || RestCyclePolicy.requiresHumanApproval(meaningfulEvents)
+        val maintenanceReport = RestCycleMaintenancePlanner.build(
+            mode = if (force) RestCycleMode.Deep else RestCycleMode.Normal,
+            fullChainVerified = fullChainVerified,
+            organReconciliation = organReconciliation,
+            sourceEventCount = events.size,
+            meaningfulEventCount = meaningfulEvents.size,
+            policyApprovalRequired = RestCyclePolicy.requiresHumanApproval(meaningfulEvents),
+            policyReason = RestCyclePolicy.approvalReason(meaningfulEvents)
         )
+        val approvalRequired = !force && maintenanceReport.approvalRequired
         if (approvalRequired) {
             planImportantRestCycleIfNeeded(
                 summary = summary,
                 meaningfulEvents = meaningfulEvents,
                 preSnapshotId = latestRestCycle?.eventHash ?: "none",
-                chainVerified = fullChainVerified,
+                maintenanceReport = maintenanceReport,
                 organReconciliation = organReconciliation
             )
             return false
@@ -93,7 +103,7 @@ class RestCycleRepository(
             approvalRequired = false,
             approvedByUser = force,
             approvalId = if (force) "manual_force:${System.currentTimeMillis()}" else null,
-            chainVerified = fullChainVerified,
+            maintenanceReport = maintenanceReport,
             organReconciliation = organReconciliation
         )
 
@@ -123,7 +133,7 @@ class RestCycleRepository(
                     sourceEventCount = meaningfulEvents.size,
                     linkedEventCount = meaningfulEvents.take(12).size,
                     approvedMigrationId = approvedMigrationId,
-                    fullChainVerified = fullChainVerified,
+                    maintenanceReport = maintenanceReport,
                     organReconciliation = organReconciliation
                 )
             )
@@ -241,7 +251,7 @@ class RestCycleRepository(
         summary: String,
         meaningfulEvents: List<MemoryEventEntity>,
         preSnapshotId: String,
-        chainVerified: Boolean,
+        maintenanceReport: RestCycleMaintenanceReport,
         organReconciliation: MemoryOrganReconciliationReport
     ): String? {
         val existing = migrationRecordRepository.loadLatestPlannedMigration(REST_CYCLE_MIGRATION_TYPE)
@@ -254,7 +264,7 @@ class RestCycleRepository(
             approvalRequired = true,
             approvedByUser = false,
             approvalId = null,
-            chainVerified = chainVerified,
+            maintenanceReport = maintenanceReport,
             organReconciliation = organReconciliation
         )
     }
@@ -266,24 +276,13 @@ class RestCycleRepository(
         approvalRequired: Boolean,
         approvedByUser: Boolean,
         approvalId: String?,
-        chainVerified: Boolean,
+        maintenanceReport: RestCycleMaintenanceReport,
         organReconciliation: MemoryOrganReconciliationReport
     ): String {
         val genesisCore = requireNotNull(memoryDao.loadGenesisCore()) {
             "Cannot plan rest cycle without a local Genesis Core."
         }
         val localIdentity = memoryDao.loadLocalIdentity()
-        val riskLevel = if (chainVerified) RestCyclePolicy.riskLevel(meaningfulEvents) else "high"
-        val steps = buildList {
-            add("audit_full_memory_chain:${if (chainVerified) "verified" else "needs_quarantine_review"}")
-            add("reconcile_memory_organs:${if (organReconciliation.hasIssues) "issues_found" else "clean"}")
-            add("verify_recent_memory_tail")
-            if (approvalRequired) add("human_approval_required_for_sensitive_consolidation")
-            add("append_rest_cycle_event")
-            add("link_rest_cycle_to_source_events")
-            add("rebuild_living_memory_snapshot")
-            add("record_rest_cycle_audit_notes")
-        }
         return migrationRecordRepository.planMigration(
             instanceId = localIdentity?.instanceId ?: "local_instance_pending",
             genesisCoreHash = genesisCore.contentSha256,
@@ -296,17 +295,17 @@ class RestCycleRepository(
                 .take(12)
                 .map { event -> event.eventHash },
             preSnapshotId = preSnapshotId,
-            chainVerified = chainVerified,
+            chainVerified = maintenanceReport.fullChainVerified,
             backupRequired = approvalRequired,
-            steps = steps,
+            steps = maintenanceReport.migrationSteps(approvalRequired),
             expectedEffect = buildRestCycleExpectedEffect(
                 summary = summary,
                 meaningfulEvents = meaningfulEvents,
                 approvalRequired = approvalRequired,
-                chainVerified = chainVerified,
+                maintenanceReport = maintenanceReport,
                 organReconciliation = organReconciliation
             ),
-            riskLevel = riskLevel,
+            riskLevel = maintenanceReport.riskLevel,
             approvalRequired = approvalRequired,
             rollbackAvailable = true,
             rollbackStrategy = "append_only: failed plans do not mutate memory; completed rest cycles can be superseded by a compensating correction/quarantine event",
@@ -319,13 +318,12 @@ class RestCycleRepository(
         summary: String,
         meaningfulEvents: List<MemoryEventEntity>,
         approvalRequired: Boolean,
-        chainVerified: Boolean,
+        maintenanceReport: RestCycleMaintenanceReport,
         organReconciliation: MemoryOrganReconciliationReport
     ): String {
         return buildString {
             appendLine(summary.take(500))
-            appendLine("policy_reason=${RestCyclePolicy.approvalReason(meaningfulEvents)}")
-            appendLine("full_chain_verified=$chainVerified")
+            maintenanceReport.expectedEffectLines().forEach { line -> appendLine(line) }
             appendLine("organ_reconciliation_has_issues=${organReconciliation.hasIssues}")
             appendLine("organ_reconciliation_orphaned_links=${organReconciliation.orphanedLinkIds.size}")
             appendLine("organ_reconciliation_orphaned_recalls=${organReconciliation.orphanedRecallIds.size}")
@@ -343,18 +341,18 @@ class RestCycleRepository(
         sourceEventCount: Int,
         linkedEventCount: Int,
         approvedMigrationId: String?,
-        fullChainVerified: Boolean,
+        maintenanceReport: RestCycleMaintenanceReport,
         organReconciliation: MemoryOrganReconciliationReport
     ): List<String> {
         return listOf(
             "rest_cycle_result:completed",
             "rest_cycle_event_hash:${restCycle.eventHash}",
-            "full_chain_verified:$fullChainVerified",
+            "full_chain_verified:${maintenanceReport.fullChainVerified}",
             "source_events:$sourceEventCount",
             "links_created_for_sources:$linkedEventCount",
             "approval_id:${approvedMigrationId ?: "none"}",
             "completed_at_millis:${restCycle.createdAtMillis}"
-        ) + organReconciliation.toAuditNotes()
+        ) + maintenanceReport.resultNotes() + organReconciliation.toAuditNotes()
     }
 
     private fun buildRestCycleSummary(events: List<MemoryEventEntity>, now: Long): String {
