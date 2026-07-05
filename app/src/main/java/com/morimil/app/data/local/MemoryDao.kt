@@ -83,6 +83,9 @@ interface MemoryDao {
     @Query("SELECT * FROM memory_events ORDER BY importance DESC, createdAtMillis DESC, id DESC LIMIT :limit")
     suspend fun loadMemoryContext(limit: Int): List<MemoryEventEntity>
 
+    @Query("SELECT * FROM memory_events WHERE eventHash IN (:eventHashes) ORDER BY createdAtMillis DESC, id DESC")
+    suspend fun loadMemoryEventsByHashes(eventHashes: List<String>): List<MemoryEventEntity>
+
     /**
      * Full-chain load is intentionally reserved for explicit user/system audits.
      * Runtime appends must verify only the recent tail so memory writes stay O(1)
@@ -124,6 +127,7 @@ interface MemoryDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertMemorySnapshot(snapshot: MemorySnapshotEntity)
+
     @Query("SELECT * FROM memory_events WHERE eventType = 'rest_cycle.local_consolidation' ORDER BY createdAtMillis DESC, id DESC LIMIT 1")
     suspend fun loadLatestRestCycleEvent(): MemoryEventEntity?
 }
