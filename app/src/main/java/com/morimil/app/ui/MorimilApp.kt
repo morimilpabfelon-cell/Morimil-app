@@ -292,12 +292,13 @@ private fun ChatOrganismHeader(
             StatusChip(status.memoryIntegrityLabel, attention = status.memoryNeedsAttention)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatusChip(
-                health.overallLabel,
-                attention = health.memoryNeedsAttention || health.auditNeedsAttention || health.restCycleNeedsAttention
-            )
+            StatusChip(health.level.label, attention = health.level != HealthStatusLevel.Stable)
+            StatusChip(health.overallLabel, attention = health.level != HealthStatusLevel.Stable)
             StatusChip(health.eventCountLabel)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatusChip(health.auditAgeLabel, attention = health.memoryNeedsAttention || health.auditNeedsAttention)
+            StatusChip(health.recallLabel, attention = health.recallNeedsAttention)
         }
         Text(health.healthSentence, style = MaterialTheme.typography.bodySmall)
     }
@@ -602,7 +603,7 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Living Memory", style = MaterialTheme.typography.headlineMedium)
         Text("Genesis Core inmutable + eventos append-only + organos locales de memoria.")
-        OrganismHealthPanel(
+        HealthStatusCard(
             health = organismHealth,
             onRefresh = viewModel::refreshOrganismHealth,
             onRunIntegrityAudit = viewModel::runMemoryIntegrityAudit
@@ -694,43 +695,6 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
             onClearSelection = viewModel::clearSelectedMemoryEvent
         )
         ProjectCard("Scope guardian", "Sin sincronizacion externa y sin ejecucion de PC.", "protected")
-    }
-}
-
-@Composable
-private fun OrganismHealthPanel(
-    health: OrganismHealthUiState,
-    onRefresh: () -> Unit,
-    onRunIntegrityAudit: () -> Unit
-) {
-    ElevatedCard {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Salud del organismo", style = MaterialTheme.typography.titleMedium)
-            Text(health.healthSentence)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                StatusChip(
-                    health.overallLabel,
-                    attention = health.memoryNeedsAttention || health.auditNeedsAttention || health.restCycleNeedsAttention
-                )
-                StatusChip(health.eventCountLabel)
-                StatusChip(health.recommendedActionLabel, attention = health.recommendedActionLabel != "accion: continuar")
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                StatusChip(health.memoryLabel, attention = health.memoryNeedsAttention)
-                StatusChip(health.auditAgeLabel, attention = health.memoryNeedsAttention || health.auditNeedsAttention)
-                StatusChip(health.auditSourceLabel)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                StatusChip(health.motorLabel, attention = health.motorNeedsAttention)
-                StatusChip(health.restCycleLabel, attention = health.restCycleNeedsAttention)
-            }
-            val checkedLabel = health.checkedAtMillis?.toString() ?: "pending"
-            Text("modelo=${health.modelLabel.take(80)} checked=$checkedLabel")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onRefresh) { Text("Actualizar salud") }
-                Button(onClick = onRunIntegrityAudit) { Text("Auditar memoria") }
-            }
-        }
     }
 }
 

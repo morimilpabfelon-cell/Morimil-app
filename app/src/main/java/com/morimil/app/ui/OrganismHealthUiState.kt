@@ -4,6 +4,7 @@ import com.morimil.app.ai.ReasoningMotorSlot
 import com.morimil.app.runtime.RestCycleScheduleStatus
 
 data class OrganismHealthUiState(
+    val level: HealthStatusLevel = HealthStatusLevel.Attention,
     val overallLabel: String = "salud pendiente",
     val healthSentence: String = "Morimil aun no tiene reporte de salud local.",
     val motorLabel: String = "motor pendiente",
@@ -16,6 +17,10 @@ data class OrganismHealthUiState(
     val auditAgeLabel: String = "auditoria: sin registro",
     val auditSourceLabel: String = "fuente: sin auditoria",
     val auditNeedsAttention: Boolean = true,
+    val recallPendingCount: Int = 0,
+    val recallOverdueCount: Int = 0,
+    val recallLabel: String = "recalls: 0 activos",
+    val recallNeedsAttention: Boolean = false,
     val restCycleLabel: String = "descanso: sin registro",
     val restCycleNeedsAttention: Boolean = false,
     val recommendedActionLabel: String = "accion: auditar memoria",
@@ -29,6 +34,8 @@ object OrganismHealthUiStateBuilder {
         restCycleAudit: RestCycleAuditSignal? = null,
         hasQuarantine: Boolean,
         eventCount: Int,
+        recallPendingCount: Int = 0,
+        recallOverdueCount: Int = 0,
         restCycleScheduleStatus: RestCycleScheduleStatus,
         latestRestCycleAtMillis: Long?,
         nowMillis: Long
@@ -62,6 +69,14 @@ object OrganismHealthUiStateBuilder {
             effectiveCapsulesVerified == false
         val auditNeedsAttention = effectiveAuditAtMillis == null ||
             nowMillis - effectiveAuditAtMillis > AUDIT_STALE_AFTER_MILLIS
+        val safeRecallPendingCount = recallPendingCount.coerceAtLeast(0)
+        val safeRecallOverdueCount = recallOverdueCount.coerceAtLeast(0)
+        val recallNeedsAttention = safeRecallOverdueCount > 0
+        val recallLabel = if (recallNeedsAttention) {
+            "recalls: $safeRecallOverdueCount vencidos / $safeRecallPendingCount activos"
+        } else {
+            "recalls: $safeRecallPendingCount activos"
+        }
         val auditAgeLabel = effectiveAuditAtMillis?.let { checkedAt ->
             "auditoria: hace ${ageLabel(nowMillis - checkedAt)}"
         } ?: "auditoria: sin registro"
@@ -75,15 +90,24 @@ object OrganismHealthUiStateBuilder {
         val overallLabel = when {
             memoryNeedsAttention -> "salud: revisar memoria"
             auditNeedsAttention -> "salud: auditar"
+            recallNeedsAttention -> "salud: revisar recalls"
             restCycleScheduleStatus.needsAttention -> "salud: revisar descanso"
             !motorIsConfigured -> "salud: configurar motor"
             else -> "salud: estable"
+        }
+        val level = when {
+            hasQuarantine || audit.errorMessage != null ||
+                effectiveMemoryVerified == false || effectiveCapsulesVerified == false -> HealthStatusLevel.Critical
+            auditNeedsAttention || recallNeedsAttention || restCycleScheduleStatus.needsAttention -> HealthStatusLevel.Attention
+            !motorIsConfigured -> HealthStatusLevel.Watch
+            else -> HealthStatusLevel.Stable
         }
         val recommendedActionLabel = when {
             hasQuarantine -> "accion: revisar cuarentena"
             audit.errorMessage != null -> "accion: repetir auditoria"
             effectiveMemoryVerified == false || effectiveCapsulesVerified == false -> "accion: aislar memoria"
             auditNeedsAttention -> "accion: auditar memoria"
+            recallNeedsAttention -> "accion: revisar recalls"
             restCycleScheduleStatus.needsAttention -> "accion: activar descanso"
             !motorIsConfigured -> "accion: configurar motor"
             else -> "accion: continuar"
@@ -91,11 +115,13 @@ object OrganismHealthUiStateBuilder {
         val healthSentence = listOf(
             memoryLabel.removePrefix("memoria: "),
             formatEventCount(eventCount),
+            recallLabel.removePrefix("recalls: "),
             auditAgeLabel.removePrefix("auditoria: "),
             motorLabel
         ).joinToString(", ")
 
         return OrganismHealthUiState(
+            level = level,
             overallLabel = overallLabel,
             healthSentence = healthSentence,
             motorLabel = "${activeSlot.displayName}: $motorLabel",
@@ -108,6 +134,10 @@ object OrganismHealthUiStateBuilder {
             auditAgeLabel = auditAgeLabel,
             auditSourceLabel = auditSourceLabel,
             auditNeedsAttention = auditNeedsAttention,
+            recallPendingCount = safeRecallPendingCount,
+            recallOverdueCount = safeRecallOverdueCount,
+            recallLabel = recallLabel,
+            recallNeedsAttention = recallNeedsAttention,
             restCycleLabel = restCycleLabel,
             restCycleNeedsAttention = restCycleScheduleStatus.needsAttention,
             recommendedActionLabel = recommendedActionLabel,
@@ -137,6 +167,13 @@ object OrganismHealthUiStateBuilder {
     }
 
     private const val AUDIT_STALE_AFTER_MILLIS = 24L * 60L * 60L * 1000L
+}
+
+enum class HealthStatusLevel(val label: String) {
+    Stable("nivel: estable"),
+    Watch("nivel: observar"),
+    Attention("nivel: atencion"),
+    Critical("nivel: critico")
 }
 
 data class RestCycleAuditSignal(

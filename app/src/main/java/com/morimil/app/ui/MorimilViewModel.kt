@@ -375,20 +375,24 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                 event.memoryKind == "integrity_quarantine"
         }
         val memoryDao = memoryDatabase.memoryDao()
+        val now = System.currentTimeMillis()
+        val recalls = activeRecallSchedules.value
         val latestCompletedRestCycle = migrationRecordRepository.loadLatestCompletedMigration(
             RestCycleRepository.REST_CYCLE_MIGRATION_TYPE
         )
         _organismHealth.value = OrganismHealthUiStateBuilder.build(
             activeSlot = activeSlot,
             audit = audit,
-            restCycleAudit = latestCompletedRestCycle?.toRestCycleAuditSignal(),
-            hasQuarantine = hasQuarantine,
-            eventCount = memoryDao.countMemoryEvents(),
-            restCycleScheduleStatus = _restCycleScheduleStatus.value,
-            latestRestCycleAtMillis = latestCompletedRestCycle?.updatedAtMillis
-                ?: memoryDao.loadLatestRestCycleEvent()?.createdAtMillis,
-            nowMillis = System.currentTimeMillis()
-        )
+                restCycleAudit = latestCompletedRestCycle?.toRestCycleAuditSignal(),
+                hasQuarantine = hasQuarantine,
+                eventCount = memoryDao.countMemoryEvents(),
+                recallPendingCount = recalls.size,
+                recallOverdueCount = recalls.count { recall -> recall.dueAtMillis <= now },
+                restCycleScheduleStatus = _restCycleScheduleStatus.value,
+                latestRestCycleAtMillis = latestCompletedRestCycle?.updatedAtMillis
+                    ?: memoryDao.loadLatestRestCycleEvent()?.createdAtMillis,
+                nowMillis = now
+            )
     }
 
     private fun MigrationRecordEntity.toRestCycleAuditSignal(): RestCycleAuditSignal {

@@ -183,9 +183,9 @@ The Memory UI exposes capsules, consolidated categories, links, migrations, and 
 
 ## Organism Health
 
-Morimil reports its local operating health in the Chat header and Memory screen. The report combines the active reasoning motor, exact memory-event count, last known explicit audit or completed rest-cycle audit, memory/capsule integrity state, quarantine signal, rest-cycle age, WorkManager scheduler state, and a recommended next action.
+Morimil reports its local operating health in the Chat header and Memory screen. The report combines the active reasoning motor, exact memory-event count, last known explicit audit or completed rest-cycle audit, memory/capsule integrity state, quarantine signal, recall pressure, rest-cycle age, WorkManager scheduler state, and a recommended next action.
 
-The health report does not run a full-chain audit on every screen open. Full-chain verification stays explicit through the Memory audit action and scheduled rest-cycle maintenance, so the status panel stays cheap even as memory grows. When no manual audit is present in memory, the latest completed rest cycle can provide the last known audit signal. If the last known audit is older than 24 hours, the report recommends a fresh memory audit instead of showing a false-stable state.
+`HealthStatusCard.kt` renders the real health card with explicit levels: stable, watch, attention, and critical. The health report does not run a full-chain audit on every screen open. Full-chain verification stays explicit through the Memory audit action and scheduled rest-cycle maintenance, so the status panel stays cheap even as memory grows. When no manual audit is present in memory, the latest completed rest cycle can provide the last known audit signal. If the last known audit is older than 24 hours, or recalls are overdue, the report recommends the next corrective action instead of showing a false-stable state.
 
 ## Rest Cycle
 
