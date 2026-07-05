@@ -19,12 +19,14 @@ class MemoryIntegrityVerifier(
         events: List<MemoryEventEntity>,
         fallbackPreviousHash: String?
     ): MemoryTailIntegrity {
-        var expectedPreviousHash = events.firstOrNull()?.previousEventHash ?: fallbackPreviousHash
+        var expectedPreviousHash = fallbackPreviousHash ?: events.firstOrNull()?.previousEventHash
         var lastTrustedEventHash = fallbackPreviousHash
         events.forEach { event ->
             if (event.eventHash == MemoryEventIntegrity.LEGACY_EVENT_HASH) {
-                expectedPreviousHash = event.eventHash
-                lastTrustedEventHash = event.eventHash
+                if (fallbackPreviousHash == null) {
+                    expectedPreviousHash = event.eventHash
+                    lastTrustedEventHash = event.eventHash
+                }
                 return@forEach
             }
             val failure = eventIntegrity.memoryEventIntegrityFailure(event, expectedPreviousHash)
