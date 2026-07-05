@@ -13,9 +13,15 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         KnowledgeCapsuleEntity::class,
         RecallScheduleEntity::class,
         MemoryLinkEntity::class,
-        MigrationRecordEntity::class
+        MigrationRecordEntity::class,
+        OrchestratorDeviceEntity::class,
+        AgentProfileEntity::class,
+        DelegatedTaskEntity::class,
+        TaskApprovalEntity::class,
+        TaskResultEntity::class,
+        AsiCycleRecordEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 abstract class MemoryOrganDatabase : RoomDatabase() {
@@ -155,6 +161,138 @@ abstract class MemoryOrganDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS orchestrator_devices (
+                        deviceId TEXT NOT NULL PRIMARY KEY,
+                        displayName TEXT NOT NULL,
+                        deviceType TEXT NOT NULL,
+                        ownershipScope TEXT NOT NULL,
+                        trustedOwner TEXT NOT NULL,
+                        allowedTransportsJson TEXT NOT NULL,
+                        authorizationStatus TEXT NOT NULL,
+                        authorizationRequired INTEGER NOT NULL,
+                        riskLevel TEXT NOT NULL,
+                        pairingState TEXT NOT NULL,
+                        lastSeenAtMillis INTEGER,
+                        createdAtMillis INTEGER NOT NULL,
+                        updatedAtMillis INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_orchestrator_devices_deviceType ON orchestrator_devices(deviceType)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_orchestrator_devices_authorizationStatus ON orchestrator_devices(authorizationStatus)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_orchestrator_devices_pairingState ON orchestrator_devices(pairingState)")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS agent_profiles (
+                        agentId TEXT NOT NULL PRIMARY KEY,
+                        displayName TEXT NOT NULL,
+                        role TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        capabilitySetJson TEXT NOT NULL,
+                        allowedToolsetJson TEXT NOT NULL,
+                        allowedTransportsJson TEXT NOT NULL,
+                        riskLevel TEXT NOT NULL,
+                        requiresHumanApproval INTEGER NOT NULL,
+                        status TEXT NOT NULL,
+                        createdAtMillis INTEGER NOT NULL,
+                        updatedAtMillis INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_profiles_role ON agent_profiles(role)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_profiles_status ON agent_profiles(status)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_profiles_riskLevel ON agent_profiles(riskLevel)")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS delegated_tasks (
+                        taskId TEXT NOT NULL PRIMARY KEY,
+                        createdBy TEXT NOT NULL,
+                        assignedAgentId TEXT NOT NULL,
+                        targetDeviceId TEXT,
+                        goal TEXT NOT NULL,
+                        contextSummary TEXT NOT NULL,
+                        inputRefsJson TEXT NOT NULL,
+                        allowedActionsJson TEXT NOT NULL,
+                        allowedTransportsJson TEXT NOT NULL,
+                        approvalRequired INTEGER NOT NULL,
+                        approvalId TEXT,
+                        status TEXT NOT NULL,
+                        riskLevel TEXT NOT NULL,
+                        resultSummary TEXT,
+                        errorSummary TEXT,
+                        createdAtMillis INTEGER NOT NULL,
+                        updatedAtMillis INTEGER NOT NULL,
+                        completedAtMillis INTEGER
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_delegated_tasks_assignedAgentId ON delegated_tasks(assignedAgentId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_delegated_tasks_targetDeviceId ON delegated_tasks(targetDeviceId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_delegated_tasks_status ON delegated_tasks(status)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_delegated_tasks_riskLevel ON delegated_tasks(riskLevel)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_delegated_tasks_createdAtMillis ON delegated_tasks(createdAtMillis)")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS task_approvals (
+                        approvalId TEXT NOT NULL PRIMARY KEY,
+                        taskId TEXT NOT NULL,
+                        requestedBy TEXT NOT NULL,
+                        decision TEXT NOT NULL,
+                        decisionReason TEXT NOT NULL,
+                        approvedScopeJson TEXT NOT NULL,
+                        decidedAtMillis INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_task_approvals_taskId ON task_approvals(taskId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_task_approvals_decision ON task_approvals(decision)")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS task_results (
+                        resultId TEXT NOT NULL PRIMARY KEY,
+                        taskId TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        exitCode INTEGER,
+                        summary TEXT NOT NULL,
+                        artifactRefsJson TEXT NOT NULL,
+                        diffCreated INTEGER NOT NULL,
+                        recordedAtMillis INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_task_results_taskId ON task_results(taskId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_task_results_status ON task_results(status)")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS asi_cycle_records (
+                        cycleId TEXT NOT NULL PRIMARY KEY,
+                        problem TEXT NOT NULL,
+                        diagnosis TEXT NOT NULL,
+                        improvementPlan TEXT NOT NULL,
+                        delegatedTaskIdsJson TEXT NOT NULL,
+                        verificationResult TEXT,
+                        memoryUpdateRefsJson TEXT NOT NULL,
+                        futureRule TEXT,
+                        status TEXT NOT NULL,
+                        createdAtMillis INTEGER NOT NULL,
+                        updatedAtMillis INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_asi_cycle_records_status ON asi_cycle_records(status)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_asi_cycle_records_createdAtMillis ON asi_cycle_records(createdAtMillis)")
+            }
+        }
+
         fun getInstance(context: Context): MemoryOrganDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -162,7 +300,7 @@ abstract class MemoryOrganDatabase : RoomDatabase() {
                     MemoryOrganDatabase::class.java,
                     "morimil_memory_organs.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                     .also { instance = it }
             }

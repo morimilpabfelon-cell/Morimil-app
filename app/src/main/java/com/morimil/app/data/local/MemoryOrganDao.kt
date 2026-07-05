@@ -168,4 +168,62 @@ interface MemoryOrganDao {
         errorsJson: String,
         updatedAtMillis: Long
     ): Int
+
+    @Query("SELECT * FROM orchestrator_devices ORDER BY authorizationStatus ASC, updatedAtMillis DESC")
+    fun observeOrchestratorDevices(): Flow<List<OrchestratorDeviceEntity>>
+
+    @Query("SELECT COUNT(*) FROM orchestrator_devices")
+    suspend fun countOrchestratorDevices(): Int
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertOrchestratorDevices(devices: List<OrchestratorDeviceEntity>): List<Long>
+
+    @Query("SELECT * FROM agent_profiles ORDER BY riskLevel DESC, role ASC")
+    fun observeAgentProfiles(): Flow<List<AgentProfileEntity>>
+
+    @Query("SELECT COUNT(*) FROM agent_profiles")
+    suspend fun countAgentProfiles(): Int
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAgentProfiles(agents: List<AgentProfileEntity>): List<Long>
+
+    @Query("SELECT * FROM delegated_tasks ORDER BY createdAtMillis DESC LIMIT 30")
+    fun observeDelegatedTasks(): Flow<List<DelegatedTaskEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertDelegatedTask(task: DelegatedTaskEntity)
+
+    @Query(
+        """
+        UPDATE delegated_tasks
+        SET approvalId = :approvalId,
+            status = :status,
+            updatedAtMillis = :updatedAtMillis
+        WHERE taskId = :taskId
+        """
+    )
+    suspend fun approveDelegatedTask(
+        taskId: String,
+        approvalId: String,
+        status: String,
+        updatedAtMillis: Long
+    ): Int
+
+    @Query(
+        """
+        UPDATE delegated_tasks
+        SET status = :status,
+            errorSummary = :errorSummary,
+            updatedAtMillis = :updatedAtMillis,
+            completedAtMillis = :completedAtMillis
+        WHERE taskId = :taskId
+        """
+    )
+    suspend fun rejectDelegatedTask(
+        taskId: String,
+        status: String,
+        errorSummary: String,
+        updatedAtMillis: Long,
+        completedAtMillis: Long
+    ): Int
 }
