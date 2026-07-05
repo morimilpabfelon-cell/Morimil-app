@@ -187,7 +187,13 @@ fun MemoryScreen(viewModel: MemoryViewModel) {
             selectedEventHash = selectedMemoryEventHash,
             selectedEvent = selectedMemoryEvent,
             graphEvents = selectedGraphEvents,
-            links = selectedMemoryLinks,
+            allEvents = events,
+            links = if (selectedMemoryEventHash == null) recentLinks else selectedMemoryLinks + recentLinks,
+            knowledgeCapsules = knowledgeCapsules,
+            recalls = recalls,
+            migrations = migrations,
+            projects = projects,
+            decisions = decisions,
             onSelectEventHash = viewModel::selectMemoryEvent,
             onClearSelection = viewModel::clearSelectedMemoryEvent
         )
