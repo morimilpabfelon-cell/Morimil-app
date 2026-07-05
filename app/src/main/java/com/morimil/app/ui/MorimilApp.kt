@@ -388,7 +388,9 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
     val selectedMemoryLinks by viewModel.selectedMemoryLinks.collectAsStateWithLifecycle()
     val selectedGraphEvents by viewModel.selectedGraphEvents.collectAsStateWithLifecycle()
     val eventsByHash = events.associateBy { event -> event.eventHash }
-    val selectedMemoryEvent = selectedMemoryEventHash?.let { hash -> eventsByHash[hash] }
+    val selectedMemoryEvent = selectedMemoryEventHash?.let { hash ->
+        eventsByHash[hash] ?: selectedGraphEvents.firstOrNull { event -> event.eventHash == hash }
+    }
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Living Memory", style = MaterialTheme.typography.headlineMedium)
