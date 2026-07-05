@@ -148,7 +148,7 @@ The rest cycle is local. It summarizes meaningful recent memory, records a migra
 
 Scheduling is handled by `RestCycleWorker` through WorkManager. The periodic worker runs every 6 hours with a flexible window, no network requirement, battery/storage safeguards, initial delay, retry backoff, and a stable work tag.
 
-Important rest-cycle consolidations require user approval before execution. The Memory screen separates pending approvals from cycle history and shows plan, steps, affected artifacts, result notes, and rollback strategy. Rollback is append-only compensation, not deletion of prior memory.
+Important rest-cycle consolidations require user approval before execution. `migration_records` stores plan steps, affected artifacts, result notes, and rollback strategy. The Memory screen already exposes a rest-cycle history/approval panel; the richer split between pending approvals and completed history is a UI polish pass, not a missing backend/runtime contract. Rollback is append-only compensation, not deletion of prior memory.
 
 ## Recall Schedule
 
