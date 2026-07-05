@@ -61,4 +61,53 @@ class RecallSchedulePolicyTest {
         )
         assertTrue(confirmed > normal)
     }
+
+    @Test
+    fun priorityBandExplainsRecallImportance() {
+        assertEquals("critical", RecallSchedulePolicy.priorityBand(95))
+        assertEquals("high", RecallSchedulePolicy.priorityBand(80))
+        assertEquals("medium", RecallSchedulePolicy.priorityBand(60))
+        assertEquals("low", RecallSchedulePolicy.priorityBand(30))
+    }
+
+    @Test
+    fun overdueRecallsBecomeMoreUrgentThanFutureRecalls() {
+        val now = 10L * RecallSchedulePolicy.ONE_DAY_MILLIS
+        val future = RecallSchedulePolicy.urgencyScore(
+            priority = 80,
+            dueAtMillis = now + (5L * RecallSchedulePolicy.ONE_DAY_MILLIS),
+            nowMillis = now
+        )
+        val overdue = RecallSchedulePolicy.urgencyScore(
+            priority = 80,
+            dueAtMillis = now - (2L * RecallSchedulePolicy.ONE_DAY_MILLIS),
+            nowMillis = now
+        )
+
+        assertTrue(overdue > future)
+    }
+
+    @Test
+    fun dueSoonMeansWithinThreeDaysButNotOverdue() {
+        val now = 20L * RecallSchedulePolicy.ONE_DAY_MILLIS
+
+        assertTrue(
+            RecallSchedulePolicy.isDueSoon(
+                dueAtMillis = now + RecallSchedulePolicy.ONE_DAY_MILLIS,
+                nowMillis = now
+            )
+        )
+        assertFalse(
+            RecallSchedulePolicy.isDueSoon(
+                dueAtMillis = now - RecallSchedulePolicy.ONE_DAY_MILLIS,
+                nowMillis = now
+            )
+        )
+        assertFalse(
+            RecallSchedulePolicy.isDueSoon(
+                dueAtMillis = now + (4L * RecallSchedulePolicy.ONE_DAY_MILLIS),
+                nowMillis = now
+            )
+        )
+    }
 }
