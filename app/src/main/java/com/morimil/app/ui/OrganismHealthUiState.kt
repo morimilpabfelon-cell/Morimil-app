@@ -23,9 +23,22 @@ data class OrganismHealthUiState(
     val recallNeedsAttention: Boolean = false,
     val restCycleLabel: String = "descanso: sin registro",
     val restCycleNeedsAttention: Boolean = false,
+    val internalIssueLabel: String = "fallos internos: ninguno",
+    val internalIssueDetailLabel: String = "",
+    val internalIssueNeedsAttention: Boolean = false,
     val recommendedActionLabel: String = "accion: auditar memoria",
     val checkedAtMillis: Long? = null
 )
+
+data class InternalRuntimeIssueUiState(
+    val component: String,
+    val message: String,
+    val failureCount: Int,
+    val occurredAtMillis: Long
+) {
+    val label: String
+        get() = "fallo interno: $component"
+}
 
 object OrganismHealthUiStateBuilder {
     fun build(
@@ -33,6 +46,7 @@ object OrganismHealthUiStateBuilder {
         audit: MemoryIntegrityAuditUiState,
         restCycleAudit: RestCycleAuditSignal? = null,
         hasQuarantine: Boolean,
+        internalIssue: InternalRuntimeIssueUiState? = null,
         eventCount: Int,
         recallPendingCount: Int = 0,
         recallOverdueCount: Int = 0,
@@ -89,6 +103,7 @@ object OrganismHealthUiStateBuilder {
         }
         val overallLabel = when {
             memoryNeedsAttention -> "salud: revisar memoria"
+            internalIssue != null -> "salud: revisar runtime"
             auditNeedsAttention -> "salud: auditar"
             recallNeedsAttention -> "salud: revisar recalls"
             restCycleScheduleStatus.needsAttention -> "salud: revisar descanso"
@@ -98,6 +113,7 @@ object OrganismHealthUiStateBuilder {
         val level = when {
             hasQuarantine || audit.errorMessage != null ||
                 effectiveMemoryVerified == false || effectiveCapsulesVerified == false -> HealthStatusLevel.Critical
+            internalIssue != null -> HealthStatusLevel.Attention
             auditNeedsAttention || recallNeedsAttention || restCycleScheduleStatus.needsAttention -> HealthStatusLevel.Attention
             !motorIsConfigured -> HealthStatusLevel.Watch
             else -> HealthStatusLevel.Stable
@@ -106,6 +122,7 @@ object OrganismHealthUiStateBuilder {
             hasQuarantine -> "accion: revisar cuarentena"
             audit.errorMessage != null -> "accion: repetir auditoria"
             effectiveMemoryVerified == false || effectiveCapsulesVerified == false -> "accion: aislar memoria"
+            internalIssue != null -> "accion: revisar fallos internos"
             auditNeedsAttention -> "accion: auditar memoria"
             recallNeedsAttention -> "accion: revisar recalls"
             restCycleScheduleStatus.needsAttention -> "accion: activar descanso"
@@ -117,7 +134,8 @@ object OrganismHealthUiStateBuilder {
             formatEventCount(eventCount),
             recallLabel.removePrefix("recalls: "),
             auditAgeLabel.removePrefix("auditoria: "),
-            motorLabel
+            motorLabel,
+            internalIssue?.label ?: "sin fallos internos"
         ).joinToString(", ")
 
         return OrganismHealthUiState(
@@ -140,6 +158,13 @@ object OrganismHealthUiStateBuilder {
             recallNeedsAttention = recallNeedsAttention,
             restCycleLabel = restCycleLabel,
             restCycleNeedsAttention = restCycleScheduleStatus.needsAttention,
+            internalIssueLabel = internalIssue?.let { issue ->
+                "${issue.label} x${issue.failureCount}"
+            } ?: "fallos internos: ninguno",
+            internalIssueDetailLabel = internalIssue?.let { issue ->
+                "detalle: ${issue.message}; hace ${ageLabel(nowMillis - issue.occurredAtMillis)}"
+            }.orEmpty(),
+            internalIssueNeedsAttention = internalIssue != null,
             recommendedActionLabel = recommendedActionLabel,
             checkedAtMillis = nowMillis
         )

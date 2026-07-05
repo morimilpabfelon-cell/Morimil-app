@@ -170,6 +170,9 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     private val _organismHealth = MutableStateFlow(OrganismHealthUiState())
     val organismHealth: StateFlow<OrganismHealthUiState> = _organismHealth.asStateFlow()
 
+    private val _internalRuntimeIssue = MutableStateFlow<InternalRuntimeIssueUiState?>(null)
+    val internalRuntimeIssue: StateFlow<InternalRuntimeIssueUiState?> = _internalRuntimeIssue.asStateFlow()
+
     private val _restCycleScheduleStatus = MutableStateFlow(RestCycleScheduleStatus())
     val restCycleScheduleStatus: StateFlow<RestCycleScheduleStatus> = _restCycleScheduleStatus.asStateFlow()
 
@@ -198,8 +201,8 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         refreshRestCycleScheduleStatus()
         viewModelScope.launch {
             repository.seedInitialStateIfNeeded()
-            runCatching { restCycleRepository.runLocalRestCycleIfDue() }
-            runCatching { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
+            runObservedInternalTask("rest_cycle.startup") { restCycleRepository.runLocalRestCycleIfDue() }
+            runObservedInternalTask("recall.startup") { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
         }
         viewModelScope.launch {
             recentMemoryEvents.collect {
@@ -299,7 +302,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         note: String
     ) {
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
+            runObservedInternalTask("memory_review.$action") {
                 repository.recordMemoryReview(
                     targetEvent = event,
                     action = action,
@@ -383,16 +386,17 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         _organismHealth.value = OrganismHealthUiStateBuilder.build(
             activeSlot = activeSlot,
             audit = audit,
-                restCycleAudit = latestCompletedRestCycle?.toRestCycleAuditSignal(),
-                hasQuarantine = hasQuarantine,
-                eventCount = memoryDao.countMemoryEvents(),
-                recallPendingCount = recalls.size,
-                recallOverdueCount = recalls.count { recall -> recall.dueAtMillis <= now },
-                restCycleScheduleStatus = _restCycleScheduleStatus.value,
-                latestRestCycleAtMillis = latestCompletedRestCycle?.updatedAtMillis
-                    ?: memoryDao.loadLatestRestCycleEvent()?.createdAtMillis,
-                nowMillis = now
-            )
+            restCycleAudit = latestCompletedRestCycle?.toRestCycleAuditSignal(),
+            hasQuarantine = hasQuarantine,
+            internalIssue = _internalRuntimeIssue.value,
+            eventCount = memoryDao.countMemoryEvents(),
+            recallPendingCount = recalls.size,
+            recallOverdueCount = recalls.count { recall -> recall.dueAtMillis <= now },
+            restCycleScheduleStatus = _restCycleScheduleStatus.value,
+            latestRestCycleAtMillis = latestCompletedRestCycle?.updatedAtMillis
+                ?: memoryDao.loadLatestRestCycleEvent()?.createdAtMillis,
+            nowMillis = now
+        )
     }
 
     private fun MigrationRecordEntity.toRestCycleAuditSignal(): RestCycleAuditSignal {
@@ -409,7 +413,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
 
     fun seedRecallScheduleIfNeeded() {
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
+            runObservedInternalTask("recall.seed") {
                 recallScheduleRepository.seedFromRecentMemoryIfNeeded()
             }
         }
@@ -417,7 +421,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
 
     fun reinforceRecall(recallId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
+            runObservedInternalTask("recall.reinforce") {
                 recallScheduleRepository.reinforceRecall(recallId)
             }
         }
@@ -425,7 +429,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
 
     fun postponeRecall(recallId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
+            runObservedInternalTask("recall.postpone") {
                 recallScheduleRepository.postponeRecall(recallId)
             }
         }
@@ -433,7 +437,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
 
     fun degradeRecall(recallId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
+            runObservedInternalTask("recall.degrade") {
                 recallScheduleRepository.degradeRecall(recallId)
             }
         }
@@ -441,17 +445,17 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
 
     fun runRestCycleNow() {
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
+            runObservedInternalTask("rest_cycle.manual") {
                 restCycleRepository.runLocalRestCycleIfDue(force = true)
-                refreshOrganismHealthOnWorker()
             }
+            refreshOrganismHealthOnWorker()
         }
     }
 
     fun enableRestCycleSchedule() {
         val application = getApplication<Application>()
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
+            runObservedInternalTask("rest_cycle.schedule.enable") {
                 RestCycleScheduler.ensureScheduled(application)
                 refreshRestCycleScheduleStatusOnWorker(application)
             }.onFailure { error ->
@@ -464,7 +468,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     fun cancelRestCycleSchedule() {
         val application = getApplication<Application>()
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
+            runObservedInternalTask("rest_cycle.schedule.cancel") {
                 RestCycleScheduler.cancel(application)
                 refreshRestCycleScheduleStatusOnWorker(application)
             }.onFailure { error ->
@@ -477,7 +481,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     fun refreshRestCycleScheduleStatus() {
         val application = getApplication<Application>()
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
+            runObservedInternalTask("rest_cycle.schedule.refresh") {
                 refreshRestCycleScheduleStatusOnWorker(application)
             }.onFailure { error ->
                 _restCycleScheduleStatus.value = RestCycleScheduleStatus(errorMessage = error.message)
@@ -488,7 +492,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
 
     fun approveRestCycleConsolidation(migrationId: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
+            runObservedInternalTask("rest_cycle.approve") {
                 restCycleRepository.approvePlannedRestCycle(migrationId)
             }
         }
@@ -498,9 +502,38 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         _restCycleScheduleStatus.value = RestCycleScheduler.readStatus(application)
     }
 
+    private suspend fun <T> runObservedInternalTask(
+        component: String,
+        block: suspend () -> T
+    ): Result<T> {
+        val result = runCatching { block() }
+        result
+            .onSuccess { clearInternalRuntimeIssue(component) }
+            .onFailure { error -> recordInternalRuntimeIssue(component, error) }
+        runCatching { refreshOrganismHealthOnWorker() }
+            .onFailure { error -> recordInternalRuntimeIssue("organism_health.refresh", error) }
+        return result
+    }
+
+    private fun recordInternalRuntimeIssue(component: String, error: Throwable) {
+        val previous = _internalRuntimeIssue.value
+        _internalRuntimeIssue.value = InternalRuntimeIssueUiState(
+            component = component,
+            message = error.message?.take(180) ?: error::class.java.simpleName,
+            failureCount = if (previous?.component == component) previous.failureCount + 1 else 1,
+            occurredAtMillis = System.currentTimeMillis()
+        )
+    }
+
+    private fun clearInternalRuntimeIssue(component: String) {
+        if (_internalRuntimeIssue.value?.component == component) {
+            _internalRuntimeIssue.value = null
+        }
+    }
+
     fun proposeCognitiveMigration() {
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
+            runObservedInternalTask("migration.propose") {
                 cognitiveMigrationRepository.proposeCognitiveMigration()
             }
         }
@@ -508,7 +541,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
 
     fun approveCognitiveMigration(migrationId: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
+            runObservedInternalTask("migration.approve") {
                 cognitiveMigrationRepository.approveCognitiveMigration(migrationId)
             }
         }
@@ -516,7 +549,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
 
     fun executeCognitiveMigration(migrationId: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
+            runObservedInternalTask("migration.execute") {
                 cognitiveMigrationRepository.executeCognitiveMigration(migrationId)
             }
         }
@@ -524,7 +557,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
 
     fun rollbackCognitiveMigration(migrationId: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching {
+            runObservedInternalTask("migration.rollback") {
                 cognitiveMigrationRepository.rollbackCognitiveMigration(migrationId)
             }
         }
@@ -546,8 +579,8 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
             try {
                 repository.birthLocalIdentity(alias, genesis, sourceOrigin, genesisCoreHash, cachedDoctrineText, cachedPolicyText)
                 repository.seedInitialStateIfNeeded()
-                runCatching { restCycleRepository.runLocalRestCycleIfDue() }
-                runCatching { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
+                runObservedInternalTask("rest_cycle.birth") { restCycleRepository.runLocalRestCycleIfDue() }
+                runObservedInternalTask("recall.birth") { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
                 Unit
             } catch (error: Exception) {
                 genesisReader.clearInstalledGenesisBundle()
@@ -616,8 +649,8 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                 response
                     .onSuccess { reply ->
                         repository.addAssistantMessage(reply)
-                        runCatching { restCycleRepository.runLocalRestCycleIfDue() }
-                        runCatching { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
+                        runObservedInternalTask("rest_cycle.after_message") { restCycleRepository.runLocalRestCycleIfDue() }
+                        runObservedInternalTask("recall.after_message") { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
                     }
                     .onFailure { error -> _chatError.value = error.message ?: "Error con el motor de razonamiento." }
             } finally {

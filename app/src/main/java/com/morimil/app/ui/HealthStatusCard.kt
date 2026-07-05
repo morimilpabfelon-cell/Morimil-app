@@ -35,7 +35,8 @@ fun HealthStatusCard(
                     attention = health.memoryNeedsAttention ||
                         health.auditNeedsAttention ||
                         health.recallNeedsAttention ||
-                        health.restCycleNeedsAttention
+                        health.restCycleNeedsAttention ||
+                        health.internalIssueNeedsAttention
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -54,6 +55,12 @@ fun HealthStatusCard(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 HealthStatusChip(health.motorLabel, attention = health.motorNeedsAttention)
                 HealthStatusChip(health.restCycleLabel, attention = health.restCycleNeedsAttention)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                HealthStatusChip(health.internalIssueLabel, attention = health.internalIssueNeedsAttention)
+            }
+            if (health.internalIssueNeedsAttention && health.internalIssueDetailLabel.isNotBlank()) {
+                Text(health.internalIssueDetailLabel, style = MaterialTheme.typography.bodySmall)
             }
             val checkedLabel = health.checkedAtMillis?.toString() ?: "pending"
             Text("modelo=${health.modelLabel.take(80)} checked=$checkedLabel")

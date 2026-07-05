@@ -142,11 +142,12 @@ class RestCycleRepository(
             )
             true
         }.getOrElse { error ->
+            val failureMessage = error.message ?: error::class.java.simpleName
             migrationRecordRepository.markMigrationFailed(
                 migrationId = migrationId,
-                errors = listOf(error.message ?: error::class.java.simpleName)
+                errors = listOf(failureMessage)
             )
-            false
+            throw RestCycleExecutionException("Rest cycle failed: $failureMessage", error)
         }
     }
 
@@ -455,3 +456,8 @@ class RestCycleRepository(
         private const val PRIVATE_LOCAL = "private_local"
     }
 }
+
+class RestCycleExecutionException(
+    message: String,
+    cause: Throwable
+) : RuntimeException(message, cause)

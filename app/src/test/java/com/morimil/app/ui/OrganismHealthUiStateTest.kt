@@ -137,6 +137,36 @@ class OrganismHealthUiStateTest {
         assertFalse(health.auditNeedsAttention)
     }
 
+    @Test
+    fun internalRuntimeIssueRaisesAttentionAndRecommendedAction() {
+        val health = OrganismHealthUiStateBuilder.build(
+            activeSlot = localSlot(),
+            audit = MemoryIntegrityAuditUiState(
+                memoryChainVerified = true,
+                capsuleChainVerified = true,
+                checkedAtMillis = NOW
+            ),
+            hasQuarantine = false,
+            internalIssue = InternalRuntimeIssueUiState(
+                component = "rest_cycle.after_message",
+                message = "link creation failed",
+                failureCount = 2,
+                occurredAtMillis = NOW
+            ),
+            eventCount = 42,
+            restCycleScheduleStatus = RestCycleScheduleStatus.fromWorkStates(listOf("ENQUEUED")),
+            latestRestCycleAtMillis = NOW,
+            nowMillis = NOW
+        )
+
+        assertEquals(HealthStatusLevel.Attention, health.level)
+        assertEquals("salud: revisar runtime", health.overallLabel)
+        assertEquals("fallo interno: rest_cycle.after_message x2", health.internalIssueLabel)
+        assertEquals("detalle: link creation failed; hace ahora", health.internalIssueDetailLabel)
+        assertEquals("accion: revisar fallos internos", health.recommendedActionLabel)
+        assertTrue(health.internalIssueNeedsAttention)
+    }
+
     private fun localSlot(): ReasoningMotorSlot {
         return ReasoningMotorSlot(
             id = 1,
