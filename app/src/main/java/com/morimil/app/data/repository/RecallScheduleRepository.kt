@@ -30,9 +30,16 @@ class RecallScheduleRepository(
                 )
             }
             .sortedWith(
-                compareByDescending<MemoryEventEntity> { it.userConfirmed }
+                compareByDescending<MemoryEventEntity> { event ->
+                    RecallSchedulePolicy.priority(
+                        memoryKind = event.memoryKind,
+                        importance = event.importance,
+                        confidence = event.confidence,
+                        userConfirmed = event.userConfirmed
+                    )
+                }
+                    .thenByDescending { it.userConfirmed }
                     .thenByDescending { it.importance }
-                    .thenByDescending { it.confidence }
                     .thenByDescending { it.createdAtMillis }
             )
             .take(limit)
@@ -46,13 +53,14 @@ class RecallScheduleRepository(
                 userConfirmed = event.userConfirmed
             )
             val intervalDays = RecallSchedulePolicy.initialIntervalDays(priority)
+            val priorityBand = RecallSchedulePolicy.priorityBand(priority)
             val insertedId = organDao.insertRecallSchedule(
                 RecallScheduleEntity(
                     genesisCoreId = genesisCore.coreId,
                     targetEventHash = event.eventHash,
                     targetMemoryKind = event.memoryKind,
                     prompt = buildPrompt(event),
-                    reason = "local_recall_schedule_v1:${event.memoryKind}/i${event.importance}/c${event.confidence}",
+                    reason = "local_recall_schedule_v2:${event.memoryKind}/band=$priorityBand/i${event.importance}/c${event.confidence}",
                     priority = priority,
                     intervalDays = intervalDays,
                     dueAtMillis = now + RecallSchedulePolicy.delayMillis(intervalDays),
@@ -75,7 +83,7 @@ class RecallScheduleRepository(
                     targetType = MemoryLinkRepository.MEMORY_EVENT_NODE_TYPE,
                     relation = RELATION_SCHEDULES_REVIEW_FOR,
                     strength = priority / 100.0,
-                    reason = "recall_schedule:${event.memoryKind}/priority=$priority"
+                    reason = "recall_schedule:${event.memoryKind}/priority=$priority/band=$priorityBand"
                 )
             }
         }
