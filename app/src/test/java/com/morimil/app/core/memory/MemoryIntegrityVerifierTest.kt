@@ -53,6 +53,29 @@ class MemoryIntegrityVerifierTest {
         assertEquals("event_hash_mismatch", result.reason)
     }
 
+    @Test
+    fun tailInspectionRejectsSelfSeededTailWhenAnchorIsKnown() {
+        val trustedCheckpointHash = "sha256:trusted-quarantine-marker"
+        val forgedCheckpointHash = "sha256:forged-tail-anchor"
+        val first = sampleEvent(previousEventHash = forgedCheckpointHash)
+        val second = sampleEvent(
+            previousEventHash = first.eventHash,
+            body = "The rewritten tail is internally consistent.",
+            createdAtMillis = SAMPLE_CREATED_AT_MILLIS + 1
+        )
+
+        val result = verifier.inspectMemoryEventTail(
+            events = listOf(first, second),
+            fallbackPreviousHash = trustedCheckpointHash
+        )
+
+        assertFalse(result.trusted)
+        assertEquals(trustedCheckpointHash, result.appendPreviousEventHash)
+        assertEquals(trustedCheckpointHash, result.lastTrustedEventHash)
+        assertEquals(first.eventHash, result.firstUntrustedHash)
+        assertEquals("previous_hash_mismatch", result.reason)
+    }
+
     private fun sampleEvent(
         previousEventHash: String?,
         body: String = SAMPLE_BODY,
