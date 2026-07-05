@@ -6,6 +6,8 @@ import android.util.Base64
 import com.morimil.app.core.memory.MemoryEventSignatureVerifier
 import com.morimil.app.core.memory.MemoryEventSigner
 import com.morimil.app.core.memory.MemoryIntegrityCore
+import com.morimil.app.core.memory.MemorySignatureEpochRecorder
+import com.morimil.app.core.memory.NoopMemorySignatureEpochPolicy
 import com.morimil.app.core.memory.SignedMemoryEvent
 import com.morimil.app.core.memory.UnsignedMemoryEventSigner
 import java.nio.charset.StandardCharsets
@@ -18,6 +20,7 @@ import java.security.spec.ECGenParameterSpec
 class AndroidKeyStoreMemoryEventSigner(
     private val keyAlias: String = MEMORY_EVENT_KEY_ALIAS,
     private val signingIssueReporter: MemorySigningIssueReporter = MemorySigningRuntimeIssues,
+    private val signatureEpochRecorder: MemorySignatureEpochRecorder = NoopMemorySignatureEpochPolicy,
     private val privateKeyProvider: (() -> PrivateKey)? = null
 ) : MemoryEventSigner, MemoryEventSignatureVerifier {
     override fun signEventHash(eventHash: String): SignedMemoryEvent {
@@ -27,10 +30,12 @@ class AndroidKeyStoreMemoryEventSigner(
                 initSign(privateKey)
                 update(signaturePayload(eventHash))
             }
+            val eventSignature = Base64.encodeToString(signer.sign(), Base64.NO_WRAP)
+            signatureEpochRecorder.recordSignedEvent(eventHash)
             signingIssueReporter.clearKeystoreSigningFallback(keyAlias)
             SignedMemoryEvent(
                 signatureAlgorithm = MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_ANDROID_KEYSTORE_EC,
-                eventSignature = Base64.encodeToString(signer.sign(), Base64.NO_WRAP)
+                eventSignature = eventSignature
             )
         }.getOrElse { error ->
             signingIssueReporter.reportKeystoreSigningFallback(keyAlias, error)

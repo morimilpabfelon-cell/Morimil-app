@@ -37,6 +37,7 @@ import com.morimil.app.runtime.RestCycleScheduleStatus
 import com.morimil.app.security.AndroidKeyStoreMemoryEventSigner
 import com.morimil.app.security.MemorySigningRuntimeIssues
 import com.morimil.app.security.SecretVault
+import com.morimil.app.security.SharedPreferencesMemorySignatureEpochPolicy
 import com.morimil.app.core.memory.MemoryIntegrityCore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -52,8 +53,14 @@ import kotlinx.coroutines.withContext
 class MorimilViewModel(application: Application) : AndroidViewModel(application) {
     private val memoryDatabase = MorimilDatabase.getInstance(application)
     private val organDatabase = MemoryOrganDatabase.getInstance(application)
-    private val memoryEventSigner = AndroidKeyStoreMemoryEventSigner()
-    private val memoryIntegrityCore = MemoryIntegrityCore(signatureVerifier = memoryEventSigner)
+    private val memorySignatureEpochPolicy = SharedPreferencesMemorySignatureEpochPolicy(application)
+    private val memoryEventSigner = AndroidKeyStoreMemoryEventSigner(
+        signatureEpochRecorder = memorySignatureEpochPolicy
+    )
+    private val memoryIntegrityCore = MemoryIntegrityCore(
+        signatureVerifier = memoryEventSigner,
+        signatureEpochPolicy = memorySignatureEpochPolicy
+    )
     private val repository = MemoryRepository(
         database = memoryDatabase,
         memoryIntegrityCore = memoryIntegrityCore,

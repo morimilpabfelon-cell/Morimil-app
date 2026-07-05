@@ -5,7 +5,11 @@ import com.morimil.app.data.local.MemoryEventEntity
 
 class MemoryIntegrityCore(
     signatureVerifier: MemoryEventSignatureVerifier = UnsignedOnlyMemoryEventSignatureVerifier,
-    private val eventIntegrity: MemoryEventIntegrity = MemoryEventIntegrity(signatureVerifier = signatureVerifier),
+    signatureEpochPolicy: MemorySignatureEpochPolicy = NoopMemorySignatureEpochPolicy,
+    private val eventIntegrity: MemoryEventIntegrity = MemoryEventIntegrity(
+        signatureVerifier = signatureVerifier,
+        signatureEpochPolicy = signatureEpochPolicy
+    ),
     private val capsuleIntegrity: CapsuleHasher = CapsuleHasher(),
     private val verifier: MemoryIntegrityVerifier = MemoryIntegrityVerifier(eventIntegrity)
 ) {

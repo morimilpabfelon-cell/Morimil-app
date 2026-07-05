@@ -115,6 +115,101 @@ class MemoryEventIntegrityTest {
     }
 
     @Test
+    fun signedEpochRejectsUnsignedEventsAfterEpoch() {
+        val first = sampleEvent(previousEventHash = null)
+        val signedFirst = first.signedForTest()
+        val strippedSecond = sampleEvent(
+            previousEventHash = signedFirst.eventHash,
+            body = "Este evento posterior no puede degradarse a unsigned.",
+            createdAtMillis = SAMPLE_CREATED_AT_MILLIS + 1
+        )
+        val signedIntegrity = MemoryEventIntegrity(
+            signatureVerifier = validTestSignatureVerifier(),
+            signatureEpochPolicy = FixedSignatureEpochPolicy(signedFirst.eventHash)
+        )
+
+        assertFalse(signedIntegrity.verifyMemoryEventChain(listOf(signedFirst, strippedSecond)))
+    }
+
+    @Test
+    fun signedEpochRejectsMissingEpochAnchor() {
+        val first = sampleEvent(previousEventHash = null)
+        val second = sampleEvent(
+            previousEventHash = first.eventHash,
+            body = "Cadena recompuesta sin el ancla de firma.",
+            createdAtMillis = SAMPLE_CREATED_AT_MILLIS + 1
+        )
+        val signedIntegrity = MemoryEventIntegrity(
+            signatureVerifier = validTestSignatureVerifier(),
+            signatureEpochPolicy = FixedSignatureEpochPolicy("sha256:missing-signed-epoch")
+        )
+
+        assertFalse(signedIntegrity.verifyMemoryEventChain(listOf(first, second)))
+    }
+
+    @Test
+    fun partialTailVerificationDoesNotRequireEpochAnchorInsideWindow() {
+        val checkpointHash = "sha256:trusted-after-signed-epoch"
+        val firstTailEvent = sampleEvent(
+            previousEventHash = checkpointHash,
+            createdAtMillis = SAMPLE_CREATED_AT_MILLIS + 20,
+            body = "Ventana parcial posterior al ancla."
+        )
+        val secondTailEvent = sampleEvent(
+            previousEventHash = firstTailEvent.eventHash,
+            body = "La cola parcial no debe exigir ver todo el pasado.",
+            createdAtMillis = SAMPLE_CREATED_AT_MILLIS + 21
+        )
+        val signedIntegrity = MemoryEventIntegrity(
+            signatureVerifier = validTestSignatureVerifier(),
+            signatureEpochPolicy = FixedSignatureEpochPolicy("sha256:epoch-outside-tail")
+        )
+
+        assertTrue(
+            signedIntegrity.verifyMemoryEventChain(
+                events = listOf(firstTailEvent, secondTailEvent),
+                requireGenesisStart = false
+            )
+        )
+    }
+
+    @Test
+    fun signedEpochAcceptsSignedEventsAtAndAfterEpoch() {
+        val first = sampleEvent(previousEventHash = null).signedForTest()
+        val second = sampleEvent(
+            previousEventHash = first.eventHash,
+            body = "Evento posterior firmado.",
+            createdAtMillis = SAMPLE_CREATED_AT_MILLIS + 1
+        ).signedForTest()
+        val signedIntegrity = MemoryEventIntegrity(
+            signatureVerifier = validTestSignatureVerifier(),
+            signatureEpochPolicy = FixedSignatureEpochPolicy(first.eventHash)
+        )
+
+        assertTrue(signedIntegrity.verifyMemoryEventChain(listOf(first, second)))
+    }
+
+    @Test
+    fun signedEpochRejectsLegacyMarkerAfterEpoch() {
+        val first = sampleEvent(previousEventHash = null).signedForTest()
+        val legacyAfterEpoch = sampleEvent(
+            previousEventHash = first.eventHash,
+            body = "Legacy no puede aparecer despues de la epoca firmada.",
+            createdAtMillis = SAMPLE_CREATED_AT_MILLIS + 1
+        ).copy(
+            eventHash = MemoryEventIntegrity.LEGACY_EVENT_HASH,
+            signatureAlgorithm = MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED,
+            eventSignature = null
+        )
+        val signedIntegrity = MemoryEventIntegrity(
+            signatureVerifier = validTestSignatureVerifier(),
+            signatureEpochPolicy = FixedSignatureEpochPolicy(first.eventHash)
+        )
+
+        assertFalse(signedIntegrity.verifyMemoryEventChain(listOf(first, legacyAfterEpoch)))
+    }
+
+    @Test
     fun defaultVerifierRejectsSignedEventWhenPlatformVerifierIsUnavailable() {
         val event = sampleEvent(previousEventHash = null).copy(
             signatureAlgorithm = MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_ANDROID_KEYSTORE_EC,
@@ -186,6 +281,37 @@ class MemoryEventIntegrityTest {
 
     private fun sampleHash(previousEventHash: String?): String {
         return sampleEvent(previousEventHash = previousEventHash).eventHash
+    }
+
+    private fun MemoryEventEntity.signedForTest(): MemoryEventEntity {
+        return copy(
+            signatureAlgorithm = MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_ANDROID_KEYSTORE_EC,
+            eventSignature = "valid:$eventHash"
+        )
+    }
+
+    private fun validTestSignatureVerifier(): MemoryEventSignatureVerifier {
+        return object : MemoryEventSignatureVerifier {
+            override fun signatureIntegrityFailure(
+                eventHash: String,
+                signatureAlgorithm: String?,
+                eventSignature: String?
+            ): String? {
+                if (signatureAlgorithm == MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED) {
+                    return null
+                }
+                if (signatureAlgorithm != MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_ANDROID_KEYSTORE_EC) {
+                    return "unsupported_signature_algorithm:$signatureAlgorithm"
+                }
+                return if (eventSignature == "valid:$eventHash") null else "event_signature_mismatch"
+            }
+        }
+    }
+
+    private class FixedSignatureEpochPolicy(
+        private val eventHash: String?
+    ) : MemorySignatureEpochPolicy {
+        override fun signedEpochEventHash(): String? = eventHash
     }
 
     companion object {

@@ -4,22 +4,37 @@ import com.morimil.app.data.local.MemoryEventEntity
 
 class MemoryEventIntegrity(
     private val hasher: MemoryHasher = MemoryHasher(),
-    private val signatureVerifier: MemoryEventSignatureVerifier = UnsignedOnlyMemoryEventSignatureVerifier
+    private val signatureVerifier: MemoryEventSignatureVerifier = UnsignedOnlyMemoryEventSignatureVerifier,
+    private val signatureEpochPolicy: MemorySignatureEpochPolicy = NoopMemorySignatureEpochPolicy
 ) {
     fun verifyMemoryEventChain(
         events: List<MemoryEventEntity>,
         requireGenesisStart: Boolean = true
     ): Boolean {
         var expectedPreviousHash = if (requireGenesisStart) null else events.firstOrNull()?.previousEventHash
+        val requiredSignatureEpochHash = signatureEpochPolicy.signedEpochEventHash()
+        var signatureEpochReached = false
+        var signatureEpochFound = requiredSignatureEpochHash == null
         events.forEach { event ->
             if (event.eventHash == LEGACY_EVENT_HASH) {
+                if (signatureEpochReached) return false
                 expectedPreviousHash = event.eventHash
                 return@forEach
             }
             if (memoryEventIntegrityFailure(event, expectedPreviousHash) != null) return false
+            val eventIsSigned = event.hasKeystoreSignature()
+            when {
+                requiredSignatureEpochHash != null && event.eventHash == requiredSignatureEpochHash -> {
+                    if (!eventIsSigned) return false
+                    signatureEpochReached = true
+                    signatureEpochFound = true
+                }
+                signatureEpochReached && !eventIsSigned -> return false
+                requiredSignatureEpochHash == null && eventIsSigned -> signatureEpochReached = true
+            }
             expectedPreviousHash = event.eventHash
         }
-        return true
+        return signatureEpochFound || !requireGenesisStart
     }
 
     fun memoryEventIntegrityFailure(
@@ -193,5 +208,10 @@ class MemoryEventIntegrity(
         const val MEMORY_EVENT_CANONICALIZATION_V1 = "morimil.memory_event_hash.v1"
         const val MEMORY_EVENT_CANONICALIZATION_V2 = "morimil.memory_event_hash.v2"
         const val MEMORY_EVENT_CANONICALIZATION_V3 = "morimil.memory_event_hash.v3"
+    }
+
+    private fun MemoryEventEntity.hasKeystoreSignature(): Boolean {
+        return signatureAlgorithm == MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_ANDROID_KEYSTORE_EC &&
+            !eventSignature.isNullOrBlank()
     }
 }
