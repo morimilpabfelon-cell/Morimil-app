@@ -3,6 +3,7 @@ package com.morimil.app.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AssistChip
@@ -75,7 +76,7 @@ private fun MemoryOrganMetricsRow(
 }
 
 @Composable
-private fun MemoryOrganMetric(title: String, value: String, status: String) {
+private fun RowScope.MemoryOrganMetric(title: String, value: String, status: String) {
     ElevatedCard(modifier = Modifier.weight(1f)) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
