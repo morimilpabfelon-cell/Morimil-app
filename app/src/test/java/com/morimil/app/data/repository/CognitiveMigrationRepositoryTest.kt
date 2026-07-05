@@ -67,6 +67,7 @@ class CognitiveMigrationRepositoryTest {
         assertTrue(plan.affectedArtifacts.any { artifact -> artifact.startsWith("capsule_proposal:reasoning_motor") })
         assertTrue(plan.affectedArtifacts.any { artifact -> artifact.startsWith("link_proposal:") })
         assertTrue(plan.steps.contains("draft_capsule_proposals:2"))
+        assertTrue(plan.steps.contains("audit_chain_after_execution"))
         assertTrue(plan.expectedEffect.contains("diff_logico:"))
         assertTrue(plan.expectedEffect.contains("capsulas_propuestas:"))
         assertTrue(plan.expectedEffect.contains("backlinks_propuestos:"))
@@ -86,6 +87,49 @@ class CognitiveMigrationRepositoryTest {
         assertEquals("high", plan.riskLevel)
         assertTrue(plan.steps.contains("audit_chain:needs_quarantine_review"))
         assertTrue(plan.rollbackStrategy.contains("Re-run explicit memory audit"))
+    }
+
+    @Test
+    fun plannerBuildsPostExecutionAuditNotes() {
+        val record = com.morimil.app.data.local.MigrationRecordEntity(
+            migrationId = "mig_123",
+            instanceId = "instance",
+            genesisCoreHash = "sha256:genesis",
+            proposalId = "proposal",
+            migrationType = CognitiveMigrationRepository.COGNITIVE_MIGRATION_TYPE,
+            fromVersion = "living_memory_current",
+            toVersion = "living_memory_refined_v2",
+            affectedArtifactsJson = "[]",
+            preSnapshotId = "snapshot:1",
+            chainVerified = true,
+            backupRequired = true,
+            stepsJson = "[]",
+            expectedEffect = "plan",
+            riskLevel = "medium",
+            approvalRequired = true,
+            approvedByUser = true,
+            approvalId = "user_approved:1",
+            status = "approved",
+            postSnapshotId = null,
+            errorsJson = "[]",
+            rollbackAvailable = true,
+            rollbackStrategy = "rollback",
+            createdBy = "test",
+            createdAtMillis = 1L,
+            updatedAtMillis = 1L
+        )
+
+        val notes = CognitiveMigrationPlanner.buildPostExecutionAuditNotes(
+            record = record,
+            executionEventHash = "event_hash",
+            chainVerified = true,
+            checkedAtMillis = 2L
+        )
+
+        assertTrue(notes.contains("post_execution_audit:verified"))
+        assertTrue(notes.contains("execution_event_hash:event_hash"))
+        assertTrue(notes.contains("migration_id:mig_123"))
+        assertTrue(notes.contains("policy:append_only_original_memory_unchanged"))
     }
 
     private fun memoryEvent(
