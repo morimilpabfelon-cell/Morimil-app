@@ -22,8 +22,9 @@ class MemoryOrganReconciliationRepository(organDatabase: MemoryOrganDatabase) {
         } else {
             organDao.markMemoryLinksOrphaned(report.orphanedLinkIds)
         }
-        val degradedRecalls = report.orphanedRecallIds.sumOf { recallId ->
-            organDao.markRecallScheduleDegraded(
+        var degradedRecalls = 0
+        report.orphanedRecallIds.forEach { recallId ->
+            degradedRecalls += organDao.markRecallScheduleDegraded(
                 recallId = recallId,
                 updatedAtMillis = System.currentTimeMillis()
             )
