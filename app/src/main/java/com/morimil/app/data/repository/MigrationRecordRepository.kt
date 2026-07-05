@@ -17,6 +17,13 @@ class MigrationRecordRepository(organDatabase: MemoryOrganDatabase) {
         )
     }
 
+    suspend fun loadLatestCompletedMigration(migrationType: String): MigrationRecordEntity? {
+        return organDao.loadLatestMigrationRecordByTypeAndStatus(
+            migrationType = migrationType,
+            status = STATUS_COMPLETED
+        )
+    }
+
     suspend fun planMigration(
         instanceId: String,
         genesisCoreHash: String,

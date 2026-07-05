@@ -212,11 +212,13 @@ private fun ChatScreen(viewModel: MorimilViewModel) {
     val isSending by viewModel.isSending.collectAsStateWithLifecycle()
     val chatError by viewModel.chatError.collectAsStateWithLifecycle()
     val organismStatus by viewModel.chatOrganismStatus.collectAsStateWithLifecycle()
+    val organismHealth by viewModel.organismHealth.collectAsStateWithLifecycle()
     var draft by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
     LaunchedEffect(Unit) {
         viewModel.refreshChatOrganismStatus()
+        viewModel.refreshOrganismHealth()
     }
 
     LaunchedEffect(messages.size, isSending) {
@@ -229,7 +231,7 @@ private fun ChatScreen(viewModel: MorimilViewModel) {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        ChatOrganismHeader(organismStatus)
+        ChatOrganismHeader(organismStatus, organismHealth)
         Spacer(Modifier.height(16.dp))
         ChatVoiceControls(viewModel)
         Spacer(Modifier.height(16.dp))
@@ -277,7 +279,10 @@ private fun ChatScreen(viewModel: MorimilViewModel) {
 }
 
 @Composable
-private fun ChatOrganismHeader(status: ChatOrganismStatusUiState) {
+private fun ChatOrganismHeader(
+    status: ChatOrganismStatusUiState,
+    health: OrganismHealthUiState
+) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Morimil", style = MaterialTheme.typography.headlineMedium)
         Text("Conversacion real, con memoria local como contexto", style = MaterialTheme.typography.bodyMedium)
@@ -286,6 +291,15 @@ private fun ChatOrganismHeader(status: ChatOrganismStatusUiState) {
             StatusChip(status.modelLabel.take(36))
             StatusChip(status.memoryIntegrityLabel, attention = status.memoryNeedsAttention)
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatusChip(
+                health.overallLabel,
+                attention = health.memoryNeedsAttention || health.auditNeedsAttention || health.restCycleNeedsAttention
+            )
+            StatusChip(health.eventCountLabel)
+            StatusChip(health.auditAgeLabel, attention = health.memoryNeedsAttention || health.auditNeedsAttention)
+        }
+        Text(health.healthSentence, style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -576,6 +590,7 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
     val recentLinks by viewModel.recentMemoryLinks.collectAsStateWithLifecycle()
     val integrityAudit by viewModel.memoryIntegrityAudit.collectAsStateWithLifecycle()
     val restCycleScheduleStatus by viewModel.restCycleScheduleStatus.collectAsStateWithLifecycle()
+    val organismHealth by viewModel.organismHealth.collectAsStateWithLifecycle()
     val selectedMemoryEventHash by viewModel.selectedMemoryEventHash.collectAsStateWithLifecycle()
     val selectedMemoryLinks by viewModel.selectedMemoryLinks.collectAsStateWithLifecycle()
     val selectedGraphEvents by viewModel.selectedGraphEvents.collectAsStateWithLifecycle()
@@ -587,6 +602,11 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Living Memory", style = MaterialTheme.typography.headlineMedium)
         Text("Genesis Core inmutable + eventos append-only + organos locales de memoria.")
+        OrganismHealthPanel(
+            health = organismHealth,
+            onRefresh = viewModel::refreshOrganismHealth,
+            onRunIntegrityAudit = viewModel::runMemoryIntegrityAudit
+        )
         ProjectCard("Conversation memory", "${messages.size} mensajes persistidos.", "connected")
         snapshot?.let { liveSnapshot ->
             ProjectCard(
@@ -674,6 +694,43 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
             onClearSelection = viewModel::clearSelectedMemoryEvent
         )
         ProjectCard("Scope guardian", "Sin sincronizacion externa y sin ejecucion de PC.", "protected")
+    }
+}
+
+@Composable
+private fun OrganismHealthPanel(
+    health: OrganismHealthUiState,
+    onRefresh: () -> Unit,
+    onRunIntegrityAudit: () -> Unit
+) {
+    ElevatedCard {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Salud del organismo", style = MaterialTheme.typography.titleMedium)
+            Text(health.healthSentence)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                StatusChip(
+                    health.overallLabel,
+                    attention = health.memoryNeedsAttention || health.auditNeedsAttention || health.restCycleNeedsAttention
+                )
+                StatusChip(health.eventCountLabel)
+                StatusChip(health.recommendedActionLabel, attention = health.recommendedActionLabel != "accion: continuar")
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                StatusChip(health.memoryLabel, attention = health.memoryNeedsAttention)
+                StatusChip(health.auditAgeLabel, attention = health.memoryNeedsAttention || health.auditNeedsAttention)
+                StatusChip(health.auditSourceLabel)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                StatusChip(health.motorLabel, attention = health.motorNeedsAttention)
+                StatusChip(health.restCycleLabel, attention = health.restCycleNeedsAttention)
+            }
+            val checkedLabel = health.checkedAtMillis?.toString() ?: "pending"
+            Text("modelo=${health.modelLabel.take(80)} checked=$checkedLabel")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onRefresh) { Text("Actualizar salud") }
+                Button(onClick = onRunIntegrityAudit) { Text("Auditar memoria") }
+            }
+        }
     }
 }
 

@@ -167,6 +167,9 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     private val _chatOrganismStatus = MutableStateFlow(ChatOrganismStatusUiState())
     val chatOrganismStatus: StateFlow<ChatOrganismStatusUiState> = _chatOrganismStatus.asStateFlow()
 
+    private val _organismHealth = MutableStateFlow(OrganismHealthUiState())
+    val organismHealth: StateFlow<OrganismHealthUiState> = _organismHealth.asStateFlow()
+
     private val _restCycleScheduleStatus = MutableStateFlow(RestCycleScheduleStatus())
     val restCycleScheduleStatus: StateFlow<RestCycleScheduleStatus> = _restCycleScheduleStatus.asStateFlow()
 
@@ -201,10 +204,12 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             recentMemoryEvents.collect {
                 refreshChatOrganismStatus()
+                refreshOrganismHealth()
             }
         }
         refreshGenesis()
         refreshChatOrganismStatus()
+        refreshOrganismHealth()
     }
 
     fun refreshGenesis() {
@@ -325,6 +330,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
             }
             _memoryIntegrityAudit.value = result
             refreshChatOrganismStatus()
+            refreshOrganismHealthOnWorker()
         }
     }
 
@@ -352,6 +358,48 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                 audit.errorMessage != null ||
                 audit.memoryChainVerified == false ||
                 audit.capsuleChainVerified == false
+        )
+    }
+
+    fun refreshOrganismHealth() {
+        viewModelScope.launch(Dispatchers.IO) {
+            refreshOrganismHealthOnWorker()
+        }
+    }
+
+    private suspend fun refreshOrganismHealthOnWorker() {
+        val activeSlot = reasoningConfigStore.loadActiveSlot()
+        val audit = _memoryIntegrityAudit.value
+        val hasQuarantine = recentMemoryEvents.value.any { event ->
+            event.eventType == MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE ||
+                event.memoryKind == "integrity_quarantine"
+        }
+        val memoryDao = memoryDatabase.memoryDao()
+        val latestCompletedRestCycle = migrationRecordRepository.loadLatestCompletedMigration(
+            RestCycleRepository.REST_CYCLE_MIGRATION_TYPE
+        )
+        _organismHealth.value = OrganismHealthUiStateBuilder.build(
+            activeSlot = activeSlot,
+            audit = audit,
+            restCycleAudit = latestCompletedRestCycle?.toRestCycleAuditSignal(),
+            hasQuarantine = hasQuarantine,
+            eventCount = memoryDao.countMemoryEvents(),
+            restCycleScheduleStatus = _restCycleScheduleStatus.value,
+            latestRestCycleAtMillis = latestCompletedRestCycle?.updatedAtMillis
+                ?: memoryDao.loadLatestRestCycleEvent()?.createdAtMillis,
+            nowMillis = System.currentTimeMillis()
+        )
+    }
+
+    private fun MigrationRecordEntity.toRestCycleAuditSignal(): RestCycleAuditSignal {
+        return RestCycleAuditSignal(
+            memoryChainVerified = chainVerified,
+            capsuleChainVerified = expectedEffect
+                .lines()
+                .firstOrNull { line -> line.startsWith("organ_reconciliation_capsule_chain_verified=") }
+                ?.substringAfter("=")
+                ?.toBooleanStrictOrNull(),
+            checkedAtMillis = updatedAtMillis
         )
     }
 
@@ -391,6 +439,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 restCycleRepository.runLocalRestCycleIfDue(force = true)
+                refreshOrganismHealthOnWorker()
             }
         }
     }
@@ -404,6 +453,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
             }.onFailure { error ->
                 _restCycleScheduleStatus.value = RestCycleScheduleStatus(errorMessage = error.message)
             }
+            refreshOrganismHealthOnWorker()
         }
     }
 
@@ -416,6 +466,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
             }.onFailure { error ->
                 _restCycleScheduleStatus.value = RestCycleScheduleStatus(errorMessage = error.message)
             }
+            refreshOrganismHealthOnWorker()
         }
     }
 
@@ -427,6 +478,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
             }.onFailure { error ->
                 _restCycleScheduleStatus.value = RestCycleScheduleStatus(errorMessage = error.message)
             }
+            refreshOrganismHealthOnWorker()
         }
     }
 
@@ -517,6 +569,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
             val runtimeConfig = runtimeSlot.config
             ReasoningRuntimeState.set(runtimeConfig)
             refreshChatOrganismStatus()
+            refreshOrganismHealth()
             val runtimeAccess = secretVault.readReasoningKey(runtimeSlot.id).getOrNull().orEmpty()
             if (runtimeConfig.requiresRuntimeKey && runtimeAccess.isBlank()) {
                 _chatError.value = "Falta la llave del motor activo: ${runtimeSlot.displayName}."
