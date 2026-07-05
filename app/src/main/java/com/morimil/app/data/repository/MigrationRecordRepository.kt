@@ -75,12 +75,16 @@ class MigrationRecordRepository(organDatabase: MemoryOrganDatabase) {
         return organDao.loadMigrationRecord(migrationId)
     }
 
-    suspend fun markMigrationCompleted(migrationId: String, postSnapshotId: String?) {
+    suspend fun markMigrationCompleted(
+        migrationId: String,
+        postSnapshotId: String?,
+        resultNotes: List<String> = emptyList()
+    ) {
         updateMigrationResult(
             migrationId = migrationId,
             status = STATUS_COMPLETED,
             postSnapshotId = postSnapshotId,
-            errors = emptyList()
+            errors = resultNotes
         )
     }
 
@@ -94,11 +98,15 @@ class MigrationRecordRepository(organDatabase: MemoryOrganDatabase) {
         require(rows > 0) { "Migration approval update failed." }
     }
 
-    suspend fun markMigrationFailed(migrationId: String, errors: List<String>) {
+    suspend fun markMigrationFailed(
+        migrationId: String,
+        errors: List<String>,
+        postSnapshotId: String? = null
+    ) {
         updateMigrationResult(
             migrationId = migrationId,
             status = STATUS_FAILED,
-            postSnapshotId = null,
+            postSnapshotId = postSnapshotId,
             errors = errors
         )
     }
