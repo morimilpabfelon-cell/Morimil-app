@@ -1,4 +1,7 @@
-package com.morimil.app.ai
+﻿package com.morimil.app.ai
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 import org.json.JSONArray
 import org.json.JSONObject
@@ -138,13 +141,14 @@ object ReasoningWire {
 }
 
 class ReasoningClient {
-    fun sendMessage(
+    suspend fun sendMessage(
         config: ReasoningProviderConfig,
         runtimeKey: String,
         systemPrompt: String,
         history: List<ChatTurn>
-    ): Result<String> = runCatching {
-        val valid = config.validated()
+    ): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val valid = config.validated()
         if (valid.requiresRuntimeKey) {
             require(runtimeKey.isNotBlank()) { "Falta la llave de razonamiento." }
         }
@@ -186,6 +190,7 @@ class ReasoningClient {
         } finally {
             connection.disconnect()
         }
+        }
     }
 
     companion object {
@@ -195,3 +200,4 @@ class ReasoningClient {
         private const val MESSAGES_VERSION = "2023-06-01"
     }
 }
+
