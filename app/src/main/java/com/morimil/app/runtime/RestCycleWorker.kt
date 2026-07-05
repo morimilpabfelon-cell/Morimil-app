@@ -6,6 +6,7 @@ import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequest
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -48,13 +49,43 @@ object RestCycleScheduler {
     const val BACKOFF_MINUTES = 30L
 
     fun schedule(context: Context) {
+        WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
+            UNIQUE_WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            buildRequest()
+        )
+    }
+
+    suspend fun ensureScheduled(context: Context) {
+        WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
+            UNIQUE_WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            buildRequest()
+        ).result.get()
+    }
+
+    suspend fun cancel(context: Context) {
+        WorkManager.getInstance(context.applicationContext)
+            .cancelUniqueWork(UNIQUE_WORK_NAME)
+            .result
+            .get()
+    }
+
+    suspend fun readStatus(context: Context): RestCycleScheduleStatus {
+        val workInfos = WorkManager.getInstance(context.applicationContext)
+            .getWorkInfosForUniqueWork(UNIQUE_WORK_NAME)
+            .get()
+        return RestCycleScheduleStatus.fromWorkStates(workInfos.map { workInfo -> workInfo.state.name })
+    }
+
+    private fun buildRequest(): PeriodicWorkRequest {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
             .setRequiresBatteryNotLow(true)
             .setRequiresStorageNotLow(true)
             .build()
 
-        val request = PeriodicWorkRequestBuilder<RestCycleWorker>(
+        return PeriodicWorkRequestBuilder<RestCycleWorker>(
             repeatInterval = REPEAT_INTERVAL_HOURS,
             repeatIntervalTimeUnit = TimeUnit.HOURS,
             flexTimeInterval = FLEX_INTERVAL_HOURS,
@@ -65,11 +96,43 @@ object RestCycleScheduler {
             .setConstraints(constraints)
             .addTag(WORK_TAG)
             .build()
+    }
+}
 
-        WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
-            UNIQUE_WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP,
-            request
-        )
+data class RestCycleScheduleStatus(
+    val uniqueWorkName: String = RestCycleScheduler.UNIQUE_WORK_NAME,
+    val states: List<String> = emptyList(),
+    val repeatIntervalHours: Long = RestCycleScheduler.REPEAT_INTERVAL_HOURS,
+    val flexIntervalHours: Long = RestCycleScheduler.FLEX_INTERVAL_HOURS,
+    val initialDelayMinutes: Long = RestCycleScheduler.INITIAL_DELAY_MINUTES,
+    val requiresBatteryNotLow: Boolean = true,
+    val requiresStorageNotLow: Boolean = true,
+    val errorMessage: String? = null
+) {
+    val isScheduled: Boolean
+        get() = states.any { state -> state in ACTIVE_STATES }
+
+    val needsAttention: Boolean
+        get() = errorMessage != null || !isScheduled || states.any { state -> state in ATTENTION_STATES }
+
+    val stateLabel: String
+        get() = when {
+            errorMessage != null -> "error"
+            states.isEmpty() -> "no_agendado"
+            else -> states.joinToString(",")
+        }
+
+    companion object {
+        private val ACTIVE_STATES = setOf("ENQUEUED", "RUNNING")
+        private val ATTENTION_STATES = setOf("BLOCKED", "CANCELLED", "FAILED")
+
+        fun fromWorkStates(states: List<String>): RestCycleScheduleStatus {
+            return RestCycleScheduleStatus(
+                states = states
+                    .map { state -> state.trim().uppercase() }
+                    .filter { state -> state.isNotBlank() }
+                    .distinct()
+            )
+        }
     }
 }

@@ -33,6 +33,7 @@ import com.morimil.app.data.repository.MigrationRecordRepository
 import com.morimil.app.data.repository.RecallScheduleRepository
 import com.morimil.app.data.repository.RestCycleRepository
 import com.morimil.app.runtime.RestCycleScheduler
+import com.morimil.app.runtime.RestCycleScheduleStatus
 import com.morimil.app.security.AndroidKeyStoreMemoryEventSigner
 import com.morimil.app.security.SecretVault
 import com.morimil.app.core.memory.MemoryIntegrityCore
@@ -166,6 +167,9 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     private val _chatOrganismStatus = MutableStateFlow(ChatOrganismStatusUiState())
     val chatOrganismStatus: StateFlow<ChatOrganismStatusUiState> = _chatOrganismStatus.asStateFlow()
 
+    private val _restCycleScheduleStatus = MutableStateFlow(RestCycleScheduleStatus())
+    val restCycleScheduleStatus: StateFlow<RestCycleScheduleStatus> = _restCycleScheduleStatus.asStateFlow()
+
     private var selectedMemoryLinksJob: Job? = null
 
     val recentMigrationRecords: StateFlow<List<MigrationRecordEntity>> = migrationRecordRepository.recentMigrationRecords.stateIn(
@@ -188,6 +192,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
 
     init {
         RestCycleScheduler.schedule(application)
+        refreshRestCycleScheduleStatus()
         viewModelScope.launch {
             repository.seedInitialStateIfNeeded()
             runCatching { restCycleRepository.runLocalRestCycleIfDue() }
@@ -390,12 +395,51 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun enableRestCycleSchedule() {
+        val application = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                RestCycleScheduler.ensureScheduled(application)
+                refreshRestCycleScheduleStatusOnWorker(application)
+            }.onFailure { error ->
+                _restCycleScheduleStatus.value = RestCycleScheduleStatus(errorMessage = error.message)
+            }
+        }
+    }
+
+    fun cancelRestCycleSchedule() {
+        val application = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                RestCycleScheduler.cancel(application)
+                refreshRestCycleScheduleStatusOnWorker(application)
+            }.onFailure { error ->
+                _restCycleScheduleStatus.value = RestCycleScheduleStatus(errorMessage = error.message)
+            }
+        }
+    }
+
+    fun refreshRestCycleScheduleStatus() {
+        val application = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                refreshRestCycleScheduleStatusOnWorker(application)
+            }.onFailure { error ->
+                _restCycleScheduleStatus.value = RestCycleScheduleStatus(errorMessage = error.message)
+            }
+        }
+    }
+
     fun approveRestCycleConsolidation(migrationId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 restCycleRepository.approvePlannedRestCycle(migrationId)
             }
         }
+    }
+
+    private suspend fun refreshRestCycleScheduleStatusOnWorker(application: Application) {
+        _restCycleScheduleStatus.value = RestCycleScheduler.readStatus(application)
     }
 
     fun proposeCognitiveMigration() {

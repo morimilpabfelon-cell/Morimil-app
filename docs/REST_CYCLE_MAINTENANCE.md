@@ -13,6 +13,13 @@ The current runtime pattern is:
 7. Snapshot compaction: rebuild the living-memory snapshot.
 8. Audit notes: persist the maintenance report on the migration record.
 
+Scheduling:
+
+- `RestCycleWorker` is registered through WorkManager as unique periodic work.
+- It runs every 6 hours with a 1-hour flex window.
+- It requires no network, but waits for battery and storage to be healthy.
+- The Memory tab exposes scheduler state, manual execution, agenda activation, refresh, and pause controls.
+
 Risk rule:
 
 - `low`: clean chain, clean organs, no sensitive consolidation.

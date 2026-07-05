@@ -78,6 +78,7 @@ import com.morimil.app.data.local.MemoryEventEntity
 import com.morimil.app.data.local.MemoryLinkEntity
 import com.morimil.app.data.local.MigrationRecordEntity
 import com.morimil.app.data.local.RecallScheduleEntity
+import com.morimil.app.runtime.RestCycleScheduleStatus
 import java.util.Locale
 
 private const val MEMORY_EVENT_NODE_TYPE = "memory_event"
@@ -574,6 +575,7 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
     val knowledgeCapsules by viewModel.knowledgeCapsules.collectAsStateWithLifecycle()
     val recentLinks by viewModel.recentMemoryLinks.collectAsStateWithLifecycle()
     val integrityAudit by viewModel.memoryIntegrityAudit.collectAsStateWithLifecycle()
+    val restCycleScheduleStatus by viewModel.restCycleScheduleStatus.collectAsStateWithLifecycle()
     val selectedMemoryEventHash by viewModel.selectedMemoryEventHash.collectAsStateWithLifecycle()
     val selectedMemoryLinks by viewModel.selectedMemoryLinks.collectAsStateWithLifecycle()
     val selectedGraphEvents by viewModel.selectedGraphEvents.collectAsStateWithLifecycle()
@@ -641,8 +643,12 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
 
         RestCycleHistoryPanel(
             migrations = migrations,
+            scheduleStatus = restCycleScheduleStatus,
             onApproveRestCycle = viewModel::approveRestCycleConsolidation,
-            onRunRestCycleNow = viewModel::runRestCycleNow
+            onRunRestCycleNow = viewModel::runRestCycleNow,
+            onEnableSchedule = viewModel::enableRestCycleSchedule,
+            onCancelSchedule = viewModel::cancelRestCycleSchedule,
+            onRefreshSchedule = viewModel::refreshRestCycleScheduleStatus
         )
         CognitiveMigrationPanel(
             migrations = migrations,
@@ -890,13 +896,23 @@ private fun String.isMigrationPlanHeader(): Boolean {
 @Composable
 private fun RestCycleHistoryPanel(
     migrations: List<MigrationRecordEntity>,
+    scheduleStatus: RestCycleScheduleStatus,
     onApproveRestCycle: (String) -> Unit,
-    onRunRestCycleNow: () -> Unit
+    onRunRestCycleNow: () -> Unit,
+    onEnableSchedule: () -> Unit,
+    onCancelSchedule: () -> Unit,
+    onRefreshSchedule: () -> Unit
 ) {
     val restCycles = migrations.filter { migration -> migration.migrationType == REST_CYCLE_MIGRATION_TYPE }.take(8)
     Text("Rest cycle", style = MaterialTheme.typography.titleMedium)
     Text("Consolidaciones locales programadas, con aprobacion para cambios importantes.")
-    Button(onClick = onRunRestCycleNow) { Text("Ejecutar descanso ahora") }
+    RestCycleSchedulePanel(
+        status = scheduleStatus,
+        onRunRestCycleNow = onRunRestCycleNow,
+        onEnableSchedule = onEnableSchedule,
+        onCancelSchedule = onCancelSchedule,
+        onRefreshSchedule = onRefreshSchedule
+    )
 
     if (restCycles.isEmpty()) {
         ProjectCard("Historial de descanso", "Todavia no hay consolidaciones registradas.", "empty")
@@ -927,6 +943,36 @@ private fun RestCycleHistoryPanel(
                 if (migration.status == "planned" && migration.approvalRequired && !migration.approvedByUser) {
                     Button(onClick = { onApproveRestCycle(migration.migrationId) }) { Text("Aprobar consolidacion") }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RestCycleSchedulePanel(
+    status: RestCycleScheduleStatus,
+    onRunRestCycleNow: () -> Unit,
+    onEnableSchedule: () -> Unit,
+    onCancelSchedule: () -> Unit,
+    onRefreshSchedule: () -> Unit
+) {
+    ElevatedCard {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Programacion del descanso", style = MaterialTheme.typography.titleMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                StatusChip("estado=${status.stateLabel}", attention = status.needsAttention)
+                StatusChip("cada=${status.repeatIntervalHours}h")
+                StatusChip("flex=${status.flexIntervalHours}h")
+            }
+            Text("inicio=${status.initialDelayMinutes}min bateria_ok=${status.requiresBatteryNotLow} storage_ok=${status.requiresStorageNotLow}")
+            status.errorMessage?.let { error -> Text("scheduler_error=${error.take(160)}") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onRunRestCycleNow) { Text("Ejecutar ahora") }
+                Button(onClick = onEnableSchedule) { Text(if (status.isScheduled) "Asegurar agenda" else "Activar") }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onRefreshSchedule) { Text("Actualizar estado") }
+                Button(enabled = status.isScheduled, onClick = onCancelSchedule) { Text("Pausar automatico") }
             }
         }
     }
