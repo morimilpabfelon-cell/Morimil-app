@@ -1,6 +1,7 @@
 package com.morimil.app.runtime
 
 import android.content.Context
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -33,19 +34,30 @@ class RestCycleWorker(
 }
 
 object RestCycleScheduler {
-    private const val UNIQUE_WORK_NAME = "morimil_rest_cycle_periodic"
+    const val UNIQUE_WORK_NAME = "morimil_rest_cycle_periodic"
+    const val WORK_TAG = "morimil_rest_cycle"
+    const val REPEAT_INTERVAL_HOURS = 6L
+    const val FLEX_INTERVAL_HOURS = 1L
+    const val INITIAL_DELAY_MINUTES = 30L
+    const val BACKOFF_MINUTES = 30L
 
     fun schedule(context: Context) {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
             .setRequiresBatteryNotLow(true)
+            .setRequiresStorageNotLow(true)
             .build()
 
         val request = PeriodicWorkRequestBuilder<RestCycleWorker>(
-            repeatInterval = 6,
-            repeatIntervalTimeUnit = TimeUnit.HOURS
+            repeatInterval = REPEAT_INTERVAL_HOURS,
+            repeatIntervalTimeUnit = TimeUnit.HOURS,
+            flexTimeInterval = FLEX_INTERVAL_HOURS,
+            flexTimeIntervalUnit = TimeUnit.HOURS
         )
+            .setInitialDelay(INITIAL_DELAY_MINUTES, TimeUnit.MINUTES)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, BACKOFF_MINUTES, TimeUnit.MINUTES)
             .setConstraints(constraints)
+            .addTag(WORK_TAG)
             .build()
 
         WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
