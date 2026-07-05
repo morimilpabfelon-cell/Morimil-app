@@ -101,7 +101,13 @@ class RestCycleRepository(
             )
             migrationRecordRepository.markMigrationCompleted(
                 migrationId = migrationId,
-                postSnapshotId = restCycle.eventHash
+                postSnapshotId = restCycle.eventHash,
+                resultNotes = buildRestCycleResultNotes(
+                    restCycle = restCycle,
+                    sourceEventCount = meaningfulEvents.size,
+                    linkedEventCount = meaningfulEvents.take(12).size,
+                    approvedMigrationId = approvedMigrationId
+                )
             )
             true
         }.getOrElse { error ->
@@ -241,6 +247,14 @@ class RestCycleRepository(
         }
         val localIdentity = memoryDao.loadLocalIdentity()
         val riskLevel = RestCyclePolicy.riskLevel(meaningfulEvents)
+        val steps = buildList {
+            add("verify_recent_memory_tail")
+            if (approvalRequired) add("human_approval_required_for_sensitive_consolidation")
+            add("append_rest_cycle_event")
+            add("link_rest_cycle_to_source_events")
+            add("rebuild_living_memory_snapshot")
+            add("record_rest_cycle_audit_notes")
+        }
         return migrationRecordRepository.planMigration(
             instanceId = localIdentity?.instanceId ?: "local_instance_pending",
             genesisCoreHash = genesisCore.contentSha256,
@@ -255,19 +269,49 @@ class RestCycleRepository(
             preSnapshotId = preSnapshotId,
             chainVerified = true,
             backupRequired = approvalRequired,
-            steps = listOf(
-                "verify_recent_memory_tail",
-                "append_rest_cycle_event",
-                "link_rest_cycle_to_source_events",
-                "rebuild_living_memory_snapshot"
+            steps = steps,
+            expectedEffect = buildRestCycleExpectedEffect(
+                summary = summary,
+                meaningfulEvents = meaningfulEvents,
+                approvalRequired = approvalRequired
             ),
-            expectedEffect = summary.take(500) + "\npolicy_reason=" + RestCyclePolicy.approvalReason(meaningfulEvents),
             riskLevel = riskLevel,
             approvalRequired = approvalRequired,
             rollbackAvailable = true,
             rollbackStrategy = "append_only: failed plans do not mutate memory; completed rest cycles can be superseded by a compensating correction/quarantine event",
             approvedByUser = approvedByUser,
             approvalId = approvalId
+        )
+    }
+
+    private fun buildRestCycleExpectedEffect(
+        summary: String,
+        meaningfulEvents: List<MemoryEventEntity>,
+        approvalRequired: Boolean
+    ): String {
+        return buildString {
+            appendLine(summary.take(500))
+            appendLine("policy_reason=${RestCyclePolicy.approvalReason(meaningfulEvents)}")
+            appendLine("approval_required=$approvalRequired")
+            appendLine("source_events=${meaningfulEvents.size}")
+            appendLine("execution=workmanager_or_manual_trigger")
+            appendLine("scope=local_only_append_only")
+        }.trim()
+    }
+
+    private fun buildRestCycleResultNotes(
+        restCycle: RestCycleAppendResult,
+        sourceEventCount: Int,
+        linkedEventCount: Int,
+        approvedMigrationId: String?
+    ): List<String> {
+        return listOf(
+            "rest_cycle_result:completed",
+            "rest_cycle_event_hash:${restCycle.eventHash}",
+            "source_events:$sourceEventCount",
+            "links_created_for_sources:$linkedEventCount",
+            "approval_id:${approvedMigrationId ?: "none"}",
+            "completed_at_millis:${restCycle.createdAtMillis}"
         )
     }
 
