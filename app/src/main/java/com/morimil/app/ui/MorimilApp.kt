@@ -17,11 +17,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -34,8 +34,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -75,7 +75,6 @@ fun MorimilApp(viewModel: MorimilViewModel = viewModel()) {
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             val localIdentity by viewModel.localIdentity.collectAsStateWithLifecycle()
-
             if (localIdentity == null) {
                 OnboardingScreen(viewModel)
             } else {
@@ -106,7 +105,7 @@ private fun MainTabsScaffold(viewModel: MorimilViewModel) {
         Column(modifier = Modifier.padding(paddingValues)) {
             when (selectedTab) {
                 MorimilTab.Chat -> ChatScreen(viewModel)
-                MorimilTab.Voice -> MotorScreen(viewModel)
+                MorimilTab.Voice -> MotorScreen()
                 MorimilTab.Genesis -> GenesisScreen(viewModel)
                 MorimilTab.Workspace -> UserWorkspaceScreen(viewModel)
                 MorimilTab.Projects -> ProjectsScreen(viewModel)
@@ -138,7 +137,6 @@ private fun ChatScreen(viewModel: MorimilViewModel) {
         Text("Morimil", style = MaterialTheme.typography.headlineMedium)
         Text("Conversacion real, con memoria local como contexto", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(16.dp))
-
         ChatVoiceControls(viewModel)
         Spacer(Modifier.height(16.dp))
 
@@ -161,13 +159,12 @@ private fun ChatScreen(viewModel: MorimilViewModel) {
             }
         }
 
-        chatError?.let {
+        chatError?.let { error ->
             Spacer(Modifier.height(8.dp))
-            Text(it, style = MaterialTheme.typography.bodySmall)
+            Text(error, style = MaterialTheme.typography.bodySmall)
         }
 
         Spacer(Modifier.height(12.dp))
-
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextField(
                 value = draft,
@@ -201,7 +198,6 @@ private fun ChatVoiceControls(viewModel: MorimilViewModel) {
             ttsReady = status == TextToSpeech.SUCCESS
         }
     }
-
     DisposableEffect(textToSpeech) {
         textToSpeech.language = Locale.getDefault()
         onDispose {
@@ -210,39 +206,24 @@ private fun ChatVoiceControls(viewModel: MorimilViewModel) {
         }
     }
 
-    val speechRecognizer = remember {
-        SpeechRecognizer.createSpeechRecognizer(context)
-    }
-
+    val speechRecognizer = remember { SpeechRecognizer.createSpeechRecognizer(context) }
     DisposableEffect(speechRecognizer) {
         speechRecognizer.setRecognitionListener(
             object : RecognitionListener {
-                override fun onReadyForSpeech(params: android.os.Bundle?) {
-                    voiceStatus = "Escuchando..."
-                }
-
-                override fun onBeginningOfSpeech() {
-                    voiceStatus = "Voz detectada."
-                }
-
+                override fun onReadyForSpeech(params: android.os.Bundle?) { voiceStatus = "Escuchando..." }
+                override fun onBeginningOfSpeech() { voiceStatus = "Voz detectada." }
                 override fun onRmsChanged(rmsdB: Float) = Unit
                 override fun onBufferReceived(buffer: ByteArray?) = Unit
-
-                override fun onEndOfSpeech() {
-                    voiceStatus = "Procesando voz..."
-                }
-
-                override fun onError(error: Int) {
-                    voiceStatus = "No se pudo reconocer voz. Codigo: $error"
-                }
-
+                override fun onEndOfSpeech() { voiceStatus = "Procesando voz..." }
+                override fun onError(error: Int) { voiceStatus = "No se pudo reconocer voz. Codigo: $error" }
+                override fun onPartialResults(partialResults: android.os.Bundle?) = Unit
+                override fun onEvent(eventType: Int, params: android.os.Bundle?) = Unit
                 override fun onResults(results: android.os.Bundle?) {
                     val bestMatch = results
                         ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         .orEmpty()
                         .firstOrNull()
                         .orEmpty()
-
                     if (bestMatch.isBlank()) {
                         voiceStatus = "No se recibio texto."
                     } else {
@@ -250,15 +231,9 @@ private fun ChatVoiceControls(viewModel: MorimilViewModel) {
                         viewModel.sendMessage(bestMatch)
                     }
                 }
-
-                override fun onPartialResults(partialResults: android.os.Bundle?) = Unit
-                override fun onEvent(eventType: Int, params: android.os.Bundle?) = Unit
             }
         )
-
-        onDispose {
-            speechRecognizer.destroy()
-        }
+        onDispose { speechRecognizer.destroy() }
     }
 
     fun startListening() {
@@ -270,14 +245,8 @@ private fun ChatVoiceControls(viewModel: MorimilViewModel) {
         speechRecognizer.startListening(intent)
     }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            startListening()
-        } else {
-            voiceStatus = "Permiso de microfono denegado."
-        }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) startListening() else voiceStatus = "Permiso de microfono denegado."
     }
 
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
@@ -291,17 +260,11 @@ private fun ChatVoiceControls(viewModel: MorimilViewModel) {
                             context,
                             Manifest.permission.RECORD_AUDIO
                         ) == PackageManager.PERMISSION_GRANTED
-
-                        if (granted) {
-                            startListening()
-                        } else {
-                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                        }
+                        if (granted) startListening() else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     }
                 ) {
                     Text("Hablar")
                 }
-
                 Button(
                     enabled = ttsReady && messages.isNotEmpty(),
                     onClick = {
@@ -321,13 +284,11 @@ private fun ChatVoiceControls(viewModel: MorimilViewModel) {
         }
     }
 }
+
 @Composable
-private fun MotorScreen(viewModel: MorimilViewModel) {
+private fun MotorScreen() {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("Motor/API", style = MaterialTheme.typography.headlineMedium)
@@ -345,138 +306,6 @@ private fun MotorScreen(viewModel: MorimilViewModel) {
         )
     }
 }
-@Composable
-private fun VoiceScreen(viewModel: MorimilViewModel) {
-    val context = LocalContext.current
-    val messages by viewModel.messages.collectAsStateWithLifecycle()
-    var voiceStatus by remember { mutableStateOf("Push-to-talk listo. No escucha en background.") }
-    var ttsReady by remember { mutableStateOf(false) }
-
-    val textToSpeech = remember {
-        TextToSpeech(context) { status ->
-            ttsReady = status == TextToSpeech.SUCCESS
-        }
-    }
-
-    DisposableEffect(textToSpeech) {
-        textToSpeech.language = Locale.getDefault()
-        onDispose {
-            textToSpeech.stop()
-            textToSpeech.shutdown()
-        }
-    }
-
-    val speechRecognizer = remember {
-        SpeechRecognizer.createSpeechRecognizer(context)
-    }
-
-    DisposableEffect(speechRecognizer) {
-        speechRecognizer.setRecognitionListener(
-            object : RecognitionListener {
-                override fun onReadyForSpeech(params: android.os.Bundle?) {
-                    voiceStatus = "Escuchando..."
-                }
-
-                override fun onBeginningOfSpeech() {
-                    voiceStatus = "Voz detectada."
-                }
-
-                override fun onRmsChanged(rmsdB: Float) = Unit
-                override fun onBufferReceived(buffer: ByteArray?) = Unit
-
-                override fun onEndOfSpeech() {
-                    voiceStatus = "Procesando voz..."
-                }
-
-                override fun onError(error: Int) {
-                    voiceStatus = "No se pudo reconocer voz. Codigo: $error"
-                }
-
-                override fun onResults(results: android.os.Bundle?) {
-                    val matches = results
-                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        .orEmpty()
-                    val bestMatch = matches.firstOrNull().orEmpty()
-                    if (bestMatch.isBlank()) {
-                        voiceStatus = "No se recibio texto."
-                    } else {
-                        voiceStatus = "Texto reconocido y guardado."
-                        viewModel.sendMessage(bestMatch)
-                    }
-                }
-
-                override fun onPartialResults(partialResults: android.os.Bundle?) = Unit
-                override fun onEvent(eventType: Int, params: android.os.Bundle?) = Unit
-            }
-        )
-
-        onDispose {
-            speechRecognizer.destroy()
-        }
-    }
-
-    fun startListening() {
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Habla con Morimil")
-        }
-        speechRecognizer.startListening(intent)
-    }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            startListening()
-        } else {
-            voiceStatus = "Permiso de microfono denegado."
-        }
-    }
-
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Voice", style = MaterialTheme.typography.headlineMedium)
-        Text("Genesis movil v1 mantiene voz push-to-talk y TTS manual.")
-        ProjectCard("SpeechRecognizer", voiceStatus, "controlled")
-        ProjectCard("TextToSpeech", if (ttsReady) "Motor TTS listo." else "Inicializando TTS.", "manual")
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                onClick = {
-                    val granted = ContextCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.RECORD_AUDIO
-                    ) == PackageManager.PERMISSION_GRANTED
-
-                    if (granted) {
-                        startListening()
-                    } else {
-                        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    }
-                }
-            ) {
-                Text("Hablar")
-            }
-
-            Button(
-                enabled = ttsReady && messages.isNotEmpty(),
-                onClick = {
-                    val lastMessage = messages.lastOrNull()?.body.orEmpty()
-                    textToSpeech.speak(
-                        lastMessage,
-                        TextToSpeech.QUEUE_FLUSH,
-                        null,
-                        "morimil-last-message"
-                    )
-                }
-            ) {
-                Text("Leer ultimo")
-            }
-        }
-
-        ProjectCard("Boundary", "Sin sincronizacion externa, sin ejecucion de PC, sin escucha en background.", "protected")
-    }
-}
 
 @Composable
 private fun GenesisScreen(viewModel: MorimilViewModel) {
@@ -487,24 +316,14 @@ private fun GenesisScreen(viewModel: MorimilViewModel) {
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Genesis", style = MaterialTheme.typography.headlineMedium)
         Text("Fase Genesis local: lee la semilla empaquetada en la app y la copia al telefono.")
-
-        localIdentity?.let {
-            ProjectCard(
-                "Esta instancia: ${it.alias}",
-                "${it.genesisRole} / ${it.genesisRiskTier}",
-                "instance_id=${it.instanceId}"
-            )
-            ProjectCard(
-                "Memoria local",
-                "cadena en el dispositivo",
-                it.localMemoryUri
-            )
+        localIdentity?.let { identity ->
+            ProjectCard("Esta instancia: ${identity.alias}", "${identity.genesisRole} / ${identity.genesisRiskTier}", "instance_id=${identity.instanceId}")
+            ProjectCard("Memoria local", "cadena en el dispositivo", identity.localMemoryUri)
         }
-
-        genesisCore?.let {
+        genesisCore?.let { core ->
             ProjectCard(
                 "Genesis Core copiado",
-                "Origen=${it.sourceOrigin}; nacido=${it.copiedAtMillis}; sha256=${it.contentSha256.take(16)}...",
+                "Origen=${core.sourceOrigin}; nacido=${core.copiedAtMillis}; sha256=${core.contentSha256.take(16)}...",
                 "immutable"
             )
         } ?: ProjectCard("Genesis Core", "Aun no hay copia local nacida.", "pending")
@@ -528,9 +347,7 @@ private fun ProjectsScreen(viewModel: MorimilViewModel) {
         if (projects.isEmpty()) {
             ProjectCard("Morimil_app", "Genesis movil v1: esperando memoria local.", "loading")
         } else {
-            projects.forEach { project ->
-                ProjectCard(project.title, "Persisted project state in Room.", project.status)
-            }
+            projects.forEach { project -> ProjectCard(project.title, "Persisted project state in Room.", project.status) }
         }
         ProjectCard("Genesis", "Bundled Genesis seed visible in Genesis tab.", "read-only")
     }
@@ -540,19 +357,18 @@ private fun ProjectsScreen(viewModel: MorimilViewModel) {
 private fun GenesisContent(source: GenesisIdentitySource) {
     val genesis = source.identity
     val capabilities = CurrentMobileAppCapabilities.value
-    val originLabel = source.origin.label
-    ProjectCard(genesis.alias, "${genesis.role} / ${genesis.riskTier}", originLabel)
+    ProjectCard(genesis.alias, "${genesis.role} / ${genesis.riskTier}", source.origin.label)
     ProjectCard("Genesis verificado", "${source.manifest.fileCount} archivos", source.manifest.genesisCoreHash)
     ProjectCard("Owner", genesis.owner, genesis.schemaVersion)
     ProjectCard("Allowed actions", genesis.allowedActions.joinToString(", "), "bounded")
     ProjectCard("Disallowed actions", genesis.disallowedActions.joinToString(", "), "protected")
     ProjectCard(
-            "Mobile app capabilities",
-            "memory=${capabilities.localMemory}, voice=${capabilities.voicePushToTalk}, " +
+        "Mobile app capabilities",
+        "memory=${capabilities.localMemory}, voice=${capabilities.voicePushToTalk}, " +
             "external_sync=${capabilities.externalReadOnlySync}, external_write=${capabilities.externalWriteExecution}, " +
             "pc_execution=${capabilities.pcExecution}",
-            capabilities.currentAppPhase
-        )
+        capabilities.currentAppPhase
+    )
 }
 
 @Composable
@@ -564,6 +380,10 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
     val events by viewModel.recentMemoryEvents.collectAsStateWithLifecycle()
     val recalls by viewModel.activeRecallSchedules.collectAsStateWithLifecycle()
     val migrations by viewModel.recentMigrationRecords.collectAsStateWithLifecycle()
+    val selfSnapshot by viewModel.selfSnapshot.collectAsStateWithLifecycle()
+    val knowledgeCapsules by viewModel.knowledgeCapsules.collectAsStateWithLifecycle()
+    val recentLinks by viewModel.recentMemoryLinks.collectAsStateWithLifecycle()
+    val integrityAudit by viewModel.memoryIntegrityAudit.collectAsStateWithLifecycle()
     val selectedMemoryEventHash by viewModel.selectedMemoryEventHash.collectAsStateWithLifecycle()
     val selectedMemoryLinks by viewModel.selectedMemoryLinks.collectAsStateWithLifecycle()
     val eventsByHash = events.associateBy { event -> event.eventHash }
@@ -571,13 +391,13 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Living Memory", style = MaterialTheme.typography.headlineMedium)
-        Text("Genesis Core inmutable + eventos append-only + snapshot local.")
+        Text("Genesis Core inmutable + eventos append-only + organos locales de memoria.")
         ProjectCard("Conversation memory", "${messages.size} mensajes persistidos.", "connected")
-        snapshot?.let {
+        snapshot?.let { liveSnapshot ->
             ProjectCard(
                 "Living snapshot",
-                "${it.eventCount} eventos / ${it.messageCount} mensajes. ${it.summary.take(260)}",
-                "updated=${it.updatedAtMillis}"
+                "${liveSnapshot.eventCount} eventos / ${liveSnapshot.messageCount} mensajes. ${liveSnapshot.summary.take(260)}",
+                "updated=${liveSnapshot.updatedAtMillis}"
             )
         } ?: ProjectCard("Living snapshot", "Todavia no existe snapshot vivo.", "pending")
         ProjectCard("Project state", "${projects.size} proyectos persistidos.", "connected")
@@ -588,6 +408,17 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
                 ProjectCard(decision.title, "Decision persisted locally.", decision.status)
             }
         }
+
+        MemoryOrgansPanel(
+            selfSnapshot = selfSnapshot,
+            knowledgeCapsules = knowledgeCapsules,
+            links = recentLinks,
+            migrations = migrations,
+            audit = integrityAudit,
+            onRunIntegrityAudit = viewModel::runMemoryIntegrityAudit,
+            onOpenMemory = viewModel::selectMemoryEvent
+        )
+
         RecallSchedulePanel(
             recalls = recalls,
             eventsByHash = eventsByHash,
@@ -597,44 +428,24 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
             onDegradeRecall = viewModel::degradeRecall,
             onOpenMemory = viewModel::selectMemoryEvent
         )
+
         Text("Memory review queue", style = MaterialTheme.typography.titleMedium)
         Text("Los recuerdos son append-only. Aprobar, corregir o degradar crea una revision local nueva; no modifica el evento original.")
         if (events.isEmpty()) {
             ProjectCard("Memory events", "Sin eventos vivos todavia.", "empty")
         } else {
             events.take(12).forEach { event ->
-                ElevatedCard {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text("${event.memoryKind} / ${event.eventType}", style = MaterialTheme.typography.titleMedium)
-                        Text(event.body.take(340))
-                        Text(
-                            "actor=${event.actor} importance=${event.importance} confidence=${event.confidence} " +
-                                "hash=${event.eventHash.take(24)}"
-                        )
-                        Text("tags=${event.tagsJson.take(160)}")
-                        if (selectedMemoryEventHash == event.eventHash) {
-                            AssistChip(onClick = {}, label = { Text("Backlinks abiertos") })
-                        } else {
-                            Button(onClick = { viewModel.selectMemoryEvent(event.eventHash) }) {
-                                Text("Ver backlinks")
-                            }
-                        }
-                        Button(onClick = { viewModel.approveMemoryEvent(event) }) {
-                            Text("Aprobar")
-                        }
-                        Button(onClick = { viewModel.degradeMemoryEvent(event) }) {
-                            Text("Degradar ruido")
-                        }
-                        Button(onClick = { viewModel.requestMemoryCorrection(event) }) {
-                            Text("Pedir correccion")
-                        }
-                    }
-                }
+                MemoryEventReviewCard(
+                    event = event,
+                    selected = selectedMemoryEventHash == event.eventHash,
+                    onSelect = viewModel::selectMemoryEvent,
+                    onApprove = viewModel::approveMemoryEvent,
+                    onDegrade = viewModel::degradeMemoryEvent,
+                    onRequestCorrection = viewModel::requestMemoryCorrection
+                )
             }
         }
+
         RestCycleHistoryPanel(
             migrations = migrations,
             onApproveRestCycle = viewModel::approveRestCycleConsolidation,
@@ -660,6 +471,35 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
 }
 
 @Composable
+private fun MemoryEventReviewCard(
+    event: MemoryEventEntity,
+    selected: Boolean,
+    onSelect: (String) -> Unit,
+    onApprove: (MemoryEventEntity) -> Unit,
+    onDegrade: (MemoryEventEntity) -> Unit,
+    onRequestCorrection: (MemoryEventEntity) -> Unit
+) {
+    ElevatedCard {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("${event.memoryKind} / ${event.eventType}", style = MaterialTheme.typography.titleMedium)
+            Text(event.body.take(340))
+            Text("actor=${event.actor} importance=${event.importance} confidence=${event.confidence} hash=${event.eventHash.take(24)}")
+            Text("tags=${event.tagsJson.take(160)}")
+            if (selected) {
+                AssistChip(onClick = {}, label = { Text("Backlinks abiertos") })
+            } else {
+                Button(onClick = { onSelect(event.eventHash) }) { Text("Ver backlinks") }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { onApprove(event) }) { Text("Aprobar") }
+                Button(onClick = { onDegrade(event) }) { Text("Degradar ruido") }
+            }
+            Button(onClick = { onRequestCorrection(event) }) { Text("Pedir correccion") }
+        }
+    }
+}
+
+@Composable
 private fun RecallSchedulePanel(
     recalls: List<RecallScheduleEntity>,
     eventsByHash: Map<String, MemoryEventEntity>,
@@ -679,35 +519,15 @@ private fun RecallSchedulePanel(
 
     Text("Recalls pendientes", style = MaterialTheme.typography.titleMedium)
     Text("Recuerdos que conviene repasar para mantenerlos utiles sin convertir ruido en memoria fuerte.")
-    Button(onClick = onSeedRecalls) {
-        Text(if (recalls.isEmpty()) "Crear recalls" else "Actualizar recalls")
-    }
+    Button(onClick = onSeedRecalls) { Text(if (recalls.isEmpty()) "Crear recalls" else "Actualizar recalls") }
 
     if (recalls.isEmpty()) {
         ProjectCard("Recall schedule", "No hay recalls activos todavia.", "empty")
         return
     }
 
-    RecallScheduleSection(
-        title = "Vencidos ahora",
-        emptyText = "No hay recalls vencidos.",
-        recalls = overdue.take(8),
-        eventsByHash = eventsByHash,
-        onReinforceRecall = onReinforceRecall,
-        onPostponeRecall = onPostponeRecall,
-        onDegradeRecall = onDegradeRecall,
-        onOpenMemory = onOpenMemory
-    )
-    RecallScheduleSection(
-        title = "Futuros",
-        emptyText = "No hay recalls futuros.",
-        recalls = future.take(8),
-        eventsByHash = eventsByHash,
-        onReinforceRecall = onReinforceRecall,
-        onPostponeRecall = onPostponeRecall,
-        onDegradeRecall = onDegradeRecall,
-        onOpenMemory = onOpenMemory
-    )
+    RecallScheduleSection("Vencidos ahora", "No hay recalls vencidos.", overdue.take(8), eventsByHash, onReinforceRecall, onPostponeRecall, onDegradeRecall, onOpenMemory)
+    RecallScheduleSection("Futuros", "No hay recalls futuros.", future.take(8), eventsByHash, onReinforceRecall, onPostponeRecall, onDegradeRecall, onOpenMemory)
 }
 
 @Composable
@@ -730,33 +550,20 @@ private fun RecallScheduleSection(
     recalls.forEach { recall ->
         val targetEvent = eventsByHash[recall.targetEventHash]
         ElevatedCard {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("${recall.targetMemoryKind} / priority=${recall.priority}", style = MaterialTheme.typography.titleMedium)
                 Text(recall.prompt.take(360))
                 Text("due=${recall.dueAtMillis} interval=${recall.intervalDays}d action=${recall.lastAction}")
                 Text("organ=${recall.source} link=${recall.targetEventHash.take(24)}")
-                targetEvent?.let { event ->
-                    Text("recuerdo=${event.memoryKind}: ${event.body.take(180)}")
-                }
+                targetEvent?.let { event -> Text("recuerdo=${event.memoryKind}: ${event.body.take(180)}") }
                 Text("reason=${recall.reason.take(180)}")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { onReinforceRecall(recall.recallId) }) {
-                        Text("Reforzar")
-                    }
-                    Button(onClick = { onPostponeRecall(recall.recallId) }) {
-                        Text("Posponer")
-                    }
+                    Button(onClick = { onReinforceRecall(recall.recallId) }) { Text("Reforzar") }
+                    Button(onClick = { onPostponeRecall(recall.recallId) }) { Text("Posponer") }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { onOpenMemory(recall.targetEventHash) }) {
-                        Text("Abrir recuerdo")
-                    }
-                    Button(onClick = { onDegradeRecall(recall.recallId) }) {
-                        Text("Degradar")
-                    }
+                    Button(onClick = { onOpenMemory(recall.targetEventHash) }) { Text("Abrir recuerdo") }
+                    Button(onClick = { onDegradeRecall(recall.recallId) }) { Text("Degradar") }
                 }
             }
         }
@@ -771,15 +578,10 @@ private fun CognitiveMigrationPanel(
     onExecuteMigration: (String) -> Unit,
     onRollbackMigration: (String) -> Unit
 ) {
-    val cognitiveMigrations = migrations
-        .filter { migration -> migration.migrationType == COGNITIVE_MIGRATION_TYPE }
-        .take(8)
-
+    val cognitiveMigrations = migrations.filter { migration -> migration.migrationType == COGNITIVE_MIGRATION_TYPE }.take(8)
     Text("Migraciones cognitivas", style = MaterialTheme.typography.titleMedium)
     Text("Propuestas auditables para refinar memoria sin reescribir eventos originales.")
-    Button(onClick = onProposeMigration) {
-        Text("Proponer migracion")
-    }
+    Button(onClick = onProposeMigration) { Text("Proponer migracion") }
 
     if (cognitiveMigrations.isEmpty()) {
         ProjectCard("Auditoria cognitiva", "Todavia no hay migraciones cognitivas propuestas.", "empty")
@@ -788,36 +590,24 @@ private fun CognitiveMigrationPanel(
 
     cognitiveMigrations.forEach { migration ->
         ElevatedCard {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("${migration.status} / risk=${migration.riskLevel}", style = MaterialTheme.typography.titleMedium)
                 Text(migration.expectedEffect.take(360))
-                Text(
-                    "approved=${migration.approvedByUser} chain=${migration.chainVerified} " +
-                        "backup=${migration.backupRequired} rollback=${migration.rollbackAvailable}"
-                )
+                Text("approved=${migration.approvedByUser} chain=${migration.chainVerified} backup=${migration.backupRequired} rollback=${migration.rollbackAvailable}")
                 Text("affected=${migration.affectedArtifactsJson.take(220)}")
                 Text("steps=${migration.stepsJson.take(220)}")
                 Text("errors=${migration.errorsJson.take(180)}")
                 Text("strategy=${migration.rollbackStrategy.take(220)}")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (migration.status == "planned" && !migration.approvedByUser) {
-                        Button(onClick = { onApproveMigration(migration.migrationId) }) {
-                            Text("Aprobar")
-                        }
+                        Button(onClick = { onApproveMigration(migration.migrationId) }) { Text("Aprobar") }
                     }
                     if (migration.status == "approved") {
-                        Button(onClick = { onExecuteMigration(migration.migrationId) }) {
-                            Text("Ejecutar")
-                        }
+                        Button(onClick = { onExecuteMigration(migration.migrationId) }) { Text("Ejecutar") }
                     }
                 }
                 if (migration.rollbackAvailable && migration.status in setOf("approved", "completed", "failed")) {
-                    Button(onClick = { onRollbackMigration(migration.migrationId) }) {
-                        Text("Rollback")
-                    }
+                    Button(onClick = { onRollbackMigration(migration.migrationId) }) { Text("Rollback") }
                 }
             }
         }
@@ -830,15 +620,10 @@ private fun RestCycleHistoryPanel(
     onApproveRestCycle: (String) -> Unit,
     onRunRestCycleNow: () -> Unit
 ) {
-    val restCycles = migrations
-        .filter { migration -> migration.migrationType == REST_CYCLE_MIGRATION_TYPE }
-        .take(8)
-
+    val restCycles = migrations.filter { migration -> migration.migrationType == REST_CYCLE_MIGRATION_TYPE }.take(8)
     Text("Rest cycle", style = MaterialTheme.typography.titleMedium)
     Text("Consolidaciones locales programadas, con aprobacion para cambios importantes.")
-    Button(onClick = onRunRestCycleNow) {
-        Text("Ejecutar descanso ahora")
-    }
+    Button(onClick = onRunRestCycleNow) { Text("Ejecutar descanso ahora") }
 
     if (restCycles.isEmpty()) {
         ProjectCard("Historial de descanso", "Todavia no hay consolidaciones registradas.", "empty")
@@ -847,21 +632,13 @@ private fun RestCycleHistoryPanel(
 
     restCycles.forEach { migration ->
         ElevatedCard {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("${migration.status} / risk=${migration.riskLevel}", style = MaterialTheme.typography.titleMedium)
                 Text(migration.expectedEffect.take(260))
-                Text(
-                    "approval_required=${migration.approvalRequired} approved=${migration.approvedByUser} " +
-                        "rollback=${migration.rollbackAvailable}"
-                )
+                Text("approval_required=${migration.approvalRequired} approved=${migration.approvedByUser} rollback=${migration.rollbackAvailable}")
                 Text("strategy=${migration.rollbackStrategy.take(220)}")
                 if (migration.status == "planned" && migration.approvalRequired && !migration.approvedByUser) {
-                    Button(onClick = { onApproveRestCycle(migration.migrationId) }) {
-                        Text("Aprobar consolidacion")
-                    }
+                    Button(onClick = { onApproveRestCycle(migration.migrationId) }) { Text("Aprobar consolidacion") }
                 }
             }
         }
@@ -890,30 +667,13 @@ private fun MemoryBacklinksPanel(
     )
 
     ElevatedCard {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Recuerdo seleccionado", style = MaterialTheme.typography.titleMedium)
             Text(selectedEvent?.body?.take(260) ?: selectedEventHash.take(32))
             Text("hash=${selectedEventHash.take(32)} links=${selectedLinks.size}")
-            Button(onClick = onClearSelection) {
-                Text("Cerrar")
-            }
-            MemoryBacklinkSection(
-                title = "Este recuerdo apunta a...",
-                emptyText = "Este recuerdo todavia no apunta a otros nodos.",
-                backlinks = graph.outgoing,
-                eventsByHash = eventsByHash,
-                onSelectEventHash = onSelectEventHash
-            )
-            MemoryBacklinkSection(
-                title = "Este recuerdo es mencionado por...",
-                emptyText = "Ningun nodo reciente apunta todavia a este recuerdo.",
-                backlinks = graph.incoming,
-                eventsByHash = eventsByHash,
-                onSelectEventHash = onSelectEventHash
-            )
+            Button(onClick = onClearSelection) { Text("Cerrar") }
+            MemoryBacklinkSection("Este recuerdo apunta a...", "Este recuerdo todavia no apunta a otros nodos.", graph.outgoing, eventsByHash, onSelectEventHash)
+            MemoryBacklinkSection("Este recuerdo es mencionado por...", "Ningun nodo reciente apunta todavia a este recuerdo.", graph.incoming, eventsByHash, onSelectEventHash)
         }
     }
 }
@@ -941,20 +701,13 @@ private fun MemoryBacklinkSection(
                     Text(memoryNodeLabel(linkedEvent, backlink.linkedNodeId, backlink.linkedNodeType).take(90))
                 }
             } else {
-                AssistChip(
-                    onClick = {},
-                    label = { Text(memoryNodeLabel(linkedEvent, backlink.linkedNodeId, backlink.linkedNodeType).take(90)) }
-                )
+                AssistChip(onClick = {}, label = { Text(memoryNodeLabel(linkedEvent, backlink.linkedNodeId, backlink.linkedNodeType).take(90)) })
             }
         }
     }
 }
 
-private fun memoryNodeLabel(
-    event: MemoryEventEntity?,
-    nodeId: String,
-    nodeType: String
-): String {
+private fun memoryNodeLabel(event: MemoryEventEntity?, nodeId: String, nodeType: String): String {
     if (event == null) return "$nodeType ${nodeId.take(24)}"
     return "${event.memoryKind} / ${event.eventType}: ${event.body.take(90)}"
 }
