@@ -152,6 +152,9 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     private val _memoryIntegrityAudit = MutableStateFlow(MemoryIntegrityAuditUiState())
     val memoryIntegrityAudit: StateFlow<MemoryIntegrityAuditUiState> = _memoryIntegrityAudit.asStateFlow()
 
+    private val _chatOrganismStatus = MutableStateFlow(ChatOrganismStatusUiState())
+    val chatOrganismStatus: StateFlow<ChatOrganismStatusUiState> = _chatOrganismStatus.asStateFlow()
+
     private var selectedMemoryLinksJob: Job? = null
 
     val recentMigrationRecords: StateFlow<List<MigrationRecordEntity>> = migrationRecordRepository.recentMigrationRecords.stateIn(
@@ -179,7 +182,13 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
             runCatching { restCycleRepository.runLocalRestCycleIfDue() }
             runCatching { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
         }
+        viewModelScope.launch {
+            recentMemoryEvents.collect {
+                refreshChatOrganismStatus()
+            }
+        }
         refreshGenesis()
+        refreshChatOrganismStatus()
     }
 
     fun refreshGenesis() {
@@ -299,7 +308,35 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                 )
             }
             _memoryIntegrityAudit.value = result
+            refreshChatOrganismStatus()
         }
+    }
+
+    fun refreshChatOrganismStatus() {
+        val activeSlot = reasoningConfigStore.loadActiveSlot()
+        val modelLabel = activeSlot.config.model.ifBlank { "modelo pendiente" }
+        val hasQuarantine = recentMemoryEvents.value.any { event ->
+            event.eventType == MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE ||
+                event.memoryKind == "integrity_quarantine"
+        }
+        val audit = _memoryIntegrityAudit.value
+        val memoryLabel = when {
+            hasQuarantine -> "memoria: cuarentena"
+            audit.errorMessage != null -> "memoria: error de auditoria"
+            audit.memoryChainVerified == true && audit.capsuleChainVerified == true -> "memoria: verificada"
+            audit.memoryChainVerified == false || audit.capsuleChainVerified == false -> "memoria: revisar"
+            else -> "memoria: sin auditar"
+        }
+
+        _chatOrganismStatus.value = ChatOrganismStatusUiState(
+            motorLabel = activeSlot.displayName,
+            modelLabel = modelLabel,
+            memoryIntegrityLabel = memoryLabel,
+            memoryNeedsAttention = hasQuarantine ||
+                audit.errorMessage != null ||
+                audit.memoryChainVerified == false ||
+                audit.capsuleChainVerified == false
+        )
     }
 
     fun seedRecallScheduleIfNeeded() {
@@ -424,6 +461,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
             val runtimeSlot = reasoningConfigStore.loadActiveSlot()
             val runtimeConfig = runtimeSlot.config
             ReasoningRuntimeState.set(runtimeConfig)
+            refreshChatOrganismStatus()
             val runtimeAccess = secretVault.readReasoningKey(runtimeSlot.id).getOrNull().orEmpty()
             if (runtimeConfig.requiresRuntimeKey && runtimeAccess.isBlank()) {
                 _chatError.value = "Falta la llave del motor activo: ${runtimeSlot.displayName}."
@@ -482,6 +520,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
 
     companion object {
         private const val MEMORY_EVENT_NODE_TYPE = "memory_event"
+        private const val MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE = "memory_integrity.quarantine"
         private const val MAX_GRAPH_EVENT_LOOKUP = 60
     }
 }
