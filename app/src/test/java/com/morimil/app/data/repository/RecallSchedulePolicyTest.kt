@@ -33,10 +33,18 @@ class RecallSchedulePolicyTest {
     @Test
     fun intervalGrowsConservatively() {
         assertEquals(1, RecallSchedulePolicy.nextIntervalDays(0))
-        assertEquals(2, RecallSchedulePolicy.nextIntervalDays(1))
-        assertEquals(4, RecallSchedulePolicy.nextIntervalDays(2))
-        assertEquals(8, RecallSchedulePolicy.nextIntervalDays(4))
+        assertEquals(3, RecallSchedulePolicy.nextIntervalDays(1))
+        assertEquals(7, RecallSchedulePolicy.nextIntervalDays(2))
+        assertEquals(11, RecallSchedulePolicy.nextIntervalDays(4))
         assertEquals(30, RecallSchedulePolicy.nextIntervalDays(30))
+    }
+
+    @Test
+    fun highPriorityMemoryStaysCloser() {
+        assertEquals(1, RecallSchedulePolicy.initialIntervalDays(95))
+        assertEquals(3, RecallSchedulePolicy.initialIntervalDays(60))
+        assertEquals(2, RecallSchedulePolicy.nextIntervalDays(currentIntervalDays = 1, priority = 95))
+        assertEquals(21, RecallSchedulePolicy.nextIntervalDays(currentIntervalDays = 30, priority = 95))
     }
 
     @Test

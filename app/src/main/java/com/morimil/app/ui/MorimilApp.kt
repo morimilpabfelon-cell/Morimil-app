@@ -53,6 +53,7 @@ import com.morimil.app.data.genesis.GenesisIdentitySource
 import com.morimil.app.data.local.MemoryEventEntity
 import com.morimil.app.data.local.MemoryLinkEntity
 import com.morimil.app.data.local.MigrationRecordEntity
+import com.morimil.app.data.local.RecallScheduleEntity
 import java.util.Locale
 
 private const val MEMORY_EVENT_NODE_TYPE = "memory_event"
@@ -586,39 +587,15 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
                 ProjectCard(decision.title, "Decision persisted locally.", decision.status)
             }
         }
-        Text("Recalls pendientes", style = MaterialTheme.typography.titleMedium)
-        Text("Recuerdos que conviene repasar para mantenerlos utiles sin convertir ruido en memoria fuerte.")
-        if (recalls.isEmpty()) {
-            ProjectCard("Recall schedule", "No hay recalls activos todavia.", "empty")
-            Button(onClick = { viewModel.seedRecallScheduleIfNeeded() }) {
-                Text("Crear recalls")
-            }
-        } else {
-            recalls.take(8).forEach { recall ->
-                ElevatedCard {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text("${recall.targetMemoryKind} / priority=${recall.priority}", style = MaterialTheme.typography.titleMedium)
-                        Text(recall.prompt.take(360))
-                        Text("due=${recall.dueAtMillis} interval=${recall.intervalDays}d action=${recall.lastAction}")
-                        Text("reason=${recall.reason.take(180)}")
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { viewModel.reinforceRecall(recall.recallId) }) {
-                                Text("Reforzar")
-                            }
-                            Button(onClick = { viewModel.postponeRecall(recall.recallId) }) {
-                                Text("Posponer")
-                            }
-                        }
-                        Button(onClick = { viewModel.degradeRecall(recall.recallId) }) {
-                            Text("Degradar")
-                        }
-                    }
-                }
-            }
-        }
+        RecallSchedulePanel(
+            recalls = recalls,
+            eventsByHash = eventsByHash,
+            onSeedRecalls = viewModel::seedRecallScheduleIfNeeded,
+            onReinforceRecall = viewModel::reinforceRecall,
+            onPostponeRecall = viewModel::postponeRecall,
+            onDegradeRecall = viewModel::degradeRecall,
+            onOpenMemory = viewModel::selectMemoryEvent
+        )
         Text("Memory review queue", style = MaterialTheme.typography.titleMedium)
         Text("Los recuerdos son append-only. Aprobar, corregir o degradar crea una revision local nueva; no modifica el evento original.")
         if (events.isEmpty()) {
@@ -671,6 +648,110 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
             onClearSelection = viewModel::clearSelectedMemoryEvent
         )
         ProjectCard("Scope guardian", "Sin sincronizacion externa y sin ejecucion de PC.", "protected")
+    }
+}
+
+@Composable
+private fun RecallSchedulePanel(
+    recalls: List<RecallScheduleEntity>,
+    eventsByHash: Map<String, MemoryEventEntity>,
+    onSeedRecalls: () -> Unit,
+    onReinforceRecall: (Long) -> Unit,
+    onPostponeRecall: (Long) -> Unit,
+    onDegradeRecall: (Long) -> Unit,
+    onOpenMemory: (String) -> Unit
+) {
+    val now = System.currentTimeMillis()
+    val overdue = recalls
+        .filter { recall -> recall.dueAtMillis <= now }
+        .sortedWith(compareByDescending<RecallScheduleEntity> { it.priority }.thenBy { it.dueAtMillis })
+    val future = recalls
+        .filter { recall -> recall.dueAtMillis > now }
+        .sortedWith(compareBy<RecallScheduleEntity> { it.dueAtMillis }.thenByDescending { it.priority })
+
+    Text("Recalls pendientes", style = MaterialTheme.typography.titleMedium)
+    Text("Recuerdos que conviene repasar para mantenerlos utiles sin convertir ruido en memoria fuerte.")
+    Button(onClick = onSeedRecalls) {
+        Text(if (recalls.isEmpty()) "Crear recalls" else "Actualizar recalls")
+    }
+
+    if (recalls.isEmpty()) {
+        ProjectCard("Recall schedule", "No hay recalls activos todavia.", "empty")
+        return
+    }
+
+    RecallScheduleSection(
+        title = "Vencidos ahora",
+        emptyText = "No hay recalls vencidos.",
+        recalls = overdue.take(8),
+        eventsByHash = eventsByHash,
+        onReinforceRecall = onReinforceRecall,
+        onPostponeRecall = onPostponeRecall,
+        onDegradeRecall = onDegradeRecall,
+        onOpenMemory = onOpenMemory
+    )
+    RecallScheduleSection(
+        title = "Futuros",
+        emptyText = "No hay recalls futuros.",
+        recalls = future.take(8),
+        eventsByHash = eventsByHash,
+        onReinforceRecall = onReinforceRecall,
+        onPostponeRecall = onPostponeRecall,
+        onDegradeRecall = onDegradeRecall,
+        onOpenMemory = onOpenMemory
+    )
+}
+
+@Composable
+private fun RecallScheduleSection(
+    title: String,
+    emptyText: String,
+    recalls: List<RecallScheduleEntity>,
+    eventsByHash: Map<String, MemoryEventEntity>,
+    onReinforceRecall: (Long) -> Unit,
+    onPostponeRecall: (Long) -> Unit,
+    onDegradeRecall: (Long) -> Unit,
+    onOpenMemory: (String) -> Unit
+) {
+    Text(title, style = MaterialTheme.typography.titleMedium)
+    if (recalls.isEmpty()) {
+        Text(emptyText)
+        return
+    }
+
+    recalls.forEach { recall ->
+        val targetEvent = eventsByHash[recall.targetEventHash]
+        ElevatedCard {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("${recall.targetMemoryKind} / priority=${recall.priority}", style = MaterialTheme.typography.titleMedium)
+                Text(recall.prompt.take(360))
+                Text("due=${recall.dueAtMillis} interval=${recall.intervalDays}d action=${recall.lastAction}")
+                Text("organ=${recall.source} link=${recall.targetEventHash.take(24)}")
+                targetEvent?.let { event ->
+                    Text("recuerdo=${event.memoryKind}: ${event.body.take(180)}")
+                }
+                Text("reason=${recall.reason.take(180)}")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { onReinforceRecall(recall.recallId) }) {
+                        Text("Reforzar")
+                    }
+                    Button(onClick = { onPostponeRecall(recall.recallId) }) {
+                        Text("Posponer")
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { onOpenMemory(recall.targetEventHash) }) {
+                        Text("Abrir recuerdo")
+                    }
+                    Button(onClick = { onDegradeRecall(recall.recallId) }) {
+                        Text("Degradar")
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -12,11 +12,13 @@ class RecallScheduleRepository(
 ) {
     private val organDao = organDatabase.memoryOrganDao()
     private val memoryDao = memoryDatabase.memoryDao()
+    private val memoryLinkRepository = MemoryLinkRepository(organDatabase)
 
     val activeRecallSchedules: Flow<List<RecallScheduleEntity>> = organDao.observeActiveRecallSchedules()
 
     suspend fun seedFromRecentMemoryIfNeeded(limit: Int = 10): Int {
         val genesisCore = memoryDao.loadGenesisCore() ?: return 0
+        val localIdentity = memoryDao.loadLocalIdentity()
         val now = System.currentTimeMillis()
         val candidates = memoryDao.loadMemoryContext(60)
             .filter { event ->
@@ -38,10 +40,12 @@ class RecallScheduleRepository(
         var created = 0
         candidates.forEach { event ->
             val priority = RecallSchedulePolicy.priority(
+                memoryKind = event.memoryKind,
                 importance = event.importance,
                 confidence = event.confidence,
                 userConfirmed = event.userConfirmed
             )
+            val intervalDays = RecallSchedulePolicy.initialIntervalDays(priority)
             val insertedId = organDao.insertRecallSchedule(
                 RecallScheduleEntity(
                     genesisCoreId = genesisCore.coreId,
@@ -50,8 +54,8 @@ class RecallScheduleRepository(
                     prompt = buildPrompt(event),
                     reason = "local_recall_schedule_v1:${event.memoryKind}/i${event.importance}/c${event.confidence}",
                     priority = priority,
-                    intervalDays = 1,
-                    dueAtMillis = now + RecallSchedulePolicy.ONE_DAY_MILLIS,
+                    intervalDays = intervalDays,
+                    dueAtMillis = now + RecallSchedulePolicy.delayMillis(intervalDays),
                     status = "active",
                     lastAction = "created",
                     source = "local_memory_event",
@@ -60,7 +64,20 @@ class RecallScheduleRepository(
                     lastReviewedAtMillis = null
                 )
             )
-            if (insertedId > 0) created += 1
+            if (insertedId > 0) {
+                created += 1
+                memoryLinkRepository.createMemoryLink(
+                    instanceId = localIdentity?.instanceId ?: "local_instance_pending",
+                    genesisCoreHash = genesisCore.contentSha256,
+                    sourceId = "recall:$insertedId",
+                    sourceType = RECALL_NODE_TYPE,
+                    targetId = event.eventHash,
+                    targetType = MemoryLinkRepository.MEMORY_EVENT_NODE_TYPE,
+                    relation = RELATION_SCHEDULES_REVIEW_FOR,
+                    strength = priority / 100.0,
+                    reason = "recall_schedule:${event.memoryKind}/priority=$priority"
+                )
+            }
         }
         return created
     }
@@ -70,7 +87,10 @@ class RecallScheduleRepository(
             "Recall schedule not found."
         }
         val now = System.currentTimeMillis()
-        val nextInterval = RecallSchedulePolicy.nextIntervalDays(schedule.intervalDays)
+        val nextInterval = RecallSchedulePolicy.nextIntervalDays(
+            currentIntervalDays = schedule.intervalDays,
+            priority = schedule.priority
+        )
         val rows = organDao.updateRecallSchedule(
             recallId = recallId,
             dueAtMillis = now + RecallSchedulePolicy.delayMillis(nextInterval),
@@ -88,10 +108,11 @@ class RecallScheduleRepository(
             "Recall schedule not found."
         }
         val now = System.currentTimeMillis()
+        val intervalDays = RecallSchedulePolicy.postponedIntervalDays(schedule.priority)
         val rows = organDao.updateRecallSchedule(
             recallId = recallId,
-            dueAtMillis = now + RecallSchedulePolicy.ONE_DAY_MILLIS,
-            intervalDays = schedule.intervalDays.coerceAtLeast(1),
+            dueAtMillis = now + RecallSchedulePolicy.delayMillis(intervalDays),
+            intervalDays = schedule.intervalDays.coerceAtLeast(intervalDays),
             status = "active",
             lastAction = "postponed",
             lastReviewedAtMillis = schedule.lastReviewedAtMillis,
@@ -116,5 +137,10 @@ class RecallScheduleRepository(
             .replace(Regex("\\s+"), " ")
             .trim()
             .take(360)
+    }
+
+    companion object {
+        const val RECALL_NODE_TYPE = "recall_schedule"
+        const val RELATION_SCHEDULES_REVIEW_FOR = "schedules_review_for"
     }
 }

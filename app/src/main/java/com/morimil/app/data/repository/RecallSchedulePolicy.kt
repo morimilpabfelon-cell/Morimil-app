@@ -27,24 +27,61 @@ object RecallSchedulePolicy {
     }
 
     fun priority(
+        memoryKind: String,
         importance: Int,
         confidence: Int,
         userConfirmed: Boolean
     ): Int {
         val confirmedBoost = if (userConfirmed) 18 else 0
-        return ((importance * 0.65f) + (confidence * 0.25f) + confirmedBoost)
+        val kindBoost = when (memoryKind) {
+            "identity", "decision", "correction" -> 10
+            "approval", "rejection", "error_detected" -> 8
+            "preference", "learning" -> 4
+            else -> 0
+        }
+        return ((importance * 0.68f) + (confidence * 0.22f) + confirmedBoost + kindBoost)
             .toInt()
             .coerceIn(1, 100)
     }
 
+    fun priority(
+        importance: Int,
+        confidence: Int,
+        userConfirmed: Boolean
+    ): Int {
+        return priority(
+            memoryKind = "",
+            importance = importance,
+            confidence = confidence,
+            userConfirmed = userConfirmed
+        )
+    }
+
+    fun initialIntervalDays(priority: Int): Int {
+        return when {
+            priority >= 90 -> 1
+            priority >= 75 -> 2
+            else -> 3
+        }
+    }
+
     fun nextIntervalDays(currentIntervalDays: Int): Int {
+        return nextIntervalDays(currentIntervalDays, priority = 70)
+    }
+
+    fun nextIntervalDays(currentIntervalDays: Int, priority: Int): Int {
+        val cap = if (priority >= 85) 21 else 30
         return when {
             currentIntervalDays <= 0 -> 1
-            currentIntervalDays == 1 -> 2
-            currentIntervalDays == 2 -> 4
-            currentIntervalDays < 14 -> currentIntervalDays + 4
-            else -> 30
-        }.coerceAtMost(30)
+            currentIntervalDays == 1 -> if (priority >= 85) 2 else 3
+            currentIntervalDays <= 3 -> if (priority >= 85) 4 else 7
+            currentIntervalDays < 14 -> currentIntervalDays + if (priority >= 85) 3 else 7
+            else -> cap
+        }.coerceAtMost(cap)
+    }
+
+    fun postponedIntervalDays(priority: Int): Int {
+        return if (priority >= 85) 1 else 2
     }
 
     fun delayMillis(intervalDays: Int): Long {
