@@ -1,8 +1,7 @@
 package com.morimil.app.data.repository
 
 import androidx.room.withTransaction
-import com.morimil.app.core.memory.MemoryEventIntegrity
-import com.morimil.app.core.memory.MemoryIntegrityVerifier
+import com.morimil.app.core.memory.MemoryIntegrityCore
 import com.morimil.app.data.local.MemoryDao
 import com.morimil.app.data.local.MemoryEventEntity
 import com.morimil.app.data.local.MemoryOrganDatabase
@@ -16,8 +15,7 @@ class RestCycleRepository(
     organDatabase: MemoryOrganDatabase
 ) {
     private val memoryDao: MemoryDao = database.memoryDao()
-    private val memoryEventIntegrity = MemoryEventIntegrity()
-    private val memoryIntegrityVerifier = MemoryIntegrityVerifier(memoryEventIntegrity)
+    private val memoryIntegrityCore = MemoryIntegrityCore()
     private val memoryLinkRepository = MemoryLinkRepository(organDatabase)
     private val migrationRecordRepository = MigrationRecordRepository(organDatabase)
 
@@ -136,7 +134,7 @@ class RestCycleRepository(
             }.asReversed()
 
             val createdAtMillis = System.currentTimeMillis()
-            val tailTrusted = memoryIntegrityVerifier.verifyMemoryEventChain(eventTail, requireGenesisStart = false)
+            val tailTrusted = memoryIntegrityCore.verifyMemoryEventChain(eventTail, requireGenesisStart = false)
             if (!tailTrusted && recoveryBoundary == null) return@withTransaction null
             val previousEventHash = if (tailTrusted) {
                 eventTail.lastOrNull()?.eventHash ?: recoveryBoundary?.eventHash
@@ -158,7 +156,7 @@ class RestCycleRepository(
                 .put("excerpt", summary.take(240))
                 .toString()
 
-            val eventHash = memoryEventIntegrity.hashMemoryEventV3(
+            val eventHash = memoryIntegrityCore.hashMemoryEventV3(
                 genesisCoreId = genesisCore.coreId,
                 genesisCoreHash = genesisCore.contentSha256,
                 previousEventHash = previousEventHash,
@@ -183,9 +181,9 @@ class RestCycleRepository(
                     genesisCoreHash = genesisCore.contentSha256,
                     previousEventHash = previousEventHash,
                     eventHash = eventHash,
-                    hashAlgorithm = "sha256",
-                    canonicalization = MEMORY_EVENT_CANONICALIZATION_V3,
-                    signatureAlgorithm = MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED,
+                    hashAlgorithm = MemoryIntegrityCore.HASH_ALGORITHM_SHA256,
+                    canonicalization = MemoryIntegrityCore.MEMORY_EVENT_CANONICALIZATION_V3,
+                    signatureAlgorithm = MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED,
                     eventSignature = null,
                     eventType = REST_CYCLE_EVENT_TYPE,
                     actor = "system",
@@ -365,8 +363,6 @@ class RestCycleRepository(
         private const val REST_CYCLE_MIN_EVENTS = 6
         private const val MIGRATION_STATUS_PLANNED = "planned"
         private const val MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE = "memory_integrity.quarantine"
-        private const val MEMORY_EVENT_CANONICALIZATION_V3 = "morimil.memory_event_hash.v3"
-        private const val MEMORY_EVENT_SIGNATURE_ALGORITHM_UNSIGNED = "unsigned_runtime_v1"
         private const val MEMORY_EVENT_TAIL_VERIFICATION_LIMIT = 12
         private const val PRIVATE_LOCAL = "private_local"
     }
