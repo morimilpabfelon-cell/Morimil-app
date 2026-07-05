@@ -1,5 +1,6 @@
 package com.morimil.app.ui
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,7 +25,7 @@ fun HealthStatusCard(
     onRunIntegrityAudit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    ElevatedCard(modifier = modifier.fillMaxWidth()) {
+    ElevatedCard(modifier = modifier.fillMaxWidth().animateContentSize()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Salud del organismo", style = MaterialTheme.typography.titleMedium)
             Text(health.healthSentence)

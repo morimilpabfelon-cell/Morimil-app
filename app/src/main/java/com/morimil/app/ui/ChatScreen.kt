@@ -3,24 +3,29 @@ package com.morimil.app.ui
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Build
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -31,29 +36,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -66,19 +60,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.morimil.app.core.memory.MemoryBacklink
-import com.morimil.app.core.memory.MemoryBacklinkGraphBuilder
-import com.morimil.app.data.genesis.CurrentMobileAppCapabilities
-import com.morimil.app.data.genesis.GenesisIdentitySource
-import com.morimil.app.data.local.MemoryEventEntity
-import com.morimil.app.data.local.MemoryLinkEntity
-import com.morimil.app.data.local.MigrationRecordEntity
-import com.morimil.app.data.local.RecallScheduleEntity
-import com.morimil.app.runtime.RestCycleScheduleStatus
+import com.morimil.app.data.local.MemoryMessageEntity
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 @Composable
@@ -105,7 +94,12 @@ fun ChatScreen(viewModel: ChatViewModel) {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        ChatOrganismHeader(uiState.organismStatus, uiState.organismHealth)
+        ChatOrganismHeader(
+            status = uiState.organismStatus,
+            health = uiState.organismHealth,
+            onRefreshHealth = viewModel::refreshOrganismHealth,
+            onRunIntegrityAudit = viewModel::runMemoryIntegrityAudit
+        )
         Spacer(Modifier.height(16.dp))
         ChatVoiceControls(viewModel)
         Spacer(Modifier.height(16.dp))
@@ -115,12 +109,29 @@ fun ChatScreen(viewModel: ChatViewModel) {
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(messages) { message ->
-                ChatMessageBubble(author = message.author, body = message.body)
+            if (messages.isEmpty() && !isSending) {
+                item { ChatEmptyState() }
+            }
+            itemsIndexed(
+                items = messages,
+                key = { _, message -> "${message.id}:${message.createdAtMillis}:${message.author}" }
+            ) { index, message ->
+                if (shouldShowDaySeparator(messages, index)) {
+                    DaySeparator(dayLabel(message.createdAtMillis))
+                }
+                AnimatedVisibility(
+                    visible = true,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut()
+                ) {
+                    ChatMessageBubble(message = message)
+                }
             }
             if (isSending) {
                 item {
-                    ThinkingBubble()
+                    AnimatedVisibility(visible = true, enter = fadeIn() + expandVertically()) {
+                        ThinkingBubble()
+                    }
                 }
             }
         }
@@ -155,11 +166,20 @@ fun ChatScreen(viewModel: ChatViewModel) {
 @Composable
 private fun ChatOrganismHeader(
     status: ChatOrganismStatusUiState,
-    health: OrganismHealthUiState
+    health: OrganismHealthUiState,
+    onRefreshHealth: () -> Unit,
+    onRunIntegrityAudit: () -> Unit
 ) {
+    var showHealthCard by remember { mutableStateOf(false) }
+
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Morimil", style = MaterialTheme.typography.headlineMedium)
-        Text("Conversacion real, con memoria local como contexto", style = MaterialTheme.typography.bodyMedium)
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Morimil", style = MaterialTheme.typography.headlineMedium)
+                Text("Conversacion real, con memoria local como contexto", style = MaterialTheme.typography.bodyMedium)
+            }
+            HealthStatusDot(health = health, onClick = { showHealthCard = true })
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatusChip("motor: ${status.motorLabel}")
             StatusChip(status.modelLabel.take(36))
@@ -176,21 +196,65 @@ private fun ChatOrganismHeader(
         }
         Text(health.healthSentence, style = MaterialTheme.typography.bodySmall)
     }
+
+    if (showHealthCard) {
+        AlertDialog(
+            onDismissRequest = { showHealthCard = false },
+            confirmButton = {
+                TextButton(onClick = { showHealthCard = false }) { Text("Cerrar") }
+            },
+            title = { Text("Estado del organismo") },
+            text = {
+                HealthStatusCard(
+                    health = health,
+                    onRefresh = onRefreshHealth,
+                    onRunIntegrityAudit = onRunIntegrityAudit
+                )
+            }
+        )
+    }
 }
 
 @Composable
-private fun ChatMessageBubble(author: String, body: String) {
-    val isUser = author == "user"
+private fun HealthStatusDot(health: OrganismHealthUiState, onClick: () -> Unit) {
+    val dotColor = healthStatusColor(health.level)
+    val description = "Estado de Morimil: ${health.level.label}. Tocar para abrir salud del organismo."
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .semantics { contentDescription = description }
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(18.dp)
+                .clip(CircleShape)
+                .background(dotColor)
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ChatMessageBubble(message: MemoryMessageEntity) {
+    val isUser = message.author == "user"
+    var showTime by remember(message.id, message.createdAtMillis) { mutableStateOf(false) }
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val maxBubbleWidth = maxWidth * 0.85f
         Surface(
             modifier = Modifier
                 .align(if (isUser) Alignment.CenterEnd else Alignment.CenterStart)
-                .widthIn(max = maxBubbleWidth),
+                .widthIn(max = maxBubbleWidth)
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = { showTime = !showTime }
+                ),
             shape = if (isUser) {
-                RoundedCornerShape(topStart = 18.dp, topEnd = 6.dp, bottomStart = 18.dp, bottomEnd = 18.dp)
+                RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 4.dp)
             } else {
-                RoundedCornerShape(topStart = 6.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 18.dp)
+                RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 4.dp, bottomEnd = 20.dp)
             },
             color = if (isUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
         ) {
@@ -201,10 +265,44 @@ private fun ChatMessageBubble(author: String, body: String) {
                     color = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    body,
+                    message.body,
                     color = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                AnimatedVisibility(visible = showTime) {
+                    Text(
+                        timeLabel(message.createdAtMillis),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun DaySeparator(label: String) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+        Surface(
+            shape = RoundedCornerShape(999.dp),
+            color = MaterialTheme.colorScheme.secondaryContainer
+        ) {
+            Text(
+                label,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChatEmptyState() {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("La semilla aun no tiene recuerdos aqui", style = MaterialTheme.typography.titleMedium)
+            Text("Cuando converses con Morimil, los recuerdos locales empezaran a aparecer en este cuerpo.")
         }
     }
 }
@@ -214,7 +312,7 @@ private fun ThinkingBubble() {
     Box(modifier = Modifier.fillMaxWidth()) {
         Surface(
             modifier = Modifier.align(Alignment.CenterStart),
-            shape = RoundedCornerShape(topStart = 6.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 18.dp),
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 4.dp, bottomEnd = 20.dp),
             color = MaterialTheme.colorScheme.surfaceVariant
         ) {
             Row(
@@ -350,5 +448,27 @@ private fun ChatVoiceControls(viewModel: ChatViewModel) {
                 }
             }
         }
+    }
+}
+
+private fun shouldShowDaySeparator(messages: List<MemoryMessageEntity>, index: Int): Boolean {
+    if (index == 0) return true
+    return dayLabel(messages[index].createdAtMillis) != dayLabel(messages[index - 1].createdAtMillis)
+}
+
+private fun dayLabel(createdAtMillis: Long): String {
+    return SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(createdAtMillis))
+}
+
+private fun timeLabel(createdAtMillis: Long): String {
+    return SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(createdAtMillis))
+}
+
+private fun healthStatusColor(level: HealthStatusLevel): Color {
+    return when (level) {
+        HealthStatusLevel.Stable -> Color(0xFF16A34A)
+        HealthStatusLevel.Watch -> Color(0xFFEAB308)
+        HealthStatusLevel.Attention -> Color(0xFFD97706)
+        HealthStatusLevel.Critical -> Color(0xFFDC2626)
     }
 }
