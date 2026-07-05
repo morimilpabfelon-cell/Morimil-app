@@ -17,11 +17,11 @@ data class AppRuntimeCapabilities(
     val recallSchedule: Boolean = true,
     val restCycle: Boolean = true,
     val migrationRecord: Boolean = true,
-    val memoryLink: Boolean = true,    val agentOrchestration: Boolean = true,
+    val memoryLink: Boolean = true,
+    val agentOrchestration: Boolean = true,
     val multiDeviceAuthorization: Boolean = true,
     val pcHandoffProtocol: Boolean = false,
     val pcCommandExecution: Boolean = false,
-
     val interactionState: Boolean = false
 )
 
