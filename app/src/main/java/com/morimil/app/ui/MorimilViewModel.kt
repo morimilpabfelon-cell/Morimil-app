@@ -3,13 +3,12 @@ package com.morimil.app.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.morimil.app.MorimilAppContainer
 import com.morimil.app.ai.ChatTurn
 import com.morimil.app.ai.ReasoningClient
-import com.morimil.app.ai.ReasoningConfigStore
 import com.morimil.app.ai.ReasoningRuntimeState
 import com.morimil.app.ai.SystemPromptBuilder
 import com.morimil.app.data.genesis.GenesisIdentitySource
-import com.morimil.app.data.genesis.GenesisReader
 import com.morimil.app.data.local.AutobiographicalSnapshotEntity
 import com.morimil.app.data.local.DecisionLogEntity
 import com.morimil.app.data.local.GenesisCoreEntity
@@ -18,27 +17,15 @@ import com.morimil.app.data.local.LocalInstanceIdentityEntity
 import com.morimil.app.data.local.MemoryEventEntity
 import com.morimil.app.data.local.MemoryLinkEntity
 import com.morimil.app.data.local.MemoryMessageEntity
-import com.morimil.app.data.local.MemoryOrganDatabase
 import com.morimil.app.data.local.MemorySnapshotEntity
 import com.morimil.app.data.local.MigrationRecordEntity
-import com.morimil.app.data.local.MorimilDatabase
 import com.morimil.app.data.local.ProjectStateEntity
 import com.morimil.app.data.local.RecallScheduleEntity
 import com.morimil.app.data.local.UserWorkspaceEntity
-import com.morimil.app.data.repository.CognitiveMigrationRepository
-import com.morimil.app.data.repository.MemoryLinkRepository
-import com.morimil.app.data.repository.MemoryOrganRepository
-import com.morimil.app.data.repository.MemoryRepository
-import com.morimil.app.data.repository.MigrationRecordRepository
-import com.morimil.app.data.repository.RecallScheduleRepository
 import com.morimil.app.data.repository.RestCycleRepository
 import com.morimil.app.runtime.RestCycleScheduler
 import com.morimil.app.runtime.RestCycleScheduleStatus
-import com.morimil.app.security.AndroidKeyStoreMemoryEventSigner
 import com.morimil.app.security.MemorySigningRuntimeIssues
-import com.morimil.app.security.SecretVault
-import com.morimil.app.security.SharedPreferencesMemorySignatureEpochPolicy
-import com.morimil.app.core.memory.MemoryIntegrityCore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,46 +38,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MorimilViewModel(application: Application) : AndroidViewModel(application) {
-    private val memoryDatabase = MorimilDatabase.getInstance(application)
-    private val organDatabase = MemoryOrganDatabase.getInstance(application)
-    private val memorySignatureEpochPolicy = SharedPreferencesMemorySignatureEpochPolicy(application)
-    private val memoryEventSigner = AndroidKeyStoreMemoryEventSigner(
-        signatureEpochRecorder = memorySignatureEpochPolicy
-    )
-    private val memoryIntegrityCore = MemoryIntegrityCore(
-        signatureVerifier = memoryEventSigner,
-        signatureEpochPolicy = memorySignatureEpochPolicy
-    )
-    private val repository = MemoryRepository(
-        database = memoryDatabase,
-        memoryIntegrityCore = memoryIntegrityCore,
-        memoryEventSigner = memoryEventSigner
-    )
-    private val restCycleRepository = RestCycleRepository(
-        database = memoryDatabase,
-        organDatabase = organDatabase,
-        memoryIntegrityCore = memoryIntegrityCore,
-        memoryEventSigner = memoryEventSigner
-    )
-    private val memoryOrganRepository = MemoryOrganRepository(
-        database = organDatabase,
-        memoryIntegrityCore = memoryIntegrityCore
-    )
-    private val memoryLinkRepository = MemoryLinkRepository(organDatabase)
-    private val migrationRecordRepository = MigrationRecordRepository(organDatabase)
-    private val cognitiveMigrationRepository = CognitiveMigrationRepository(
-        organDatabase = organDatabase,
-        memoryDatabase = memoryDatabase,
-        memoryRepository = repository
-    )
-    private val recallScheduleRepository = RecallScheduleRepository(
-        organDatabase = organDatabase,
-        memoryDatabase = memoryDatabase
-    )
-    private val genesisReader = GenesisReader(application)
-    private val secretVault = SecretVault(application)
-    private val reasoningConfigStore = ReasoningConfigStore(application)
-    private val reasoningClient = ReasoningClient()
+    private val container = MorimilAppContainer.from(application)
+    private val memoryDatabase = container.memoryDatabase
+    private val repository = container.memoryRepository
+    private val restCycleRepository = container.restCycleRepository
+    private val memoryOrganRepository = container.memoryOrganRepository
+    private val memoryLinkRepository = container.memoryLinkRepository
+    private val migrationRecordRepository = container.migrationRecordRepository
+    private val cognitiveMigrationRepository = container.cognitiveMigrationRepository
+    private val recallScheduleRepository = container.recallScheduleRepository
+    private val genesisReader = container.genesisReader
+    private val secretVault = container.secretVault
+    private val reasoningConfigStore = container.reasoningConfigStore
+    private val reasoningClient = container.reasoningClient
 
     val messages: StateFlow<List<MemoryMessageEntity>> = repository.messages.stateIn(
         scope = viewModelScope,
