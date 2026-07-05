@@ -146,7 +146,9 @@ The Memory UI exposes capsules, consolidated categories, links, migrations, and 
 
 The rest cycle is local. It summarizes meaningful recent memory, records a migration entry, appends a rest-cycle event, links the event to source memories, and rebuilds the living snapshot.
 
-Important rest-cycle consolidations can require user approval before execution. Rollback is append-only compensation, not deletion of prior memory.
+Scheduling is handled by `RestCycleWorker` through WorkManager. The periodic worker runs every 6 hours with a flexible window, no network requirement, battery/storage safeguards, initial delay, retry backoff, and a stable work tag.
+
+Important rest-cycle consolidations require user approval before execution. The Memory screen separates pending approvals from cycle history and shows plan, steps, affected artifacts, result notes, and rollback strategy. Rollback is append-only compensation, not deletion of prior memory.
 
 ## Recall Schedule
 
