@@ -62,12 +62,16 @@ class RestCycleRepository(
         val summary = buildRestCycleSummary(events, now)
         if (summary.isBlank()) return false
 
-        val approvalRequired = !force && RestCyclePolicy.requiresHumanApproval(meaningfulEvents)
+        val fullChainVerified = memoryIntegrityCore.verifyMemoryEventChain(memoryDao.loadMemoryEventAuditChain())
+        val approvalRequired = !force && (
+            !fullChainVerified || RestCyclePolicy.requiresHumanApproval(meaningfulEvents)
+        )
         if (approvalRequired) {
             planImportantRestCycleIfNeeded(
                 summary = summary,
                 meaningfulEvents = meaningfulEvents,
-                preSnapshotId = latestRestCycle?.eventHash ?: "none"
+                preSnapshotId = latestRestCycle?.eventHash ?: "none",
+                chainVerified = fullChainVerified
             )
             return false
         }
@@ -78,7 +82,8 @@ class RestCycleRepository(
             preSnapshotId = latestRestCycle?.eventHash ?: "none",
             approvalRequired = false,
             approvedByUser = force,
-            approvalId = if (force) "manual_force:${System.currentTimeMillis()}" else null
+            approvalId = if (force) "manual_force:${System.currentTimeMillis()}" else null,
+            chainVerified = fullChainVerified
         )
 
         return runCatching {
@@ -106,7 +111,8 @@ class RestCycleRepository(
                     restCycle = restCycle,
                     sourceEventCount = meaningfulEvents.size,
                     linkedEventCount = meaningfulEvents.take(12).size,
-                    approvedMigrationId = approvedMigrationId
+                    approvedMigrationId = approvedMigrationId,
+                    fullChainVerified = fullChainVerified
                 )
             )
             true
@@ -219,7 +225,8 @@ class RestCycleRepository(
     private suspend fun planImportantRestCycleIfNeeded(
         summary: String,
         meaningfulEvents: List<MemoryEventEntity>,
-        preSnapshotId: String
+        preSnapshotId: String,
+        chainVerified: Boolean
     ): String? {
         val existing = migrationRecordRepository.loadLatestPlannedMigration(REST_CYCLE_MIGRATION_TYPE)
         if (existing != null) return existing.migrationId
@@ -230,7 +237,8 @@ class RestCycleRepository(
             preSnapshotId = preSnapshotId,
             approvalRequired = true,
             approvedByUser = false,
-            approvalId = null
+            approvalId = null,
+            chainVerified = chainVerified
         )
     }
 
@@ -240,14 +248,16 @@ class RestCycleRepository(
         preSnapshotId: String,
         approvalRequired: Boolean,
         approvedByUser: Boolean,
-        approvalId: String?
+        approvalId: String?,
+        chainVerified: Boolean
     ): String {
         val genesisCore = requireNotNull(memoryDao.loadGenesisCore()) {
             "Cannot plan rest cycle without a local Genesis Core."
         }
         val localIdentity = memoryDao.loadLocalIdentity()
-        val riskLevel = RestCyclePolicy.riskLevel(meaningfulEvents)
+        val riskLevel = if (chainVerified) RestCyclePolicy.riskLevel(meaningfulEvents) else "high"
         val steps = buildList {
+            add("audit_full_memory_chain:${if (chainVerified) "verified" else "needs_quarantine_review"}")
             add("verify_recent_memory_tail")
             if (approvalRequired) add("human_approval_required_for_sensitive_consolidation")
             add("append_rest_cycle_event")
@@ -267,13 +277,14 @@ class RestCycleRepository(
                 .take(12)
                 .map { event -> event.eventHash },
             preSnapshotId = preSnapshotId,
-            chainVerified = true,
+            chainVerified = chainVerified,
             backupRequired = approvalRequired,
             steps = steps,
             expectedEffect = buildRestCycleExpectedEffect(
                 summary = summary,
                 meaningfulEvents = meaningfulEvents,
-                approvalRequired = approvalRequired
+                approvalRequired = approvalRequired,
+                chainVerified = chainVerified
             ),
             riskLevel = riskLevel,
             approvalRequired = approvalRequired,
@@ -287,11 +298,13 @@ class RestCycleRepository(
     private fun buildRestCycleExpectedEffect(
         summary: String,
         meaningfulEvents: List<MemoryEventEntity>,
-        approvalRequired: Boolean
+        approvalRequired: Boolean,
+        chainVerified: Boolean
     ): String {
         return buildString {
             appendLine(summary.take(500))
             appendLine("policy_reason=${RestCyclePolicy.approvalReason(meaningfulEvents)}")
+            appendLine("full_chain_verified=$chainVerified")
             appendLine("approval_required=$approvalRequired")
             appendLine("source_events=${meaningfulEvents.size}")
             appendLine("execution=workmanager_or_manual_trigger")
@@ -303,11 +316,13 @@ class RestCycleRepository(
         restCycle: RestCycleAppendResult,
         sourceEventCount: Int,
         linkedEventCount: Int,
-        approvedMigrationId: String?
+        approvedMigrationId: String?,
+        fullChainVerified: Boolean
     ): List<String> {
         return listOf(
             "rest_cycle_result:completed",
             "rest_cycle_event_hash:${restCycle.eventHash}",
+            "full_chain_verified:$fullChainVerified",
             "source_events:$sourceEventCount",
             "links_created_for_sources:$linkedEventCount",
             "approval_id:${approvedMigrationId ?: "none"}",
