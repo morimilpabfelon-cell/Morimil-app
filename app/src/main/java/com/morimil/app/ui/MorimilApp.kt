@@ -386,6 +386,7 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
     val integrityAudit by viewModel.memoryIntegrityAudit.collectAsStateWithLifecycle()
     val selectedMemoryEventHash by viewModel.selectedMemoryEventHash.collectAsStateWithLifecycle()
     val selectedMemoryLinks by viewModel.selectedMemoryLinks.collectAsStateWithLifecycle()
+    val selectedGraphEvents by viewModel.selectedGraphEvents.collectAsStateWithLifecycle()
     val eventsByHash = events.associateBy { event -> event.eventHash }
     val selectedMemoryEvent = selectedMemoryEventHash?.let { hash -> eventsByHash[hash] }
 
@@ -457,6 +458,14 @@ private fun MemoryScreen(viewModel: MorimilViewModel) {
             onApproveMigration = viewModel::approveCognitiveMigration,
             onExecuteMigration = viewModel::executeCognitiveMigration,
             onRollbackMigration = viewModel::rollbackCognitiveMigration
+        )
+        MemoryGraphCanvasPanel(
+            selectedEventHash = selectedMemoryEventHash,
+            selectedEvent = selectedMemoryEvent,
+            graphEvents = selectedGraphEvents,
+            links = selectedMemoryLinks,
+            onSelectEventHash = viewModel::selectMemoryEvent,
+            onClearSelection = viewModel::clearSelectedMemoryEvent
         )
         MemoryBacklinksPanel(
             selectedEventHash = selectedMemoryEventHash,
