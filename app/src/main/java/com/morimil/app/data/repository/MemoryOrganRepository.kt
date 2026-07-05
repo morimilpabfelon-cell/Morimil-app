@@ -1,6 +1,6 @@
 package com.morimil.app.data.repository
 
-import com.morimil.app.core.memory.CapsuleHasher
+import com.morimil.app.core.memory.MemoryIntegrityCore
 import com.morimil.app.data.local.AutobiographicalSnapshotEntity
 import com.morimil.app.data.local.KnowledgeCapsuleEntity
 import com.morimil.app.data.local.MemoryOrganDatabase
@@ -10,7 +10,7 @@ import org.json.JSONObject
 
 class MemoryOrganRepository(database: MemoryOrganDatabase) {
     private val dao = database.memoryOrganDao()
-    private val capsuleHasher = CapsuleHasher()
+    private val memoryIntegrityCore = MemoryIntegrityCore()
 
     val selfSnapshot: Flow<AutobiographicalSnapshotEntity?> = dao.observeCurrentSelfSnapshot()
     val knowledgeCapsules: Flow<List<KnowledgeCapsuleEntity>> = dao.observeRecentKnowledgeCapsules()
@@ -85,7 +85,7 @@ class MemoryOrganRepository(database: MemoryOrganDatabase) {
         val cleanTitle = title.trim().ifBlank { "untitled" }
         val now = System.currentTimeMillis()
         val existingChain = dao.loadKnowledgeCapsuleChain()
-        require(capsuleHasher.verifyCapsuleChain(existingChain)) {
+        require(memoryIntegrityCore.verifyCapsuleChain(existingChain)) {
             "Knowledge capsule chain integrity failed. Refusing to write a new capsule."
         }
 
@@ -105,7 +105,7 @@ class MemoryOrganRepository(database: MemoryOrganDatabase) {
             .put("status", "active")
             .put("summary_excerpt", cleanSummary.take(240))
             .toString()
-        val capsuleHash = capsuleHasher.hashCapsuleV2(
+        val capsuleHash = memoryIntegrityCore.hashCapsuleV2(
             genesisCoreId = genesisCoreId,
             capsuleId = capsuleId,
             capsuleVersion = nextVersion,
@@ -147,8 +147,8 @@ class MemoryOrganRepository(database: MemoryOrganDatabase) {
                 sourceEventHash = sourceEventHash,
                 previousCapsuleHash = previousCapsuleHash,
                 capsuleHash = capsuleHash,
-                hashAlgorithm = "sha256",
-                canonicalization = CapsuleHasher.CAPSULE_CANONICALIZATION_V2,
+                hashAlgorithm = MemoryIntegrityCore.HASH_ALGORITHM_SHA256,
+                canonicalization = MemoryIntegrityCore.CAPSULE_CANONICALIZATION_V2,
                 createdAtMillis = now,
                 updatedAtMillis = now
             )
