@@ -58,6 +58,50 @@ class MemoryGraphSnapshotTest {
     }
 
     @Test
+    fun buildsRecentOverviewWithoutSelectedNode() {
+        val project = event("project", "project", "Project memory", 70, 75)
+        val design = event("design", "observation", "Design memory", 50, 60)
+        val links = listOf(
+            link("project", "design", "mentions", 0.7)
+        )
+
+        val snapshot = MemoryGraphSnapshotBuilder.build(
+            selectedEventHash = null,
+            events = listOf(project, design),
+            links = links
+        )
+
+        assertFalse(snapshot.focused)
+        assertEquals(null, snapshot.selectedNodeId)
+        assertEquals(listOf("project", "design"), snapshot.nodes.map { node -> node.nodeId })
+        assertEquals(2, snapshot.memoryEventNodeCount)
+        assertEquals(0, snapshot.externalNodeCount)
+        assertEquals(1, snapshot.edges.size)
+    }
+
+    @Test
+    fun reportsOrphanedEdgesAndConnectionsForNode() {
+        val selected = event("selected", "decision", "Selected memory", 80, 70)
+        val project = event("project", "project", "Project memory", 70, 75)
+        val links = listOf(
+            link("selected", "project", "supports", 0.9, verificationState = "orphaned")
+        )
+
+        val snapshot = MemoryGraphSnapshotBuilder.build(
+            selectedEventHash = "selected",
+            events = listOf(selected, project),
+            links = links
+        )
+
+        assertEquals(1, snapshot.orphanedEdgeCount)
+        assertEquals("orphaned", snapshot.edges.single().verificationState)
+        assertEquals(
+            listOf("supports"),
+            MemoryGraphSnapshotBuilder.connectionsForNode(snapshot, "selected").map { edge -> edge.relation }
+        )
+    }
+
+    @Test
     fun respectsMaxNodeLimitAndDropsEdgesOutsideTheVisibleGraph() {
         val selected = event("selected", "decision", "Selected memory", 80, 70)
         val links = listOf(
@@ -116,7 +160,8 @@ class MemoryGraphSnapshotTest {
         relation: String,
         strength: Double,
         sourceType: String = MemoryGraphSnapshotBuilder.MEMORY_EVENT_NODE_TYPE,
-        targetType: String = MemoryGraphSnapshotBuilder.MEMORY_EVENT_NODE_TYPE
+        targetType: String = MemoryGraphSnapshotBuilder.MEMORY_EVENT_NODE_TYPE,
+        verificationState: String = "valid"
     ): MemoryLinkEntity {
         return MemoryLinkEntity(
             linkId = "$sourceId-$targetId-$relation",
@@ -133,7 +178,7 @@ class MemoryGraphSnapshotTest {
             privacyVisibility = "private_local",
             cloudSyncAllowed = false,
             exportAllowed = false,
-            verificationState = "valid",
+            verificationState = verificationState,
             createdAtMillis = 1_000L
         )
     }

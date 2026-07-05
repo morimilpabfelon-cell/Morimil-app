@@ -108,6 +108,9 @@ The current hash chain gives local tamper evidence. It is not claimed as hardwar
 ```text
 Implemented:
   read-only visual graph canvas from memory_links
+  recent overview graph without requiring a selected node
+  focused graph mode for a selected memory event
+  orphaned-link highlighting in the graph
   connected memory-event lookup by event hash
   tap navigation between memory-event nodes
   external linked nodes shown by node type

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
@@ -23,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import com.morimil.app.core.memory.MemoryGraphEdge
 import com.morimil.app.core.memory.MemoryGraphNode
 import com.morimil.app.core.memory.MemoryGraphSnapshot
 import com.morimil.app.core.memory.MemoryGraphSnapshotBuilder
@@ -43,12 +45,7 @@ fun MemoryGraphCanvasPanel(
     onClearSelection: () -> Unit
 ) {
     Text("Grafo visual", style = MaterialTheme.typography.titleMedium)
-    Text("Canvas navegable de recuerdos conectados por memory_links.")
-
-    if (selectedEventHash == null) {
-        MemoryGraphEmptyCard()
-        return
-    }
+    Text("Canvas navegable de recuerdos conectados por memory_links. Toca un nodo para abrir su vecindario.")
 
     val snapshot = remember(selectedEventHash, graphEvents, links) {
         MemoryGraphSnapshotBuilder.build(
@@ -58,18 +55,37 @@ fun MemoryGraphCanvasPanel(
         )
     }
 
+    if (snapshot.isEmpty) {
+        MemoryGraphEmptyCard()
+        return
+    }
+
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Recuerdo central", style = MaterialTheme.typography.titleMedium)
-            Text(selectedEvent?.body?.take(220) ?: selectedEventHash.take(32))
-            Text("nodes=${snapshot.nodes.size} edges=${snapshot.edges.size} hash=${selectedEventHash.take(24)}")
-            Button(onClick = onClearSelection) { Text("Cerrar grafo") }
+            Text(if (snapshot.focused) "Recuerdo central" else "Mapa reciente", style = MaterialTheme.typography.titleMedium)
+            Text(
+                if (snapshot.focused) {
+                    selectedEvent?.body?.take(220) ?: selectedEventHash?.take(32).orEmpty()
+                } else {
+                    "Vista general de nodos recientes. Abre un recuerdo para entrar en modo foco."
+                }
+            )
+            MemoryGraphStatsRow(snapshot)
+            MemoryGraphLegend()
+            if (snapshot.focused) {
+                Button(onClick = onClearSelection) { Text("Cerrar foco") }
+            }
 
             MemoryGraphCanvas(
                 snapshot = snapshot,
                 onSelectEventHash = onSelectEventHash
             )
 
+            MemoryGraphConnectionPanel(
+                snapshot = snapshot,
+                selectedEventHash = selectedEventHash,
+                onSelectEventHash = onSelectEventHash
+            )
             MemoryGraphNodeList(
                 snapshot = snapshot,
                 onSelectEventHash = onSelectEventHash
@@ -83,10 +99,69 @@ private fun MemoryGraphEmptyCard() {
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Canvas de memoria", style = MaterialTheme.typography.titleMedium)
-            Text("Selecciona un recuerdo para ver sus nodos conectados.")
+            Text("Todavia no hay memory_links ni recuerdos suficientes para dibujar nodos.")
             AssistChip(onClick = {}, label = { Text("empty") })
         }
     }
+}
+
+@Composable
+private fun MemoryGraphStatsRow(snapshot: MemoryGraphSnapshot) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MemoryGraphChip(if (snapshot.focused) "modo=foco" else "modo=reciente")
+            MemoryGraphChip("nodos=${snapshot.nodes.size}")
+            MemoryGraphChip("lineas=${snapshot.edges.size}", attention = snapshot.orphanedEdgeCount > 0)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MemoryGraphChip("eventos=${snapshot.memoryEventNodeCount}")
+            MemoryGraphChip("externos=${snapshot.externalNodeCount}")
+            MemoryGraphChip("huerfanos=${snapshot.orphanedEdgeCount}", attention = snapshot.orphanedEdgeCount > 0)
+        }
+    }
+}
+
+@Composable
+private fun MemoryGraphLegend() {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Leyenda", style = MaterialTheme.typography.labelLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MemoryGraphChip("decision", color = Color(0xFF7C3AED))
+            MemoryGraphChip("proyecto", color = Color(0xFF0F766E))
+            MemoryGraphChip("preferencia", color = Color(0xFF059669))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MemoryGraphChip("correccion", color = Color(0xFFD97706))
+            MemoryGraphChip("externo", color = Color(0xFF64748B))
+            MemoryGraphChip("huerfano", attention = true)
+        }
+    }
+}
+
+@Composable
+private fun MemoryGraphChip(
+    label: String,
+    attention: Boolean = false,
+    color: Color? = null
+) {
+    val containerColor = when {
+        color != null -> color
+        attention -> MaterialTheme.colorScheme.tertiaryContainer
+        else -> MaterialTheme.colorScheme.secondaryContainer
+    }
+    val labelColor = when {
+        color != null -> Color.White
+        attention -> MaterialTheme.colorScheme.onTertiaryContainer
+        else -> MaterialTheme.colorScheme.onSecondaryContainer
+    }
+    AssistChip(
+        onClick = {},
+        label = { Text(label) },
+        colors = AssistChipDefaults.assistChipColors(
+            containerColor = containerColor,
+            labelColor = labelColor
+        )
+    )
 }
 
 @Composable
@@ -128,7 +203,7 @@ private fun MemoryGraphCanvas(
                 val target = positions[edge.targetId]
                 if (source != null && target != null) {
                     drawLine(
-                        color = Color(0xFF64748B).copy(alpha = (0.25f + (edge.strength.toFloat() * 0.5f)).coerceAtMost(0.85f)),
+                        color = graphEdgeColor(edge).copy(alpha = (0.25f + (edge.strength.toFloat() * 0.5f)).coerceAtMost(0.9f)),
                         start = source,
                         end = target,
                         strokeWidth = 2f + (edge.strength.toFloat() * 4f)
@@ -140,6 +215,13 @@ private fun MemoryGraphCanvas(
                 val center = positions[node.nodeId]
                 if (center != null) {
                     val radius = nodeRadius(node)
+                    if (node.selected) {
+                        drawCircle(
+                            color = Color(0xFF2563EB).copy(alpha = 0.16f),
+                            radius = radius + 18f,
+                            center = center
+                        )
+                    }
                     drawCircle(
                         color = graphNodeColor(node).copy(alpha = 0.18f),
                         radius = radius + 8f,
@@ -151,6 +233,44 @@ private fun MemoryGraphCanvas(
                         center = center
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MemoryGraphConnectionPanel(
+    snapshot: MemoryGraphSnapshot,
+    selectedEventHash: String?,
+    onSelectEventHash: (String) -> Unit
+) {
+    val focusNodeId = selectedEventHash ?: snapshot.nodes.firstOrNull()?.nodeId
+    if (focusNodeId == null) return
+
+    val nodesById = snapshot.nodes.associateBy { node -> node.nodeId }
+    val connections = MemoryGraphSnapshotBuilder.connectionsForNode(snapshot, focusNodeId)
+    Text(if (snapshot.focused) "Conexiones del recuerdo" else "Conexiones destacadas", style = MaterialTheme.typography.titleMedium)
+    if (connections.isEmpty()) {
+        Text("Este nodo todavia no tiene conexiones visibles.")
+        return
+    }
+
+    connections.take(8).forEach { edge ->
+        val linkedId = if (edge.sourceId == focusNodeId) edge.targetId else edge.sourceId
+        val linkedNode = nodesById[linkedId]
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MemoryGraphChip(edge.relation)
+                MemoryGraphChip("fuerza=${"%.2f".format(edge.strength)}")
+                MemoryGraphChip(edge.verificationState, attention = edge.verificationState == "orphaned")
+            }
+            Text(edge.reason.take(180), style = MaterialTheme.typography.bodySmall)
+            if (linkedNode?.nodeType == MemoryGraphSnapshotBuilder.MEMORY_EVENT_NODE_TYPE) {
+                Button(onClick = { onSelectEventHash(linkedNode.nodeId) }) {
+                    Text("Abrir ${linkedNode.title.take(72)}")
+                }
+            } else {
+                Text("${edge.sourceType}:${edge.sourceId.take(20)} -> ${edge.targetType}:${edge.targetId.take(20)}")
             }
         }
     }
@@ -170,8 +290,8 @@ private fun MemoryGraphNodeList(
     snapshot.nodes.take(10).forEach { node ->
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AssistChip(onClick = {}, label = { Text(if (node.selected) "central" else node.nodeType) })
-                AssistChip(onClick = {}, label = { Text("peso=${"%.2f".format(node.weight)}") })
+                MemoryGraphChip(if (node.selected) "central" else node.nodeType, color = graphNodeColor(node))
+                MemoryGraphChip("peso=${"%.2f".format(node.weight)}")
             }
             Text(node.title)
             Text(node.subtitle.take(160), style = MaterialTheme.typography.bodySmall)
@@ -217,6 +337,11 @@ private fun graphNodeColor(node: MemoryGraphNode): Color {
         node.memoryKind.contains("correction", ignoreCase = true) -> Color(0xFFD97706)
         else -> Color(0xFF334155)
     }
+}
+
+private fun graphEdgeColor(edge: MemoryGraphEdge): Color {
+    if (edge.verificationState == "orphaned") return Color(0xFFD97706)
+    return Color(0xFF64748B)
 }
 
 private fun nodeRadius(node: MemoryGraphNode): Float {
