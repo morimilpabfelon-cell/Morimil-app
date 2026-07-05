@@ -904,17 +904,39 @@ private fun RestCycleHistoryPanel(
     }
 
     restCycles.forEach { migration ->
+        val report = RestCycleReportUiStateBuilder.build(migration)
         ElevatedCard {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("${migration.status} / risk=${migration.riskLevel}", style = MaterialTheme.typography.titleMedium)
-                Text(migration.expectedEffect.take(260))
-                Text("approval_required=${migration.approvalRequired} approved=${migration.approvedByUser} rollback=${migration.rollbackAvailable}")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    StatusChip("modo=${report.mode}")
+                    StatusChip("riesgo=${report.risk}", attention = report.risk != "low")
+                    StatusChip("cadena=${report.fullChainVerified}", attention = report.fullChainVerified != "true")
+                }
+                Text("organos_con_alerta=${report.organReconciliation} eventos=${report.sourceEvents} utiles=${report.meaningfulEvents}")
+                Text("policy=${report.policyReason}")
+                report.tasks.take(6).forEach { task ->
+                    RestCycleTaskLine(task)
+                }
+                if (report.resultNotes.isNotEmpty()) {
+                    Text("Resultado", style = MaterialTheme.typography.titleMedium)
+                    report.resultNotes.take(6).forEach { note -> Text(note.take(180)) }
+                }
+                Text("approval_required=${report.approvalRequired} approved=${migration.approvedByUser} rollback=${migration.rollbackAvailable}")
                 Text("strategy=${migration.rollbackStrategy.take(220)}")
                 if (migration.status == "planned" && migration.approvalRequired && !migration.approvedByUser) {
                     Button(onClick = { onApproveRestCycle(migration.migrationId) }) { Text("Aprobar consolidacion") }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RestCycleTaskLine(task: RestCycleTaskUiState) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        StatusChip(task.status, attention = task.risk != "low")
+        Text("${task.name}: ${task.note}".take(160))
     }
 }
 
