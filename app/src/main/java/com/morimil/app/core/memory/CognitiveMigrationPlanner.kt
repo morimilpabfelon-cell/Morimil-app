@@ -41,6 +41,7 @@ object CognitiveMigrationPlanner {
             "draft_capsule_proposals:${capsuleProposals.size}",
             "draft_backlink_proposals:${backlinkProposals.size}",
             "append_execution_event_without_rewriting_memory",
+            "audit_chain_after_execution",
             "keep_original_events_immutable",
             "rollback_by_append_only_compensation_marker"
         )
@@ -76,6 +77,7 @@ object CognitiveMigrationPlanner {
             "approval_id=${record.approvalId}\n" +
             "affected=${record.affectedArtifactsJson}\n" +
             "steps=${record.stepsJson}\n" +
+            "post_execution_audit=pending_record_update\n" +
             "plan=\n${record.expectedEffect.take(1800)}"
     }
 
@@ -86,6 +88,21 @@ object CognitiveMigrationPlanner {
             "post_snapshot_id=${record.postSnapshotId}\n" +
             "strategy=\n${record.rollbackStrategy.take(1200)}\n" +
             "note=append_only_compensation; original_memory_events_remain_immutable"
+    }
+
+    fun buildPostExecutionAuditNotes(
+        record: MigrationRecordEntity,
+        executionEventHash: String?,
+        chainVerified: Boolean,
+        checkedAtMillis: Long
+    ): List<String> {
+        return listOf(
+            "post_execution_audit:${if (chainVerified) "verified" else "failed"}",
+            "checked_at:$checkedAtMillis",
+            "execution_event_hash:${executionEventHash ?: "none"}",
+            "migration_id:${record.migrationId}",
+            "policy:append_only_original_memory_unchanged"
+        )
     }
 
     private fun buildCapsuleProposals(events: List<MemoryEventEntity>): List<CapsuleProposal> {
