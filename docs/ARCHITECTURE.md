@@ -179,7 +179,7 @@ migration records:
   rest cycle and cognitive migration proposals, approvals, execution, rollback notes
 ```
 
-The Memory UI exposes capsules, consolidated categories, links, migrations, and manual integrity audit. Backlinks are navigable from recent memory events. The visual graph canvas builds a read-only Obsidian-style view from `memory_links`, loads connected memory events by hash, distinguishes external node types, and lets memory-event nodes open their connected memories.
+The Memory UI exposes capsules, consolidated categories, links, migrations, and manual integrity audit. `MemoryOrgansUiState` and the organ dashboard convert those backend records into levels, counts, alerts, and recommended actions: capsule coverage, category coverage, average confidence, orphaned links, pending migrations, and failed migrations. Backlinks are navigable from recent memory events. The visual graph canvas builds a read-only Obsidian-style view from `memory_links`, loads connected memory events by hash, distinguishes external node types, and lets memory-event nodes open their connected memories.
 
 ## Organism Health
 
