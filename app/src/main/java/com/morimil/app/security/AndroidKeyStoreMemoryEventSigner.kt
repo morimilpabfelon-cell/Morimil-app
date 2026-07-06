@@ -100,10 +100,17 @@ class AndroidKeyStoreMemoryEventSigner(
 
     companion object {
         private const val ANDROID_KEYSTORE_PROVIDER = "AndroidKeyStore"
-        private const val MEMORY_EVENT_KEY_ALIAS = "morimil.memory_event_signing.v1"
+        const val MEMORY_EVENT_KEY_ALIAS = "morimil.memory_event_signing.v1"
         private const val EC_CURVE = "secp256r1"
         private const val SIGNATURE_ALGORITHM = "SHA256withECDSA"
         private const val SIGNATURE_PAYLOAD_PREFIX = "morimil.memory_event_signature.v1\n"
+
+        fun signingKeyExists(keyAlias: String = MEMORY_EVENT_KEY_ALIAS): Boolean {
+            return runCatching {
+                KeyStore.getInstance(ANDROID_KEYSTORE_PROVIDER).apply { load(null) }
+                    .containsAlias(keyAlias)
+            }.getOrDefault(false)
+        }
 
         fun signaturePayload(eventHash: String): ByteArray {
             return "$SIGNATURE_PAYLOAD_PREFIX$eventHash".toByteArray(StandardCharsets.UTF_8)
