@@ -7,6 +7,7 @@ import android.os.Looper
 import android.webkit.CookieManager
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -40,9 +41,9 @@ class NativeBrowserReader(
     private val settleDelayMillis: Long = 1_000L
 ) {
     suspend fun read(rawUrl: String): NetRenderedResult = suspendCancellableCoroutine { continuation ->
-        val parsed = runCatching { URL(rawUrl) }.getOrNull()
-        if (parsed?.protocol != "https") {
-            continuation.resume(NetRenderedResult(ok = false, error = "browser_non_https_source"))
+        val initialPolicy = NetSourcePolicy.validateUrl(rawUrl)
+        if (!initialPolicy.allowed) {
+            continuation.resume(NetRenderedResult(ok = false, error = "browser_source_denied:${initialPolicy.reason}"))
             return@suspendCancellableCoroutine
         }
 
@@ -79,6 +80,16 @@ class NativeBrowserReader(
             webView = WebView(context).apply {
                 configureForReadOnlyResearch()
                 webViewClient = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                        val targetUrl = request?.url?.toString().orEmpty()
+                        val policy = NetSourcePolicy.validateUrl(targetUrl)
+                        if (!policy.allowed) {
+                            complete(NetRenderedResult(ok = false, error = "browser_navigation_denied:${policy.reason}"))
+                            return true
+                        }
+                        return false
+                    }
+
                     override fun onReceivedError(
                         view: WebView?,
                         request: WebResourceRequest?,
@@ -94,8 +105,28 @@ class NativeBrowserReader(
                         }
                     }
 
+                    override fun onReceivedHttpError(
+                        view: WebView?,
+                        request: WebResourceRequest?,
+                        errorResponse: WebResourceResponse?
+                    ) {
+                        if (request?.isForMainFrame == true) {
+                            complete(
+                                NetRenderedResult(
+                                    ok = false,
+                                    error = "browser_http_${errorResponse?.statusCode ?: 0}"
+                                )
+                            )
+                        }
+                    }
+
                     override fun onPageFinished(view: WebView?, url: String?) {
                         val loadedView = view ?: return
+                        val finalPolicy = NetSourcePolicy.validateUrl(url.orEmpty())
+                        if (!finalPolicy.allowed) {
+                            complete(NetRenderedResult(ok = false, error = "browser_final_url_denied:${finalPolicy.reason}"))
+                            return
+                        }
                         handler.postDelayed({
                             extractVisibleText(loadedView) { text ->
                                 complete(
@@ -129,6 +160,7 @@ class NativeBrowserReader(
         CookieManager.getInstance().setAcceptCookie(false)
         CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
         settings.javaScriptEnabled = true
+        settings.javaScriptCanOpenWindowsAutomatically = false
         settings.domStorageEnabled = true
         settings.loadsImagesAutomatically = false
         settings.blockNetworkImage = true
