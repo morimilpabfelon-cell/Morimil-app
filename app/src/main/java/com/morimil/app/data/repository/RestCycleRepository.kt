@@ -105,6 +105,17 @@ class RestCycleRepository(
             policyApprovalRequired = RestCyclePolicy.requiresHumanApproval(meaningfulEvents),
             policyReason = RestCyclePolicy.approvalReason(meaningfulEvents)
         )
+        val repairProposalId = if (fullChainVerified && organReconciliation.compensatingWritesAllowed) {
+            runCatching {
+                planRestRepairProposalIfNeeded(
+                    events = events,
+                    preSnapshotId = latestRestCycle?.eventHash ?: "none",
+                    chainVerified = true
+                )
+            }.getOrNull()
+        } else {
+            null
+        }
         val approvalRequired = !force && maintenanceReport.approvalRequired
         if (approvalRequired) {
             planImportantRestCycleIfNeeded(
@@ -162,6 +173,7 @@ class RestCycleRepository(
                     sourceEventCount = meaningfulEvents.size,
                     linkedEventCount = meaningfulEvents.take(12).size,
                     approvedMigrationId = approvedMigrationId,
+                    repairProposalId = repairProposalId,
                     maintenanceReport = maintenanceReport,
                     organReconciliation = organReconciliation,
                     autobiographyEventHash = autobiographyEventHash
@@ -335,6 +347,50 @@ class RestCycleRepository(
         )
     }
 
+    private suspend fun planRestRepairProposalIfNeeded(
+        events: List<MemoryEventEntity>,
+        preSnapshotId: String,
+        chainVerified: Boolean
+    ): String? {
+        val existing = migrationRecordRepository.loadLatestPlannedMigration(REST_REPAIR_MIGRATION_TYPE)
+        if (existing != null) return existing.migrationId
+
+        val repairReport = RestRepairProposalPlanner.build(events)
+        if (!repairReport.hasCandidates) return null
+
+        val genesisCore = requireNotNull(memoryDao.loadGenesisCore()) {
+            "Cannot plan rest repair without a local Genesis Core."
+        }
+        val localIdentity = memoryDao.loadLocalIdentity()
+        val migrationId = migrationRecordRepository.planMigration(
+            instanceId = localIdentity?.instanceId ?: "local_instance_pending",
+            genesisCoreHash = genesisCore.contentSha256,
+            proposalId = null,
+            migrationType = REST_REPAIR_MIGRATION_TYPE,
+            fromVersion = "living_memory_current",
+            toVersion = "living_memory_after_human_reviewed_repair",
+            affectedArtifacts = repairReport.affectedEventHashes,
+            preSnapshotId = preSnapshotId,
+            chainVerified = chainVerified,
+            backupRequired = true,
+            steps = repairReport.migrationSteps(),
+            expectedEffect = repairReport.expectedEffect(),
+            riskLevel = repairReport.riskLevel,
+            approvalRequired = true,
+            rollbackAvailable = true,
+            rollbackStrategy = "proposal_only: no mutation occurs until the user approves a later append-only repair action",
+            approvedByUser = false,
+            approvalId = null
+        )
+        memoryRepository.recordSystemMemoryEvent(
+            eventType = MEMORY_REPAIR_PROPOSED_EVENT_TYPE,
+            body = repairReport.eventBody(migrationId),
+            importance = 82,
+            evidenceJson = repairReport.evidenceJson(migrationId)
+        )
+        return migrationId
+    }
+
     private suspend fun planRestCycleMigration(
         summary: String,
         meaningfulEvents: List<MemoryEventEntity>,
@@ -410,6 +466,7 @@ class RestCycleRepository(
         sourceEventCount: Int,
         linkedEventCount: Int,
         approvedMigrationId: String?,
+        repairProposalId: String?,
         maintenanceReport: RestCycleMaintenanceReport,
         organReconciliation: MemoryOrganReconciliationReport,
         autobiographyEventHash: String?
@@ -421,6 +478,7 @@ class RestCycleRepository(
             "source_events:$sourceEventCount",
             "links_created_for_sources:$linkedEventCount",
             "autobiography_event_hash:${autobiographyEventHash ?: "skipped"}",
+            "repair_proposal_id:${repairProposalId ?: "none"}",
             "approval_id:${approvedMigrationId ?: "none"}",
             "completed_at_millis:${restCycle.createdAtMillis}"
         ) + maintenanceReport.resultNotes() + organReconciliation.toAuditNotes()
@@ -514,7 +572,9 @@ class RestCycleRepository(
     companion object {
         private const val REST_CYCLE_EVENT_TYPE = "rest_cycle.local_consolidation"
         private const val MEMORY_AUTOBIOGRAPHY_EVENT_TYPE = "memory.autobiography_updated"
+        private const val MEMORY_REPAIR_PROPOSED_EVENT_TYPE = "memory.repair_proposed"
         const val REST_CYCLE_MIGRATION_TYPE = "rest_cycle.local_consolidation"
+        const val REST_REPAIR_MIGRATION_TYPE = "rest_cycle.repair_proposal"
         private const val REST_CYCLE_MIN_INTERVAL_MILLIS = 6L * 60L * 60L * 1000L
         private const val REST_CYCLE_MIN_EVENTS = 6
         private const val MIGRATION_STATUS_PLANNED = "planned"
