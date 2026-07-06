@@ -190,6 +190,9 @@ interface MemoryOrganDao {
     @Query("SELECT * FROM delegated_tasks ORDER BY createdAtMillis DESC LIMIT 30")
     fun observeDelegatedTasks(): Flow<List<DelegatedTaskEntity>>
 
+    @Query("SELECT * FROM delegated_tasks WHERE taskId = :taskId LIMIT 1")
+    suspend fun loadDelegatedTask(taskId: String): DelegatedTaskEntity?
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertDelegatedTask(task: DelegatedTaskEntity)
 
