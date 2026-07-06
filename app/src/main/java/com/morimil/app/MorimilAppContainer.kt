@@ -65,7 +65,8 @@ class MorimilAppContainer(context: Context) {
             database = memoryDatabase,
             organDatabase = organDatabase,
             memoryIntegrityCore = memoryIntegrityCore,
-            memoryEventSigner = memoryEventSigner
+            memoryEventSigner = memoryEventSigner,
+            memoryRepository = memoryRepository
         )
     }
 
