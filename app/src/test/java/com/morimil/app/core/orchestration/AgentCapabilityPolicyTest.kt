@@ -11,9 +11,20 @@ class AgentCapabilityPolicyTest {
 
         assertEquals(AgentCapabilityPolicy.AGENT_ANDROID_BUILD, plan.assignedAgentId)
         assertTrue(plan.approvalRequired)
-        assertEquals("medium", plan.riskLevel)
+        assertEquals("high", plan.riskLevel)
         assertEquals("review_required", plan.immuneDecision)
         assertTrue("run_gradle_tests" in plan.allowedActions)
+        assertTrue(plan.contextSummary.contains("tool_registry_decision=allow"))
+    }
+
+    @Test
+    fun delegatedActionsComeFromRegisteredToolCapabilities() {
+        val plan = AgentCapabilityPolicy.planDelegation("Revisar repositorio GitHub y preparar notas de PR")
+
+        assertEquals(AgentCapabilityPolicy.AGENT_GITHUB, plan.assignedAgentId)
+        assertTrue("read_repository" in plan.allowedActions)
+        assertTrue("prepare_pr_notes" in plan.allowedActions)
+        assertTrue(plan.contextSummary.contains("tool_registry_reasons=registered_tool_actions"))
     }
 
     @Test
