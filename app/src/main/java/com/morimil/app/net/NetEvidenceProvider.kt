@@ -8,7 +8,8 @@ import java.net.URLDecoder
 import java.net.URLEncoder
 
 class NetEvidenceProvider(
-    private val fetcher: NetRawFetcher = HttpNetRawFetcher()
+    private val fetcher: NetRawFetcher = HttpNetRawFetcher(),
+    private val renderedFetcher: NetRenderedFetcher = NativeBrowserRuntime.renderedFetcher()
 ) {
     suspend fun build(message: String): String = withContext(Dispatchers.IO) {
         if (NetIntentDetector.shouldUseNet(message).not()) return@withContext ""
@@ -27,12 +28,14 @@ class NetEvidenceProvider(
             if (result.ok) {
                 val text = NetTextExtractor.readable(result.body, MAX_CONTEXT_CHARS_PER_SOURCE)
                 if (text.isNotBlank()) {
-                    blocks += sourceBlock(url, text)
+                    blocks += sourceBlock(url, text, mode = "http")
                 } else {
                     notes += "empty_text:${shortUrl(url)}"
+                    readRendered(url, notes)?.let { block -> blocks += block }
                 }
             } else {
                 notes += "fetch_failed:${shortUrl(url)}:${result.error.orEmpty().take(120)}"
+                readRendered(url, notes)?.let { block -> blocks += block }
             }
         }
 
@@ -41,6 +44,21 @@ class NetEvidenceProvider(
         } else {
             blocks.joinToString("\n\n")
         }
+    }
+
+    private suspend fun readRendered(url: String, notes: MutableList<String>): String? {
+        val rendered = renderedFetcher.fetch(url)
+        if (!rendered.ok) {
+            notes += "browser_failed:${shortUrl(url)}:${rendered.error.orEmpty().take(120)}"
+            return null
+        }
+        val text = NetTextExtractor.compact(rendered.text, MAX_CONTEXT_CHARS_PER_SOURCE)
+        if (text.isBlank()) {
+            notes += "browser_empty_text:${shortUrl(url)}"
+            return null
+        }
+        notes += "browser_ok:${shortUrl(url)}"
+        return sourceBlock(url, text, mode = "browser")
     }
 
     private fun resolveLookupTargets(query: String): NetTargetResolution {
@@ -97,14 +115,14 @@ class NetEvidenceProvider(
         }
     }
 
-    private fun sourceBlock(url: String, text: String): String {
-        return "FUENTE_EXTERNA=$url\nEXTRACTO=\n$text"
+    private fun sourceBlock(url: String, text: String, mode: String): String {
+        return "FUENTE_EXTERNA=$url\nMODO_LECTURA=$mode\nEXTRACTO=\n$text"
     }
 
     private fun failureBlock(notes: List<String>): String {
         return "FUENTE_EXTERNA=consulta_nativa_sin_resultado\n" +
             "DIAGNOSTICO=${notes.joinToString(" | ").take(900)}\n" +
-            "EXTRACTO=Morimil intento consultar fuentes externas para este turno, pero no obtuvo texto util. No inventes datos actuales."
+            "EXTRACTO=Morimil intento consultar fuentes externas para este turno por HTTP y navegador nativo, pero no obtuvo texto util. No inventes datos actuales."
     }
 
     private fun shortUrl(url: String): String {
