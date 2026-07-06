@@ -46,8 +46,8 @@ class AgentInstanceLifecycleRepository(
         )
         dao.insertAgentInstance(instance)
         dao.refreshProjectVaultActiveAgentCount(vaultId, nowMillis)
-        recordAgentEvent(EVENT_AGENT_CREATED, "created", vault, instance, nowMillis, cleanBriefing, 94)
-        recordAgentEvent(EVENT_AGENT_BRIEFED, "briefed", vault, instance, nowMillis, cleanBriefing, 92)
+        recordAgentEvent(EVENT_AGENT_CREATED, "created", vault, instance, nowMillis, cleanBriefing, IMPORTANCE_AGENT_CREATED)
+        recordAgentEvent(EVENT_AGENT_BRIEFED, "briefed", vault, instance, nowMillis, cleanBriefing, IMPORTANCE_AGENT_BRIEFED)
         return agentInstanceId
     }
 
@@ -90,7 +90,7 @@ class AgentInstanceLifecycleRepository(
             updatedAtMillis = nowMillis
         )
         dao.refreshProjectVaultActiveAgentCount(vault.vaultId, nowMillis)
-        recordTaskEvent(EVENT_TASK_ASSIGNED, "assigned", vault, instance, task, nowMillis, "Tarea asignada; requiere aprobacion antes de ejecutar.", 96)
+        recordTaskEvent(EVENT_TASK_ASSIGNED, "assigned", vault, instance, task, nowMillis, "Tarea asignada; requiere aprobacion antes de ejecutar.", IMPORTANCE_TASK_ASSIGNED)
         return taskId
     }
 
@@ -125,7 +125,7 @@ class AgentInstanceLifecycleRepository(
         ) > 0
         if (updated) {
             dao.refreshProjectVaultActiveAgentCount(vault.vaultId, nowMillis)
-            recordAgentEvent(EVENT_AGENT_RESULT_SUBMITTED, "result_submitted", vault, instance.copy(status = STATUS_AWAITING_REVIEW), nowMillis, cleanSummary, 95)
+            recordAgentEvent(EVENT_AGENT_RESULT_SUBMITTED, "result_submitted", vault, instance.copy(status = STATUS_AWAITING_REVIEW), nowMillis, cleanSummary, IMPORTANCE_AGENT_RESULT_SUBMITTED)
         }
         return updated
     }
@@ -154,7 +154,7 @@ class AgentInstanceLifecycleRepository(
         ) > 0
         if (updated) {
             dao.refreshProjectVaultActiveAgentCount(vault.vaultId, nowMillis)
-            recordAgentEvent(EVENT_AGENT_EVALUATED, "evaluated", vault, instance.copy(status = cleanStatus, qualityScore = cleanScore), nowMillis, note, 94)
+            recordAgentEvent(EVENT_AGENT_EVALUATED, "evaluated", vault, instance.copy(status = cleanStatus, qualityScore = cleanScore), nowMillis, note, IMPORTANCE_AGENT_EVALUATED)
         }
         return updated
     }
@@ -193,7 +193,7 @@ class AgentInstanceLifecycleRepository(
         ) > 0
         if (updated) {
             dao.refreshProjectVaultActiveAgentCount(vault.vaultId, nowMillis)
-            recordAgentEvent(EVENT_AGENT_PROMOTED, "promoted", vault, instance.copy(status = STATUS_PROMOTED, qualityScore = maxOf(instance.qualityScore, 90)), nowMillis, reason, 98)
+            recordAgentEvent(EVENT_AGENT_PROMOTED, "promoted", vault, instance.copy(status = STATUS_PROMOTED, qualityScore = maxOf(instance.qualityScore, 90)), nowMillis, reason, IMPORTANCE_AGENT_PROMOTED)
         }
         return updated
     }
@@ -222,7 +222,7 @@ class AgentInstanceLifecycleRepository(
         ) > 0
         if (updated) {
             dao.refreshProjectVaultActiveAgentCount(vault.vaultId, nowMillis)
-            recordAgentEvent(eventType, action, vault, instance.copy(status = status), nowMillis, reason, if (addError) 99 else 92)
+            recordAgentEvent(eventType, action, vault, instance.copy(status = status), nowMillis, reason, if (addError) IMPORTANCE_AGENT_QUARANTINED else IMPORTANCE_AGENT_RETIRED)
         }
         return updated
     }
@@ -367,6 +367,15 @@ class AgentInstanceLifecycleRepository(
         private const val EVENT_AGENT_RETIRED = "project.agent_retired"
         private const val EVENT_AGENT_QUARANTINED = "project.agent_quarantined"
         private const val EVENT_AGENT_PROMOTED = "project.agent_promoted"
+
+        private const val IMPORTANCE_AGENT_CREATED = 72
+        private const val IMPORTANCE_AGENT_BRIEFED = 64
+        private const val IMPORTANCE_TASK_ASSIGNED = 78
+        private const val IMPORTANCE_AGENT_RESULT_SUBMITTED = 95
+        private const val IMPORTANCE_AGENT_EVALUATED = 94
+        private const val IMPORTANCE_AGENT_RETIRED = 92
+        private const val IMPORTANCE_AGENT_QUARANTINED = 99
+        private const val IMPORTANCE_AGENT_PROMOTED = 98
 
         fun buildAgentInstanceId(vaultId: String, templateAgentId: String, nowMillis: Long): String {
             val suffix = StableIdDigest.shortSha256Hex(
