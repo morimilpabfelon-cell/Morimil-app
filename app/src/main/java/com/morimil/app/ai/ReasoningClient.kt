@@ -298,6 +298,7 @@ class ReasoningClient(
     ): ReasoningParsedReply {
         val requestBody = ReasoningWire.buildBody(valid, systemPrompt, history)
         val startedAtMillis = System.currentTimeMillis()
+        var failureAlreadyRecorded = false
         val connection = (URL(valid.baseUrl).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = TIMEOUT_MS
@@ -336,6 +337,7 @@ class ReasoningClient(
                     errorCategory = "http_status",
                     startedAtMillis = startedAtMillis
                 )
+                failureAlreadyRecorded = true
                 error("Motor de razonamiento rechazo la solicitud: HTTP $statusCode $responseBody")
             }
             val parsed = runCatching { ReasoningWire.parseReplyResult(valid, responseBody) }
@@ -351,6 +353,7 @@ class ReasoningClient(
                         errorCategory = "parse_error",
                         startedAtMillis = startedAtMillis
                     )
+                    failureAlreadyRecorded = true
                 }
                 .getOrThrow()
             recordUsage(
@@ -366,17 +369,19 @@ class ReasoningClient(
             )
             parsed
         } catch (error: Exception) {
-            recordUsage(
-                valid = valid,
-                phase = phase,
-                requestBody = requestBody,
-                responseBody = "",
-                parsed = null,
-                statusCode = null,
-                success = false,
-                errorCategory = error.javaClass.simpleName,
-                startedAtMillis = startedAtMillis
-            )
+            if (!failureAlreadyRecorded) {
+                recordUsage(
+                    valid = valid,
+                    phase = phase,
+                    requestBody = requestBody,
+                    responseBody = "",
+                    parsed = null,
+                    statusCode = null,
+                    success = false,
+                    errorCategory = error.javaClass.simpleName,
+                    startedAtMillis = startedAtMillis
+                )
+            }
             throw error
         } finally {
             connection.disconnect()
