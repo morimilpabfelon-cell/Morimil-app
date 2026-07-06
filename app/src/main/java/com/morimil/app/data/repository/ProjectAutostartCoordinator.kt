@@ -14,6 +14,13 @@ class ProjectAutostartCoordinator(
         existingVaults: List<ProjectVaultEntity>,
         nowMillis: Long = System.currentTimeMillis()
     ): String? {
+        val classification = MemoryEventClassifier.classify(
+            eventType = "conversation.user_message",
+            actor = "user",
+            body = message
+        )
+        if (classification.memoryKind == "chat_noise") return null
+
         val intent = ProjectIntentDetector.detect(message) ?: return null
         if (existingVaults.any { vault -> vault.displayName.equals(intent.displayName, ignoreCase = true) }) {
             return null
