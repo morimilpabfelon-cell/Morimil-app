@@ -1,4 +1,4 @@
-package com.morimil.app.data.local
+﻿package com.morimil.app.data.local
 
 import androidx.room.Dao
 import androidx.room.Insert
@@ -168,6 +168,23 @@ interface MemoryOrganDao {
         errorsJson: String,
         updatedAtMillis: Long
     ): Int
+    @Query("SELECT * FROM project_vaults ORDER BY updatedAtMillis DESC")
+    fun observeProjectVaults(): Flow<List<ProjectVaultEntity>>
+
+    @Query("SELECT COUNT(*) FROM project_vaults")
+    suspend fun countProjectVaults(): Int
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertProjectVaults(vaults: List<ProjectVaultEntity>): List<Long>
+
+    @Query("SELECT * FROM agent_instances ORDER BY updatedAtMillis DESC LIMIT 60")
+    fun observeAgentInstances(): Flow<List<AgentInstanceEntity>>
+
+    @Query("SELECT * FROM agent_instances WHERE projectVaultId = :vaultId ORDER BY updatedAtMillis DESC")
+    suspend fun loadAgentInstancesForVault(vaultId: String): List<AgentInstanceEntity>
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertAgentInstance(agent: AgentInstanceEntity)
 
     @Query("SELECT * FROM orchestrator_devices ORDER BY authorizationStatus ASC, updatedAtMillis DESC")
     fun observeOrchestratorDevices(): Flow<List<OrchestratorDeviceEntity>>
@@ -230,3 +247,4 @@ interface MemoryOrganDao {
         completedAtMillis: Long
     ): Int
 }
+

@@ -1,4 +1,4 @@
-package com.morimil.app.data.local
+﻿package com.morimil.app.data.local
 
 import android.content.Context
 import androidx.room.Database
@@ -15,13 +15,15 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MemoryLinkEntity::class,
         MigrationRecordEntity::class,
         OrchestratorDeviceEntity::class,
+        ProjectVaultEntity::class,
         AgentProfileEntity::class,
+        AgentInstanceEntity::class,
         DelegatedTaskEntity::class,
         TaskApprovalEntity::class,
         TaskResultEntity::class,
         AsiCycleRecordEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 abstract class MemoryOrganDatabase : RoomDatabase() {
@@ -292,6 +294,59 @@ abstract class MemoryOrganDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_asi_cycle_records_createdAtMillis ON asi_cycle_records(createdAtMillis)")
             }
         }
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS project_vaults (
+                        vaultId TEXT NOT NULL PRIMARY KEY,
+                        displayName TEXT NOT NULL,
+                        companyName TEXT NOT NULL,
+                        projectType TEXT NOT NULL,
+                        mission TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        roadmapSummary TEXT NOT NULL,
+                        progressPercent INTEGER NOT NULL,
+                        activeAgentCount INTEGER NOT NULL,
+                        healthStatus TEXT NOT NULL,
+                        sourceContext TEXT NOT NULL,
+                        createdAtMillis INTEGER NOT NULL,
+                        updatedAtMillis INTEGER NOT NULL,
+                        completedAtMillis INTEGER
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_project_vaults_status ON project_vaults(status)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_project_vaults_healthStatus ON project_vaults(healthStatus)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_project_vaults_updatedAtMillis ON project_vaults(updatedAtMillis)")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS agent_instances (
+                        agentInstanceId TEXT NOT NULL PRIMARY KEY,
+                        projectVaultId TEXT NOT NULL,
+                        templateAgentId TEXT NOT NULL,
+                        displayName TEXT NOT NULL,
+                        briefing TEXT NOT NULL,
+                        constraintsJson TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        qualityScore INTEGER NOT NULL,
+                        errorCount INTEGER NOT NULL,
+                        currentTaskId TEXT,
+                        lastHeartbeatAtMillis INTEGER,
+                        createdAtMillis INTEGER NOT NULL,
+                        updatedAtMillis INTEGER NOT NULL,
+                        retiredAtMillis INTEGER,
+                        retireReason TEXT
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_instances_projectVaultId ON agent_instances(projectVaultId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_instances_templateAgentId ON agent_instances(templateAgentId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_instances_status ON agent_instances(status)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_instances_currentTaskId ON agent_instances(currentTaskId)")
+            }
+        }
 
         fun getInstance(context: Context): MemoryOrganDatabase {
             return instance ?: synchronized(this) {
@@ -300,10 +355,11 @@ abstract class MemoryOrganDatabase : RoomDatabase() {
                     MemoryOrganDatabase::class.java,
                     "morimil_memory_organs.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .build()
                     .also { instance = it }
             }
         }
     }
 }
+

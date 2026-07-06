@@ -1,4 +1,4 @@
-package com.morimil.app.data.local
+﻿package com.morimil.app.data.local
 
 import androidx.room.Entity
 import androidx.room.Index
@@ -29,6 +29,32 @@ data class OrchestratorDeviceEntity(
     val updatedAtMillis: Long
 )
 
+
+@Entity(
+    tableName = "project_vaults",
+    indices = [
+        Index(value = ["status"], name = "index_project_vaults_status"),
+        Index(value = ["healthStatus"], name = "index_project_vaults_healthStatus"),
+        Index(value = ["updatedAtMillis"], name = "index_project_vaults_updatedAtMillis")
+    ]
+)
+data class ProjectVaultEntity(
+    @PrimaryKey
+    val vaultId: String,
+    val displayName: String,
+    val companyName: String,
+    val projectType: String,
+    val mission: String,
+    val status: String,
+    val roadmapSummary: String,
+    val progressPercent: Int,
+    val activeAgentCount: Int,
+    val healthStatus: String,
+    val sourceContext: String,
+    val createdAtMillis: Long,
+    val updatedAtMillis: Long,
+    val completedAtMillis: Long?
+)
 @Entity(
     tableName = "agent_profiles",
     indices = [
@@ -53,6 +79,34 @@ data class AgentProfileEntity(
     val updatedAtMillis: Long
 )
 
+
+@Entity(
+    tableName = "agent_instances",
+    indices = [
+        Index(value = ["projectVaultId"], name = "index_agent_instances_projectVaultId"),
+        Index(value = ["templateAgentId"], name = "index_agent_instances_templateAgentId"),
+        Index(value = ["status"], name = "index_agent_instances_status"),
+        Index(value = ["currentTaskId"], name = "index_agent_instances_currentTaskId")
+    ]
+)
+data class AgentInstanceEntity(
+    @PrimaryKey
+    val agentInstanceId: String,
+    val projectVaultId: String,
+    val templateAgentId: String,
+    val displayName: String,
+    val briefing: String,
+    val constraintsJson: String,
+    val status: String,
+    val qualityScore: Int,
+    val errorCount: Int,
+    val currentTaskId: String?,
+    val lastHeartbeatAtMillis: Long?,
+    val createdAtMillis: Long,
+    val updatedAtMillis: Long,
+    val retiredAtMillis: Long?,
+    val retireReason: String?
+)
 @Entity(
     tableName = "delegated_tasks",
     indices = [
