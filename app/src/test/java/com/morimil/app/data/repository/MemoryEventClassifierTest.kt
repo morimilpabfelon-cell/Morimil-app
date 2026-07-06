@@ -25,6 +25,20 @@ class MemoryEventClassifierTest {
     }
 
     @Test
+    fun casualAcknowledgementsRemainChatNoise() {
+        listOf("hola", "dale", "ok", "gracias", "correcto").forEach { body ->
+            val classification = MemoryEventClassifier.classify(
+                eventType = "conversation.user_message",
+                actor = "user",
+                body = body
+            )
+
+            assertEquals("chat_noise", classification.memoryKind)
+            assertEquals(8, classification.importance)
+        }
+    }
+
+    @Test
     fun explicitShortMemoryCommandIsNotTinyAckNoise() {
         val classification = MemoryEventClassifier.classify(
             eventType = "conversation.user_message",
