@@ -36,7 +36,7 @@ object MemoryEventClassifier {
         if (lower.contains("memoria") || lower.contains("recuerd")) tags += "memory"
         if (lower.contains("api") || lower.contains("motor") || lower.contains("razon")) tags += "reasoning"
         if (lower.contains("app") || lower.contains("celular") || lower.contains("local")) tags += "local_app"
-        if (lower.contains("proyecto") || lower.contains("repo") || lower.contains("github")) tags += "project"
+        if (listOf("proyecto", "repo", "github", "empresa", "startup", "compania", "compañia", "boveda", "bóveda", "producto").any { token -> lower.contains(token) }) tags += "project"
         if (lower.contains("privad") || lower.contains("segur")) tags += "privacy"
         if (lower.contains("grafo") || lower.contains("backlink") || lower.contains("obsidian")) tags += "memory_graph"
 
