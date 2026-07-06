@@ -13,6 +13,7 @@ import com.morimil.app.data.repository.RecallScheduleRepository
 import com.morimil.app.domain.usecase.AppendLivingMemoryUseCase
 import com.morimil.app.domain.usecase.RunRestCycleUseCase
 import com.morimil.app.reasoning.model.ModelBackendRouter
+import com.morimil.app.reasoning.model.ReasoningBackendStatusStore
 
 /**
  * First local reasoning kernel foundation.
@@ -38,6 +39,7 @@ class ReasoningKernel(
             config = request.runtimeConfig,
             runtimeAccess = request.runtimeAccess
         )
+        ReasoningBackendStatusStore.update(backend)
         ReasoningRuntimeState.set(request.runtimeConfig)
 
         var state = ReasoningState(
