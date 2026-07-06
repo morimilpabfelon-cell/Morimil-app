@@ -5,6 +5,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
+import java.net.SocketTimeoutException
 import java.net.URL
 import java.util.Locale
 
@@ -283,6 +284,11 @@ class ReasoningClient {
                 originalHistory = compactHistory,
                 initialReply = initialReply
             ).text
+        }.recoverCatching { error ->
+            if (error is SocketTimeoutException) {
+                throw IllegalStateException(ReasoningNetworkTimeoutPolicy.userMessage(), error)
+            }
+            throw error
         }
     }
 
@@ -295,10 +301,11 @@ class ReasoningClient {
         val requestBody = ReasoningWire.buildBody(valid, systemPrompt, history)
         val connection = (URL(valid.baseUrl).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
-            connectTimeout = TIMEOUT_MS
-            readTimeout = TIMEOUT_MS
+            connectTimeout = ReasoningNetworkTimeoutPolicy.CONNECT_TIMEOUT_MS
+            readTimeout = ReasoningNetworkTimeoutPolicy.READ_TIMEOUT_MS
             doOutput = true
             setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("Accept", "application/json")
             when (valid.wireFormat) {
                 ReasoningWireFormat.MESSAGES -> {
                     if (runtimeKey.isNotBlank()) setRequestProperty("x-" + "api-key", runtimeKey)
@@ -378,7 +385,6 @@ class ReasoningClient {
 
     companion object {
         const val MAX_HISTORY_MESSAGES = ReasoningBudgetPolicy.DEFAULT_HISTORY_MESSAGES
-        private const val TIMEOUT_MS = 45000
         private const val MAX_CONTINUATION_CALLS = 1
         private const val CONTINUATION_PROMPT = "Continua exactamente desde donde se corto la respuesta anterior. No reinicies, no repitas introducciones y no cambies de tema."
         private val MESSAGES_VERSION_HEADER = "anth" + "ropic-version"
