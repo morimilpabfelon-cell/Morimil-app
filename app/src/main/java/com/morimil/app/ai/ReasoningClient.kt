@@ -104,7 +104,7 @@ object ReasoningWire {
         val choices = root.optJSONArray("choices") ?: return ""
         val first = choices.optJSONObject(0) ?: return ""
         val message = first.optJSONObject("message") ?: return ""
-        val content = message.opt("content") ?: message.opt("reasoning_content") ?: message.opt("refusal") ?: return ""
+        val content = firstContentValue(message, "content", "reasoning_content", "refusal") ?: return ""
         return parseContentValue(content)
     }
 
@@ -133,13 +133,21 @@ object ReasoningWire {
         return runCatching {
             val root = JSONObject(body)
             root.optString("output_text").takeIf { it.isNotBlank() }
-                ?: root.optJSONObject("message")?.let { parseContentValue(it.opt("content") ?: it.opt("refusal") ?: "") }
+                ?: root.optJSONObject("message")?.let { parseContentValue(firstContentValue(it, "content", "refusal") ?: "") }
                 ?: root.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.let { message ->
-                    parseContentValue(message.opt("content") ?: message.opt("refusal") ?: "")
+                    parseContentValue(firstContentValue(message, "content", "refusal") ?: "")
                 }
                 ?: root.optJSONObject("error")?.optString("message")?.takeIf { it.isNotBlank() }
                 ?: ""
         }.getOrDefault("")
+    }
+
+    private fun firstContentValue(root: JSONObject, vararg keys: String): Any? {
+        keys.forEach { key ->
+            val value = root.opt(key)
+            if (value != null && value != JSONObject.NULL) return value
+        }
+        return null
     }
 
     private fun parseContentValue(content: Any?): String {
