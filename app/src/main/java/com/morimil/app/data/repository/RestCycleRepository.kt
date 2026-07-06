@@ -7,8 +7,10 @@ import com.morimil.app.core.memory.MemoryOrganReconciliationReport
 import com.morimil.app.core.memory.RestCycleMaintenancePlanner
 import com.morimil.app.core.memory.RestCycleMaintenanceReport
 import com.morimil.app.core.memory.RestCycleMode
+import com.morimil.app.data.local.AutobiographicalSnapshotEntity
 import com.morimil.app.data.local.MemoryDao
 import com.morimil.app.data.local.MemoryEventEntity
+import com.morimil.app.data.local.MemoryOrganDao
 import com.morimil.app.data.local.MemoryOrganDatabase
 import com.morimil.app.data.local.MemorySnapshotEntity
 import com.morimil.app.data.local.MorimilDatabase
@@ -19,9 +21,11 @@ class RestCycleRepository(
     private val database: MorimilDatabase,
     organDatabase: MemoryOrganDatabase,
     private val memoryIntegrityCore: MemoryIntegrityCore,
-    private val memoryEventSigner: MemoryEventSigner
+    private val memoryEventSigner: MemoryEventSigner,
+    private val memoryRepository: MemoryRepository
 ) {
     private val memoryDao: MemoryDao = database.memoryDao()
+    private val organDao: MemoryOrganDao = organDatabase.memoryOrganDao()
     private val memoryLinkRepository = MemoryLinkRepository(organDatabase)
     private val migrationRecordRepository = MigrationRecordRepository(organDatabase)
     private val organReconciliationRepository = MemoryOrganReconciliationRepository(
@@ -128,6 +132,14 @@ class RestCycleRepository(
                 ),
                 createdAtMillis = restCycle.createdAtMillis
             )
+            val autobiographyEventHash = if (maintenanceReport.fullChainVerified) {
+                consolidateAutobiographyFromRestCycle(
+                    restCycle = restCycle,
+                    events = events
+                )
+            } else {
+                null
+            }
             migrationRecordRepository.markMigrationCompleted(
                 migrationId = migrationId,
                 postSnapshotId = restCycle.eventHash,
@@ -137,7 +149,8 @@ class RestCycleRepository(
                     linkedEventCount = meaningfulEvents.take(12).size,
                     approvedMigrationId = approvedMigrationId,
                     maintenanceReport = maintenanceReport,
-                    organReconciliation = organReconciliation
+                    organReconciliation = organReconciliation,
+                    autobiographyEventHash = autobiographyEventHash
                 )
             )
             true
@@ -251,6 +264,41 @@ class RestCycleRepository(
         }
     }
 
+    private suspend fun consolidateAutobiographyFromRestCycle(
+        restCycle: RestCycleAppendResult,
+        events: List<MemoryEventEntity>
+    ): String? {
+        val genesisCore = memoryDao.loadGenesisCore() ?: return null
+        val alias = memoryDao.loadLocalIdentity()?.alias ?: "Morimil"
+        val draft = AutobiographicalMemoryConsolidator.build(
+            alias = alias,
+            sourceRestCycleEventHash = restCycle.eventHash,
+            events = events,
+            generatedAtMillis = restCycle.createdAtMillis
+        )
+        val autobiographyEventHash = memoryRepository.recordSystemMemoryEvent(
+            eventType = MEMORY_AUTOBIOGRAPHY_EVENT_TYPE,
+            body = AutobiographicalMemoryConsolidator.eventBody(draft),
+            importance = 90,
+            evidenceJson = draft.evidenceJson
+        ) ?: return null
+
+        organDao.upsertSelfSnapshot(
+            AutobiographicalSnapshotEntity(
+                snapshotId = "current",
+                genesisCoreId = genesisCore.coreId,
+                alias = alias,
+                selfSummary = draft.selfSummary,
+                stableTraits = draft.stableTraits,
+                activeGoals = draft.activeGoals,
+                importantConstraints = draft.importantConstraints,
+                sourceEventHash = autobiographyEventHash,
+                updatedAtMillis = System.currentTimeMillis()
+            )
+        )
+        return autobiographyEventHash
+    }
+
     private suspend fun planImportantRestCycleIfNeeded(
         summary: String,
         meaningfulEvents: List<MemoryEventEntity>,
@@ -349,7 +397,8 @@ class RestCycleRepository(
         linkedEventCount: Int,
         approvedMigrationId: String?,
         maintenanceReport: RestCycleMaintenanceReport,
-        organReconciliation: MemoryOrganReconciliationReport
+        organReconciliation: MemoryOrganReconciliationReport,
+        autobiographyEventHash: String?
     ): List<String> {
         return listOf(
             "rest_cycle_result:completed",
@@ -357,6 +406,7 @@ class RestCycleRepository(
             "full_chain_verified:${maintenanceReport.fullChainVerified}",
             "source_events:$sourceEventCount",
             "links_created_for_sources:$linkedEventCount",
+            "autobiography_event_hash:${autobiographyEventHash ?: "skipped"}",
             "approval_id:${approvedMigrationId ?: "none"}",
             "completed_at_millis:${restCycle.createdAtMillis}"
         ) + maintenanceReport.resultNotes() + organReconciliation.toAuditNotes()
@@ -449,6 +499,7 @@ class RestCycleRepository(
 
     companion object {
         private const val REST_CYCLE_EVENT_TYPE = "rest_cycle.local_consolidation"
+        private const val MEMORY_AUTOBIOGRAPHY_EVENT_TYPE = "memory.autobiography_updated"
         const val REST_CYCLE_MIGRATION_TYPE = "rest_cycle.local_consolidation"
         private const val REST_CYCLE_MIN_INTERVAL_MILLIS = 6L * 60L * 60L * 1000L
         private const val REST_CYCLE_MIN_EVENTS = 6
