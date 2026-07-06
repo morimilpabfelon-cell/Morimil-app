@@ -23,25 +23,29 @@ class LanAgentClient(
         return withContext(Dispatchers.IO) {
             runCatching {
                 val connection = (URL(endpoint.normalizedBaseUrl() + "/file-audit").openConnection() as HttpURLConnection)
-                connection.requestMethod = "POST"
-                connection.connectTimeout = connectTimeoutMillis
-                connection.readTimeout = readTimeoutMillis
-                connection.doOutput = true
-                connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                connection.setRequestProperty("Accept", "application/json")
-                connection.setRequestProperty("X-Morimil-Pairing", pairCode)
+                try {
+                    connection.requestMethod = "POST"
+                    connection.connectTimeout = connectTimeoutMillis
+                    connection.readTimeout = readTimeoutMillis
+                    connection.doOutput = true
+                    connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                    connection.setRequestProperty("Accept", "application/json")
+                    connection.setRequestProperty("X-Morimil-Pairing", pairCode)
 
-                connection.outputStream.use { output ->
-                    output.write(request.toJsonString().toByteArray(Charsets.UTF_8))
-                }
+                    connection.outputStream.use { output ->
+                        output.write(request.toJsonString().toByteArray(Charsets.UTF_8))
+                    }
 
-                val responseCode = connection.responseCode
-                val stream = if (responseCode in 200..299) connection.inputStream else connection.errorStream
-                val body = stream.bufferedReader().use { it.readText() }
-                if (responseCode !in 200..299) {
-                    throw IllegalStateException("LAN agent rejected request: $responseCode")
+                    val responseCode = connection.responseCode
+                    val stream = if (responseCode in 200..299) connection.inputStream else connection.errorStream
+                    val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    if (responseCode !in 200..299) {
+                        throw IllegalStateException("LAN agent rejected request: $responseCode")
+                    }
+                    LanAgentFileAuditResult.fromJson(body)
+                } finally {
+                    connection.disconnect()
                 }
-                LanAgentFileAuditResult.fromJson(body)
             }
         }
     }
