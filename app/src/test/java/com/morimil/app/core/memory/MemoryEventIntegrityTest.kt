@@ -148,6 +148,59 @@ class MemoryEventIntegrityTest {
     }
 
     @Test
+    fun keyBackedEpochRejectsAllUnsignedHistoryWhenStoredEpochIsMissing() {
+        val first = sampleEvent(previousEventHash = null)
+        val second = sampleEvent(
+            previousEventHash = first.eventHash,
+            body = "Todas las firmas fueron despojadas del historial.",
+            createdAtMillis = SAMPLE_CREATED_AT_MILLIS + 1
+        )
+        val signedIntegrity = MemoryEventIntegrity(
+            signatureVerifier = validTestSignatureVerifier(),
+            signatureEpochPolicy = SigningKeyOnlySignatureEpochPolicy
+        )
+
+        assertFalse(signedIntegrity.verifyMemoryEventChain(listOf(first, second)))
+    }
+
+    @Test
+    fun keyBackedEpochAcceptsUnsignedHistoryBeforeFirstSignedEventWhenStoredEpochIsMissing() {
+        val legacyUnsigned = sampleEvent(previousEventHash = null)
+        val signedFirst = sampleEvent(
+            previousEventHash = legacyUnsigned.eventHash,
+            body = "Primer evento firmado detectado por la cadena.",
+            createdAtMillis = SAMPLE_CREATED_AT_MILLIS + 1
+        ).signedForTest()
+        val signedSecond = sampleEvent(
+            previousEventHash = signedFirst.eventHash,
+            body = "Evento posterior tambien firmado.",
+            createdAtMillis = SAMPLE_CREATED_AT_MILLIS + 2
+        ).signedForTest()
+        val signedIntegrity = MemoryEventIntegrity(
+            signatureVerifier = validTestSignatureVerifier(),
+            signatureEpochPolicy = SigningKeyOnlySignatureEpochPolicy
+        )
+
+        assertTrue(signedIntegrity.verifyMemoryEventChain(listOf(legacyUnsigned, signedFirst, signedSecond)))
+    }
+
+    @Test
+    fun keyBackedEpochRejectsUnsignedEventAfterFirstSignedWhenStoredEpochIsMissing() {
+        val signedFirst = sampleEvent(previousEventHash = null).signedForTest()
+        val strippedSecond = sampleEvent(
+            previousEventHash = signedFirst.eventHash,
+            body = "Este evento posterior perdio su firma.",
+            createdAtMillis = SAMPLE_CREATED_AT_MILLIS + 1
+        )
+        val signedIntegrity = MemoryEventIntegrity(
+            signatureVerifier = validTestSignatureVerifier(),
+            signatureEpochPolicy = SigningKeyOnlySignatureEpochPolicy
+        )
+
+        assertFalse(signedIntegrity.verifyMemoryEventChain(listOf(signedFirst, strippedSecond)))
+    }
+
+    @Test
     fun partialTailVerificationDoesNotRequireEpochAnchorInsideWindow() {
         val checkpointHash = "sha256:trusted-after-signed-epoch"
         val firstTailEvent = sampleEvent(
@@ -312,6 +365,11 @@ class MemoryEventIntegrityTest {
         private val eventHash: String?
     ) : MemorySignatureEpochPolicy {
         override fun signedEpochEventHash(): String? = eventHash
+    }
+
+    private object SigningKeyOnlySignatureEpochPolicy : MemorySignatureEpochPolicy {
+        override fun signedEpochEventHash(): String? = null
+        override fun signingKeyExists(): Boolean = true
     }
 
     companion object {
