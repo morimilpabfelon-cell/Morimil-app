@@ -1,17 +1,24 @@
-﻿package com.morimil.app.ui
+package com.morimil.app.ui
 
+import com.morimil.app.MorimilAppContainer
+import com.morimil.app.data.local.AgentInstanceEntity
+import com.morimil.app.data.local.AgentProfileEntity
 import com.morimil.app.data.local.AutobiographicalSnapshotEntity
 import com.morimil.app.data.local.DecisionLogEntity
+import com.morimil.app.data.local.DelegatedTaskEntity
 import com.morimil.app.data.local.KnowledgeCapsuleEntity
 import com.morimil.app.data.local.MemoryEventEntity
 import com.morimil.app.data.local.MemoryLinkEntity
 import com.morimil.app.data.local.MemoryMessageEntity
 import com.morimil.app.data.local.MemorySnapshotEntity
 import com.morimil.app.data.local.MigrationRecordEntity
+import com.morimil.app.data.local.OrchestratorDeviceEntity
 import com.morimil.app.data.local.ProjectStateEntity
 import com.morimil.app.data.local.ProjectVaultEntity
 import com.morimil.app.data.local.RecallScheduleEntity
+import com.morimil.app.data.repository.AgentInstanceLifecycleRepository
 import com.morimil.app.runtime.RestCycleScheduleStatus
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -19,10 +26,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import androidx.lifecycle.viewModelScope
-import com.morimil.app.data.local.AgentProfileEntity
-import com.morimil.app.data.local.DelegatedTaskEntity
-import com.morimil.app.data.local.OrchestratorDeviceEntity
 
 data class ChatUiState(
     val messages: List<MemoryMessageEntity> = emptyList(),
@@ -52,7 +57,8 @@ data class PcHandoffUiState(
     val vaults: List<ProjectVaultEntity> = emptyList(),
     val devices: List<OrchestratorDeviceEntity> = emptyList(),
     val agents: List<AgentProfileEntity> = emptyList(),
-    val tasks: List<DelegatedTaskEntity> = emptyList()
+    val tasks: List<DelegatedTaskEntity> = emptyList(),
+    val agentInstances: List<AgentInstanceEntity> = emptyList()
 )
 
 data class HealthUiState(
@@ -197,19 +203,30 @@ class MotorViewModel internal constructor(private val owner: MorimilViewModel) {
     fun refreshHealth() = owner.refreshOrganismHealth()
 }
 
-
 class PcHandoffViewModel internal constructor(private val owner: MorimilViewModel) {
+    private val lifecycleRepository = MorimilAppContainer
+        .from(owner.getApplication())
+        .agentInstanceLifecycleRepository
+
+    private val agentInstances: StateFlow<List<AgentInstanceEntity>> = lifecycleRepository.agentInstances.stateIn(
+        scope = owner.viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList()
+    )
+
     val uiState: StateFlow<PcHandoffUiState> = combine(
         owner.projectVaults,
         owner.orchestratorDevices,
         owner.agentProfiles,
-        owner.delegatedTasks
-    ) { vaults, devices, agents, tasks ->
+        owner.delegatedTasks,
+        agentInstances
+    ) { vaults, devices, agents, tasks, agentInstances ->
         PcHandoffUiState(
             vaults = vaults,
             devices = devices,
             agents = agents,
-            tasks = tasks
+            tasks = tasks,
+            agentInstances = agentInstances
         )
     }.stateIn(owner.viewModelScope, SharingStarted.WhileSubscribed(5_000), PcHandoffUiState())
 
@@ -221,4 +238,46 @@ class PcHandoffViewModel internal constructor(private val owner: MorimilViewMode
     fun proposeRepoReviewTask() = owner.proposeDelegatedTask("Revisar repositorio GitHub, detectar riesgos y proponer mejoras")
     fun approveTask(taskId: String) = owner.approveDelegatedTask(taskId)
     fun rejectTask(taskId: String) = owner.rejectDelegatedTask(taskId)
+
+    fun createAgentForVault(vaultId: String) = launchLifecycleCall {
+        createAgentForVault(vaultId = vaultId)
+    }
+
+    fun assignAgentTask(agentInstanceId: String, goal: String) = launchLifecycleCall {
+        assignTaskToAgent(agentInstanceId = agentInstanceId, goal = goal)
+    }
+
+    fun submitAgentResult(agentInstanceId: String, summary: String) = launchLifecycleCall {
+        submitAgentResult(agentInstanceId = agentInstanceId, summary = summary)
+    }
+
+    fun markAgentWorking(agentInstanceId: String) = launchLifecycleCall {
+        evaluateAgent(agentInstanceId, AgentInstanceLifecycleRepository.STATUS_WORKING, 72, "Marcado como trabajando bien desde la boveda.")
+    }
+
+    fun markAgentThinking(agentInstanceId: String) = launchLifecycleCall {
+        evaluateAgent(agentInstanceId, AgentInstanceLifecycleRepository.STATUS_THINKING, 60, "Marcado como investigando/pensando desde la boveda.")
+    }
+
+    fun markAgentAwaitingReview(agentInstanceId: String) = launchLifecycleCall {
+        evaluateAgent(agentInstanceId, AgentInstanceLifecycleRepository.STATUS_AWAITING_REVIEW, 68, "Marcado como esperando revision/aprobacion.")
+    }
+
+    fun retireAgent(agentInstanceId: String) = launchLifecycleCall {
+        retireAgent(agentInstanceId, "retired_from_project_vault_ui")
+    }
+
+    fun quarantineAgent(agentInstanceId: String) = launchLifecycleCall {
+        quarantineAgent(agentInstanceId, "quarantined_from_project_vault_ui")
+    }
+
+    fun promoteAgent(agentInstanceId: String) = launchLifecycleCall {
+        promoteAgent(agentInstanceId, "promoted_from_project_vault_ui")
+    }
+
+    private fun launchLifecycleCall(block: suspend AgentInstanceLifecycleRepository.() -> Unit) {
+        owner.viewModelScope.launch(Dispatchers.IO) {
+            runCatching { lifecycleRepository.block() }
+        }
+    }
 }
