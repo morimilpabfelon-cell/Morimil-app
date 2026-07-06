@@ -66,6 +66,10 @@ object ToolCapabilityRegistry {
     const val ACTION_AWAIT_HUMAN_APPROVAL = "await_human_approval"
     const val ACTION_REPORT_RESULT = "report_result"
     const val ACTION_SECRET_REASONING_RUNTIME_KEY = "secret_reasoning_runtime_key"
+    const val ACTION_GITHUB_PUSH = "github_push"
+    const val ACTION_GITHUB_COMMIT = "github_commit"
+    const val ACTION_PRODUCTION_DEPLOY = "production_deploy"
+    const val ACTION_DELETE_LOCAL_FILE = "delete_local_file"
 
     private val capabilities: Map<String, ToolCapability> = listOf(
         read(ACTION_MEMORY_READ, "Read local living memory"),
@@ -91,7 +95,11 @@ object ToolCapabilityRegistry {
         propose(ACTION_PREPARE_COMMAND, "Prepare command"),
         propose(ACTION_AWAIT_HUMAN_APPROVAL, "Await human approval"),
         read(ACTION_REPORT_RESULT, "Report result"),
-        secret(ACTION_SECRET_REASONING_RUNTIME_KEY, "Use reasoning runtime key")
+        secret(ACTION_SECRET_REASONING_RUNTIME_KEY, "Use reasoning runtime key"),
+        blockedExternal(ACTION_GITHUB_PUSH, "Push to GitHub"),
+        blockedExternal(ACTION_GITHUB_COMMIT, "Commit to GitHub"),
+        blockedExternal(ACTION_PRODUCTION_DEPLOY, "Deploy to production"),
+        blockedIrreversible(ACTION_DELETE_LOCAL_FILE, "Delete local file")
     ).associateBy { capability -> capability.actionId }
 
     private val agentActions: Map<String, List<String>> = mapOf(
@@ -229,6 +237,30 @@ object ToolCapabilityRegistry {
             riskLevel = "high",
             requiresHumanApproval = true,
             requiresCredential = true,
+            auditRequired = true
+        )
+    }
+
+    private fun blockedExternal(actionId: String, displayName: String): ToolCapability {
+        return capability(
+            actionId = actionId,
+            displayName = displayName,
+            accessMode = ToolAccessMode.EXTERNAL_EFFECT,
+            riskLevel = "critical",
+            requiresHumanApproval = true,
+            productionAffecting = true,
+            auditRequired = true
+        )
+    }
+
+    private fun blockedIrreversible(actionId: String, displayName: String): ToolCapability {
+        return capability(
+            actionId = actionId,
+            displayName = displayName,
+            accessMode = ToolAccessMode.IRREVERSIBLE,
+            riskLevel = "critical",
+            requiresHumanApproval = true,
+            irreversible = true,
             auditRequired = true
         )
     }
