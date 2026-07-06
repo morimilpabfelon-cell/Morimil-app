@@ -27,7 +27,7 @@ class RestCycleRepository(
     private val memoryDao: MemoryDao = database.memoryDao()
     private val organDao: MemoryOrganDao = organDatabase.memoryOrganDao()
     private val memoryLinkRepository = MemoryLinkRepository(organDatabase)
-    private val migrationRecordRepository = MigrationRecordRepository(organDatabase)
+    private val migrationRecordRepository = MigrationRecordRepository(organDatabase, memoryRepository)
     private val organReconciliationRepository = MemoryOrganReconciliationRepository(
         organDatabase = organDatabase,
         memoryIntegrityCore = memoryIntegrityCore
