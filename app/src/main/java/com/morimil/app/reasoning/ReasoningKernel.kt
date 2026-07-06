@@ -14,6 +14,7 @@ import com.morimil.app.domain.usecase.AppendLivingMemoryUseCase
 import com.morimil.app.domain.usecase.RunRestCycleUseCase
 import com.morimil.app.reasoning.model.ModelBackendRouter
 import com.morimil.app.reasoning.model.ReasoningBackendStatusStore
+import com.morimil.app.reasoning.trace.KernelTraceRepository
 
 /**
  * First local reasoning kernel foundation.
@@ -29,7 +30,8 @@ class ReasoningKernel(
     private val appendLivingMemoryUseCase: AppendLivingMemoryUseCase,
     private val runRestCycleUseCase: RunRestCycleUseCase,
     private val recallScheduleRepository: RecallScheduleRepository,
-    private val reasoningClient: ReasoningClient
+    private val reasoningClient: ReasoningClient,
+    private val kernelTraceRepository: KernelTraceRepository
 ) {
     suspend fun reason(request: ReasoningKernelRequest): ReasoningKernelResult {
         val cleanInput = request.input.trim()
@@ -61,8 +63,18 @@ class ReasoningKernel(
 
         if (cleanInput.isBlank()) {
             val error = "Mensaje vacio."
+            val errorState = state.withError(error)
+            runCatching {
+                kernelTraceRepository.recordTurnTrace(
+                    state = errorState,
+                    backend = backend,
+                    reply = null,
+                    errorMessage = error,
+                    fallbackUsed = !backend.usable
+                )
+            }
             return ReasoningKernelResult(
-                state = state.withError(error),
+                state = errorState,
                 reply = null,
                 errorMessage = error
             )
@@ -103,6 +115,7 @@ class ReasoningKernel(
                 capsuleContextSummary = summarizeContext(capsuleContext)
             ).withTrace("context_built", "memory_chars=${memoryContext.length} capsule_chars=${capsuleContext.length}")
 
+            var fallbackUsed = !backend.usable
             val reply = if (!backend.usable) {
                 degradedReply(cleanInput, intent, memoryContext, capsuleContext, backend.reason)
             } else {
@@ -125,6 +138,7 @@ class ReasoningKernel(
                     systemPrompt,
                     recentHistory
                 ).getOrElse { error ->
+                    fallbackUsed = true
                     state = state.withTrace("model_failed", error.message ?: error::class.java.simpleName)
                     degradedReply(cleanInput, intent, memoryContext, capsuleContext, error.message ?: error::class.java.simpleName)
                 }
@@ -132,12 +146,31 @@ class ReasoningKernel(
 
             appendLivingMemoryUseCase.appendAssistantMessage(reply)
             state = state.withFinalReply(reply)
+            runCatching {
+                kernelTraceRepository.recordTurnTrace(
+                    state = state,
+                    backend = backend,
+                    reply = reply,
+                    errorMessage = null,
+                    fallbackUsed = fallbackUsed
+                )
+            }
             runPostTurnMaintenance()
             ReasoningKernelResult(state = state, reply = reply, errorMessage = null)
         }.getOrElse { error ->
             val message = error.message ?: error::class.java.simpleName
+            val errorState = state.withError(message)
+            runCatching {
+                kernelTraceRepository.recordTurnTrace(
+                    state = errorState,
+                    backend = backend,
+                    reply = null,
+                    errorMessage = message,
+                    fallbackUsed = !backend.usable
+                )
+            }
             ReasoningKernelResult(
-                state = state.withError(message),
+                state = errorState,
                 reply = null,
                 errorMessage = message
             )
