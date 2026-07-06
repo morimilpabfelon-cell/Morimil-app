@@ -154,9 +154,11 @@ class MorimilAppContainer(context: Context) {
         ReasoningKernel(
             memoryRepository = memoryRepository,
             memoryOrganRepository = memoryOrganRepository,
+            memoryLinkRepository = memoryLinkRepository,
             appendLivingMemoryUseCase = appendLivingMemoryUseCase,
             runRestCycleUseCase = runRestCycleUseCase,
-            recallScheduleRepository = recallScheduleRepository
+            recallScheduleRepository = recallScheduleRepository,
+            reasoningClient = reasoningClient
         )
     }
 
