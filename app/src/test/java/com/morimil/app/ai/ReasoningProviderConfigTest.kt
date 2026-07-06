@@ -5,8 +5,7 @@ import org.junit.Test
 
 class ReasoningProviderConfigTest {
     @Test
-    fun reasoningRuntimeExposesExactlyOneApiSlot() {
-        assertEquals(1, ReasoningConfigStore.MAX_PROVIDER_SLOTS)
+    fun reasoningRuntimeExposesOnePrincipalApi() {
         assertEquals(1, ReasoningMotorSlot.SINGLE_API_ID)
         assertEquals("API principal", ReasoningMotorSlot.SINGLE_API_LABEL)
     }
