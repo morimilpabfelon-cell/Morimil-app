@@ -250,7 +250,9 @@ object ReasoningWire {
     }
 }
 
-class ReasoningClient {
+class ReasoningClient(
+    private val usageLedger: ReasoningUsageLedger? = null
+) {
     suspend fun sendMessage(
         config: ReasoningProviderConfig,
         runtimeKey: String,
@@ -273,7 +275,8 @@ class ReasoningClient {
                 valid = valid,
                 runtimeKey = runtimeKey,
                 systemPrompt = systemPrompt,
-                history = compactHistory
+                history = compactHistory,
+                phase = ReasoningUsageLedger.PHASE_INITIAL
             )
             require(initialReply.text.isNotBlank()) { "El motor no devolvio texto." }
             recoverTruncatedReply(
@@ -290,9 +293,11 @@ class ReasoningClient {
         valid: ReasoningProviderConfig,
         runtimeKey: String,
         systemPrompt: String,
-        history: List<ChatTurn>
+        history: List<ChatTurn>,
+        phase: String
     ): ReasoningParsedReply {
         val requestBody = ReasoningWire.buildBody(valid, systemPrompt, history)
+        val startedAtMillis = System.currentTimeMillis()
         val connection = (URL(valid.baseUrl).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = TIMEOUT_MS
@@ -319,13 +324,93 @@ class ReasoningClient {
             } else {
                 connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
             }
-            require(statusCode in 200..299) {
-                "Motor de razonamiento rechazo la solicitud: HTTP $statusCode $responseBody"
+            if (statusCode !in 200..299) {
+                recordUsage(
+                    valid = valid,
+                    phase = phase,
+                    requestBody = requestBody,
+                    responseBody = responseBody,
+                    parsed = null,
+                    statusCode = statusCode,
+                    success = false,
+                    errorCategory = "http_status",
+                    startedAtMillis = startedAtMillis
+                )
+                error("Motor de razonamiento rechazo la solicitud: HTTP $statusCode $responseBody")
             }
-            ReasoningWire.parseReplyResult(valid, responseBody)
+            val parsed = runCatching { ReasoningWire.parseReplyResult(valid, responseBody) }
+                .onFailure {
+                    recordUsage(
+                        valid = valid,
+                        phase = phase,
+                        requestBody = requestBody,
+                        responseBody = responseBody,
+                        parsed = null,
+                        statusCode = statusCode,
+                        success = false,
+                        errorCategory = "parse_error",
+                        startedAtMillis = startedAtMillis
+                    )
+                }
+                .getOrThrow()
+            recordUsage(
+                valid = valid,
+                phase = phase,
+                requestBody = requestBody,
+                responseBody = responseBody,
+                parsed = parsed,
+                statusCode = statusCode,
+                success = parsed.text.isNotBlank(),
+                errorCategory = if (parsed.text.isBlank()) "blank_text" else null,
+                startedAtMillis = startedAtMillis
+            )
+            parsed
+        } catch (error: Exception) {
+            recordUsage(
+                valid = valid,
+                phase = phase,
+                requestBody = requestBody,
+                responseBody = "",
+                parsed = null,
+                statusCode = null,
+                success = false,
+                errorCategory = error.javaClass.simpleName,
+                startedAtMillis = startedAtMillis
+            )
+            throw error
         } finally {
             connection.disconnect()
         }
+    }
+
+    private fun recordUsage(
+        valid: ReasoningProviderConfig,
+        phase: String,
+        requestBody: String,
+        responseBody: String,
+        parsed: ReasoningParsedReply?,
+        statusCode: Int?,
+        success: Boolean,
+        errorCategory: String?,
+        startedAtMillis: Long
+    ) {
+        usageLedger?.record(
+            ReasoningUsageRecord(
+                model = valid.model,
+                wireFormat = valid.wireFormat.name,
+                phase = phase,
+                maxOutputTokens = valid.maxTokens,
+                requestTokensEstimated = ReasoningBudgetPolicy.estimateTokens(requestBody),
+                responseTextTokensEstimated = ReasoningBudgetPolicy.estimateTokens(parsed?.text.orEmpty()),
+                apiUsage = ReasoningUsageParser.parseApiUsage(responseBody),
+                success = success,
+                truncated = parsed?.truncated ?: false,
+                finishReason = parsed?.finishReason,
+                errorCategory = errorCategory,
+                statusCode = statusCode,
+                durationMillis = (System.currentTimeMillis() - startedAtMillis).coerceAtLeast(0)
+            )
+        )
     }
 
     private fun recoverTruncatedReply(
@@ -347,7 +432,8 @@ class ReasoningClient {
                 valid = valid,
                 runtimeKey = runtimeKey,
                 systemPrompt = systemPrompt,
-                history = continuationHistory
+                history = continuationHistory,
+                phase = ReasoningUsageLedger.PHASE_CONTINUATION
             )
             if (continuation.text.isBlank()) {
                 return initialReply.copy(text = appendTruncationWarning(combinedText), truncated = true)
