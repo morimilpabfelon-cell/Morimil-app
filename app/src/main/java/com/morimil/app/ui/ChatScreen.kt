@@ -66,6 +66,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.morimil.app.data.local.MemoryMessageEntity
+import com.morimil.app.reasoning.model.ModelBackendDecision
+import com.morimil.app.reasoning.model.ReasoningBackendStatusStore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -73,6 +75,7 @@ import java.util.Locale
 @Composable
 fun ChatScreen(viewModel: ChatViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val backendDecision by ReasoningBackendStatusStore.lastDecision.collectAsStateWithLifecycle()
     val messages = uiState.messages
     val isSending = uiState.isSending
     val chatError = uiState.error
@@ -97,6 +100,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
         ChatOrganismHeader(
             status = uiState.organismStatus,
             health = uiState.organismHealth,
+            backendDecision = backendDecision,
             onRefreshHealth = viewModel::refreshOrganismHealth,
             onRunIntegrityAudit = viewModel::runMemoryIntegrityAudit
         )
@@ -167,6 +171,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
 private fun ChatOrganismHeader(
     status: ChatOrganismStatusUiState,
     health: OrganismHealthUiState,
+    backendDecision: ModelBackendDecision?,
     onRefreshHealth: () -> Unit,
     onRunIntegrityAudit: () -> Unit
 ) {
@@ -184,6 +189,18 @@ private fun ChatOrganismHeader(
             StatusChip("motor: ${status.motorLabel}")
             StatusChip(status.modelLabel.take(36))
             StatusChip(status.memoryIntegrityLabel, attention = status.memoryNeedsAttention)
+        }
+        backendDecision?.let { decision ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusChip("modo: ${decision.mode.name}", attention = !decision.usable)
+                StatusChip("backend: ${decision.kind.name}", attention = !decision.usable)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusChip("razon: ${decision.reason.take(36)}", attention = !decision.usable)
+                if (decision.model.isNotBlank()) {
+                    StatusChip("modelo: ${decision.model.take(36)}")
+                }
+            }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatusChip(health.level.label, attention = health.level != HealthStatusLevel.Stable)
@@ -458,17 +475,4 @@ private fun shouldShowDaySeparator(messages: List<MemoryMessageEntity>, index: I
 
 private fun dayLabel(createdAtMillis: Long): String {
     return SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(createdAtMillis))
-}
-
-private fun timeLabel(createdAtMillis: Long): String {
-    return SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(createdAtMillis))
-}
-
-private fun healthStatusColor(level: HealthStatusLevel): Color {
-    return when (level) {
-        HealthStatusLevel.Stable -> Color(0xFF16A34A)
-        HealthStatusLevel.Watch -> Color(0xFFEAB308)
-        HealthStatusLevel.Attention -> Color(0xFFD97706)
-        HealthStatusLevel.Critical -> Color(0xFFDC2626)
-    }
 }
