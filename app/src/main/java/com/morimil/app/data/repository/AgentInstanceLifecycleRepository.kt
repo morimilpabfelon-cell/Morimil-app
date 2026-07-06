@@ -164,7 +164,17 @@ class AgentInstanceLifecycleRepository(
     }
 
     suspend fun quarantineAgent(agentInstanceId: String, reason: String, nowMillis: Long = System.currentTimeMillis()): Boolean {
-        return closeAgent(agentInstanceId, STATUS_QUARANTINED, EVENT_AGENT_QUARANTINED, "quarantined", reason, nowMillis, addError = true)
+        val failedAgent = requireAgent(agentInstanceId)
+        val quarantined = closeAgent(agentInstanceId, STATUS_QUARANTINED, EVENT_AGENT_QUARANTINED, "quarantined", reason, nowMillis, addError = true)
+        if (quarantined) {
+            createAgentForVault(
+                vaultId = failedAgent.projectVaultId,
+                templateAgentId = failedAgent.templateAgentId,
+                briefing = "Reemplazo especializado tras cuarentena de ${failedAgent.displayName}. No repetir este fallo: ${reason.take(180)}. Mantenerse en memoria de trabajo y reportar solo resultados utiles a Morimil.",
+                nowMillis = nowMillis + 1
+            )
+        }
+        return quarantined
     }
 
     suspend fun promoteAgent(agentInstanceId: String, reason: String, nowMillis: Long = System.currentTimeMillis()): Boolean {
