@@ -1,4 +1,4 @@
-﻿package com.morimil.app.ui
+package com.morimil.app.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -6,8 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.morimil.app.MorimilAppContainer
 import com.morimil.app.ai.ChatTurn
 import com.morimil.app.ai.ReasoningClient
-import com.morimil.app.ai.ReasoningRuntimeState
-import com.morimil.app.ai.SystemPromptBuilder
 import com.morimil.app.data.genesis.GenesisIdentitySource
 import com.morimil.app.data.local.AutobiographicalSnapshotEntity
 import com.morimil.app.data.local.DecisionLogEntity
@@ -25,6 +23,7 @@ import com.morimil.app.data.local.RecallScheduleEntity
 import com.morimil.app.data.local.UserWorkspaceEntity
 import com.morimil.app.data.repository.MemoryLinkRepository
 import com.morimil.app.data.repository.RestCycleRepository
+import com.morimil.app.reasoning.ReasoningKernelRequest
 import com.morimil.app.runtime.RestCycleScheduler
 import com.morimil.app.runtime.RestCycleScheduleStatus
 import com.morimil.app.security.MemorySigningRuntimeIssues
@@ -58,7 +57,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     private val genesisReader = container.genesisReader
     private val secretVault = container.secretVault
     private val reasoningConfigStore = container.reasoningConfigStore
-    private val reasoningClient = container.reasoningClient
+    private val reasoningKernel = container.reasoningKernel
 
     val chatViewModel: ChatViewModel by lazy { ChatViewModel(this) }
     val memoryViewModel: MemoryViewModel by lazy { MemoryViewModel(this) }
@@ -703,15 +702,9 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
 
             val runtimeSlot = reasoningConfigStore.loadActiveSlot()
             val runtimeConfig = runtimeSlot.config
-            ReasoningRuntimeState.set(runtimeConfig)
             refreshChatOrganismStatus()
             refreshOrganismHealth()
             val runtimeAccess = secretVault.readReasoningKey(runtimeSlot.id).getOrNull().orEmpty()
-            if (runtimeConfig.requiresRuntimeKey && runtimeAccess.isBlank()) {
-                _chatError.value = "Falta la llave del motor activo: ${runtimeSlot.displayName}."
-                return@launch
-            }
-
             val alias = localIdentity.value?.alias ?: genesis.alias
 
             _isSending.value = true
@@ -719,58 +712,27 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                 val priorHistory = messages.value
                     .takeLast(ReasoningClient.MAX_HISTORY_MESSAGES - 1)
                     .map { ChatTurn(role = if (it.author == "user") "user" else "assistant", content = it.body) }
-                val recent = priorHistory + ChatTurn(role = "user", content = cleanBody)
 
-                val userMemoryEvent = appendLivingMemoryUseCase.appendUserMessage(cleanBody)
-                val activeGenesisCoreId = userMemoryEvent?.genesisCoreId
-                    ?: genesisCore.value?.coreId
-                    ?: "primary_genesis"
-                val capturedCapsule = memoryOrganRepository.captureKnowledgeCapsuleFromText(
-                    genesisCoreId = activeGenesisCoreId,
-                    text = cleanBody,
-                    sourceEventHash = userMemoryEvent?.eventHash
-                )
-                if (capturedCapsule != null && userMemoryEvent != null) {
-                    memoryLinkRepository.createMemoryLink(
-                        instanceId = userMemoryEvent.instanceId,
-                        genesisCoreHash = userMemoryEvent.genesisCoreHash,
-                        sourceId = capturedCapsule.capsuleId,
-                        sourceType = MemoryLinkRepository.KNOWLEDGE_CAPSULE_NODE_TYPE,
-                        targetId = userMemoryEvent.eventHash,
-                        targetType = MemoryLinkRepository.MEMORY_EVENT_NODE_TYPE,
-                        relation = MemoryLinkRepository.RELATION_DERIVED_FROM,
-                        strength = 0.96,
-                        reason = "capsule_source_event:${capturedCapsule.capsuleHash.take(19)}"
+                val result = withContext(Dispatchers.IO) {
+                    reasoningKernel.reason(
+                        ReasoningKernelRequest(
+                            input = cleanBody,
+                            genesis = genesis,
+                            alias = alias,
+                            doctrineText = cachedDoctrineText,
+                            policyText = cachedPolicyText,
+                            priorHistory = priorHistory,
+                            fallbackGenesisCoreId = genesisCore.value?.coreId,
+                            runtimeLabel = runtimeSlot.displayName,
+                            runtimeConfig = runtimeConfig,
+                            runtimeAccess = runtimeAccess
+                        )
                     )
                 }
 
-                val memoryContext = repository.buildLivingMemoryContext(cleanBody)
-                val knowledgeCapsuleContext = memoryOrganRepository.buildKnowledgeCapsuleContext()
-                val systemPrompt = SystemPromptBuilder.build(
-                    genesis = genesis,
-                    alias = alias,
-                    doctrineText = cachedDoctrineText,
-                    policyText = cachedPolicyText,
-                    livingMemoryContext = memoryContext,
-                    knowledgeCapsuleContext = knowledgeCapsuleContext
-                )
-
-                val response = withContext(Dispatchers.IO) {
-                    reasoningClient.sendMessage(
-                        config = runtimeConfig,
-                        runtimeKey = runtimeAccess,
-                        systemPrompt = systemPrompt,
-                        history = recent
-                    )
+                if (result.errorMessage != null) {
+                    _chatError.value = result.errorMessage ?: "Error con el motor de razonamiento."
                 }
-
-                response
-                    .onSuccess { reply ->
-                        appendLivingMemoryUseCase.appendAssistantMessage(reply)
-                        runObservedInternalTask("rest_cycle.after_message") { runRestCycleUseCase() }
-                        runObservedInternalTask("recall.after_message") { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
-                    }
-                    .onFailure { error -> _chatError.value = error.message ?: "Error con el motor de razonamiento." }
             } finally {
                 _isSending.value = false
             }
