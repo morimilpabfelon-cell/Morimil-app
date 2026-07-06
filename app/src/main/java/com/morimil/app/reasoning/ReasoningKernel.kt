@@ -12,6 +12,7 @@ import com.morimil.app.data.repository.MemoryRepository
 import com.morimil.app.data.repository.RecallScheduleRepository
 import com.morimil.app.domain.usecase.AppendLivingMemoryUseCase
 import com.morimil.app.domain.usecase.RunRestCycleUseCase
+import com.morimil.app.reasoning.model.ModelBackendRouter
 
 /**
  * First local reasoning kernel foundation.
@@ -32,23 +33,28 @@ class ReasoningKernel(
     suspend fun reason(request: ReasoningKernelRequest): ReasoningKernelResult {
         val cleanInput = request.input.trim()
         val intent = LocalIntentDetector.detect(cleanInput)
-        val mode = ReasoningModeResolver.resolve(request.runtimeConfig, request.runtimeAccess)
+        val backend = ModelBackendRouter.select(
+            runtimeLabel = request.runtimeLabel,
+            config = request.runtimeConfig,
+            runtimeAccess = request.runtimeAccess
+        )
         ReasoningRuntimeState.set(request.runtimeConfig)
 
         var state = ReasoningState(
             input = cleanInput,
-            mode = mode,
+            mode = backend.mode,
             intent = intent,
-            modelBackendLabel = request.runtimeLabel,
+            modelBackendLabel = "${backend.label}:${backend.kind}",
             memoryContextSummary = "pending",
             capsuleContextSummary = "pending",
-            policyDecision = if (mode == ReasoningMode.SAFE_DEGRADED) {
-                "model_unavailable_degraded"
-            } else {
-                "model_request_allowed"
-            },
+            policyDecision = if (backend.usable) "model_request_allowed" else "model_unavailable_degraded",
             criticFindings = emptyList(),
-            trace = listOf(ReasoningTraceEvent("kernel_start", "mode=$mode intent=$intent backend=${request.runtimeLabel}"))
+            trace = listOf(
+                ReasoningTraceEvent(
+                    "kernel_start",
+                    "mode=${backend.mode} intent=$intent backend=${backend.kind} reason=${backend.reason}"
+                )
+            )
         )
 
         if (cleanInput.isBlank()) {
@@ -95,8 +101,8 @@ class ReasoningKernel(
                 capsuleContextSummary = summarizeContext(capsuleContext)
             ).withTrace("context_built", "memory_chars=${memoryContext.length} capsule_chars=${capsuleContext.length}")
 
-            val reply = if (mode == ReasoningMode.SAFE_DEGRADED) {
-                degradedReply(cleanInput, intent, memoryContext, capsuleContext, "No usable model backend or runtime access available.")
+            val reply = if (!backend.usable) {
+                degradedReply(cleanInput, intent, memoryContext, capsuleContext, backend.reason)
             } else {
                 val systemPrompt = SystemPromptBuilder.build(
                     genesis = request.genesis,
@@ -110,6 +116,7 @@ class ReasoningKernel(
                     .takeLast(ReasoningClient.MAX_HISTORY_MESSAGES - 1) +
                     ChatTurn(role = "user", content = cleanInput)
 
+                state = state.withTrace("model_call", "backend=${backend.kind} endpoint=${backend.endpoint.take(80)} model=${backend.model}")
                 reasoningClient.sendMessage(
                     request.runtimeConfig,
                     request.runtimeAccess,
