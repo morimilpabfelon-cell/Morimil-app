@@ -12,7 +12,10 @@ class MemoryOrganReconciliationRepository(
     private val organDao = organDatabase.memoryOrganDao()
     private val reconciliation = MemoryOrganReconciliation()
 
-    suspend fun reconcileAgainstMemoryEvents(validMemoryEventHashes: Set<String>): MemoryOrganReconciliationReport {
+    suspend fun reconcileAgainstMemoryEvents(
+        validMemoryEventHashes: Set<String>,
+        memoryChainVerified: Boolean
+    ): MemoryOrganReconciliationReport {
         val capsuleChain = organDao.loadKnowledgeCapsuleChain()
         val report = reconciliation.buildReport(
             validMemoryEventHashes = validMemoryEventHashes,
@@ -20,8 +23,10 @@ class MemoryOrganReconciliationRepository(
             recalls = organDao.loadActiveRecallSchedulesForReconciliation(),
             capsules = organDao.loadKnowledgeCapsulesWithSourceEvents(),
             migrations = organDao.loadMigrationRecordsForReconciliation(),
+            memoryChainVerified = memoryChainVerified,
             capsuleChainVerified = memoryIntegrityCore.verifyCapsuleChain(capsuleChain)
         )
+        if (!report.compensatingWritesAllowed) return report
 
         val markedOrphanedLinks = if (report.orphanedLinkIds.isEmpty()) {
             0

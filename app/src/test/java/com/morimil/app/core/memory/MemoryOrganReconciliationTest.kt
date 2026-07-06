@@ -40,6 +40,7 @@ class MemoryOrganReconciliationTest {
         assertEquals(listOf(2L), report.orphanedRecallIds)
         assertEquals(listOf("capsule-orphan"), report.orphanedCapsuleIds)
         assertEquals(listOf(missingHash), report.migrationMissingRefs["migration-with-gap"])
+        assertTrue(report.compensatingWritesAllowed)
         assertTrue(report.hasIssues)
     }
 
@@ -55,8 +56,36 @@ class MemoryOrganReconciliationTest {
         )
 
         assertFalse(report.capsuleChainVerified)
+        assertFalse(report.compensatingWritesAllowed)
         assertTrue(report.hasIssues)
         assertTrue(report.toAuditNotes().contains("organ_reconciliation_capsule_chain_verified:false"))
+        assertTrue(report.toAuditNotes().contains("organ_reconciliation_compensating_writes_allowed:false"))
+    }
+
+    @Test
+    fun brokenMemoryChainBlocksCompensatingWritesWithoutHidingFindings() {
+        val validHash = "sha256:valid"
+        val missingHash = "sha256:missing"
+
+        val report = reconciler.buildReport(
+            validMemoryEventHashes = setOf(validHash),
+            links = listOf(memoryLink("orphan-link", validHash, missingHash)),
+            recalls = listOf(recall(2, missingHash)),
+            capsules = listOf(capsule("capsule-orphan", missingHash)),
+            migrations = listOf(migration("migration-with-gap", """["$missingHash"]""")),
+            memoryChainVerified = false,
+            capsuleChainVerified = true
+        )
+
+        assertEquals(listOf("orphan-link"), report.orphanedLinkIds)
+        assertEquals(listOf(2L), report.orphanedRecallIds)
+        assertEquals(listOf("capsule-orphan"), report.orphanedCapsuleIds)
+        assertEquals(listOf(missingHash), report.migrationMissingRefs["migration-with-gap"])
+        assertFalse(report.memoryChainVerified)
+        assertFalse(report.compensatingWritesAllowed)
+        assertTrue(report.hasIssues)
+        assertTrue(report.toAuditNotes().contains("organ_reconciliation_memory_chain_verified:false"))
+        assertTrue(report.toAuditNotes().contains("organ_reconciliation_compensating_writes_allowed:false"))
     }
 
     private fun memoryLink(linkId: String, sourceId: String, targetId: String): MemoryLinkEntity {

@@ -90,9 +90,17 @@ object RestCycleMaintenancePlanner {
             ),
             RestCycleTaskResult(
                 name = "reconcile_memory_organs",
-                status = if (organReconciliation.hasIssues) "issues_found" else "clean",
+                status = when {
+                    !organReconciliation.compensatingWritesAllowed -> "report_only"
+                    organReconciliation.hasIssues -> "issues_found"
+                    else -> "clean"
+                },
                 risk = if (organReconciliation.hasIssues) "high" else "low",
-                note = "links recalls capsules migrations"
+                note = if (organReconciliation.compensatingWritesAllowed) {
+                    "links recalls capsules migrations"
+                } else {
+                    "compensating_writes_blocked_until_chains_verify"
+                }
             ),
             RestCycleTaskResult(
                 name = "select_consolidation_sources",

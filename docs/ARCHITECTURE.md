@@ -102,13 +102,16 @@ The phone-local databases are the runtime memory body. Reasoning providers do no
 
 `MorimilDatabase` and `MemoryOrganDatabase` are currently separate SQLite files. This keeps the first living-memory chain isolated from higher-level organs while the app is still evolving, but it also means Room cannot make one atomic transaction across events, capsules, links, recalls, and migration records. Cross-database references are therefore treated as append-only references plus reconciliation, not as foreign-key-enforced invariants.
 
+This is an explicit runtime decision, not the final storage ideal. While the app keeps two database files, the reconciler is permanent safety infrastructure and must be tested like the hash chain. Its contract is non-destructive: it may detect and report orphaned references at any time, but it may only apply compensating marks when both the primary memory event chain and the capsule chain verify cleanly. If either chain is unhealthy, reconciliation becomes report-only and the rest cycle requires human attention instead of rewriting organ state from an unsafe anchor.
+
 The rest cycle performs the compensating check:
 
 - full memory-chain audit against `memory_events`
 - cross-database reconciliation for links, recalls, capsules, and migration records that point at memory event hashes
-- orphaned `memory_links` are marked `verificationState = orphaned`
-- orphaned recall schedules are degraded
+- orphaned `memory_links` are marked `verificationState = orphaned` only when compensating writes are allowed
+- orphaned recall schedules are degraded only when compensating writes are allowed
 - capsule and migration gaps are reported in rest-cycle audit notes and can require human approval before consolidation
+- long-term simplification target: merge memory and organs into one Room database when the migration can be done with full backup, migration tests, and rollback
 
 ## Living Memory
 

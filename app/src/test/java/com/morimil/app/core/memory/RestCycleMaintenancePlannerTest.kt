@@ -75,6 +75,8 @@ class RestCycleMaintenancePlannerTest {
         assertEquals("high", report.riskLevel)
         assertTrue(report.approvalRequired)
         assertTrue(report.expectedEffectLines().any { line -> line == "organ_reconciliation_has_issues=true" })
+        assertTrue(report.expectedEffectLines().any { line -> line.contains("reconcile_memory_organs") && line.contains("report_only") })
+        assertTrue(report.expectedEffectLines().any { line -> line.contains("compensating_writes_blocked_until_chains_verify") })
     }
 
     @Test

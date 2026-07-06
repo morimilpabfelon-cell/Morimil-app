@@ -75,7 +75,8 @@ class RestCycleRepository(
         val fullChainEvents = memoryDao.loadMemoryEventAuditChain()
         val fullChainVerified = memoryIntegrityCore.verifyMemoryEventChain(fullChainEvents)
         val organReconciliation = organReconciliationRepository.reconcileAgainstMemoryEvents(
-            validMemoryEventHashes = fullChainEvents.map { event -> event.eventHash }.toSet()
+            validMemoryEventHashes = fullChainEvents.map { event -> event.eventHash }.toSet(),
+            memoryChainVerified = fullChainVerified
         )
         val maintenanceReport = RestCycleMaintenancePlanner.build(
             mode = if (force) RestCycleMode.Deep else RestCycleMode.Normal,
@@ -331,7 +332,9 @@ class RestCycleRepository(
             appendLine("organ_reconciliation_orphaned_links=${organReconciliation.orphanedLinkIds.size}")
             appendLine("organ_reconciliation_orphaned_recalls=${organReconciliation.orphanedRecallIds.size}")
             appendLine("organ_reconciliation_orphaned_capsules=${organReconciliation.orphanedCapsuleIds.size}")
+            appendLine("organ_reconciliation_memory_chain_verified=${organReconciliation.memoryChainVerified}")
             appendLine("organ_reconciliation_capsule_chain_verified=${organReconciliation.capsuleChainVerified}")
+            appendLine("organ_reconciliation_compensating_writes_allowed=${organReconciliation.compensatingWritesAllowed}")
             appendLine("organ_reconciliation_migrations_with_missing_refs=${organReconciliation.migrationMissingRefs.size}")
             appendLine("approval_required=$approvalRequired")
             appendLine("source_events=${meaningfulEvents.size}")
