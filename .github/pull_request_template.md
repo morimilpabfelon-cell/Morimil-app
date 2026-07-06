@@ -4,6 +4,12 @@
 
 -
 
+## Flow guard
+
+- [ ] Main was green before this branch.
+- [ ] This is the only active implementation branch.
+- [ ] The changed component is connected before the next component starts.
+
 ## Process guard
 
 - [ ] Who creates the changed component is known.
