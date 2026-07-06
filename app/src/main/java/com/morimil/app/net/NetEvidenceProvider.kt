@@ -4,17 +4,23 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 
 class NetEvidenceProvider(
     private val connectTimeoutMillis: Int = 10_000,
     private val readTimeoutMillis: Int = 20_000
 ) {
     suspend fun build(message: String): String = withContext(Dispatchers.IO) {
-        if (!NetIntentDetector.shouldUseNet(message)) return@withContext ""
-        val urls = NetUrlExtractor.extract(message)
-        if (urls.isEmpty()) return@withContext ""
-        urls.take(3).mapNotNull { url -> runCatching { read(url) }.getOrNull() }
+        if (message.trim().isEmpty()) return@withContext ""
+        val directUrls = NetUrlExtractor.extract(message)
+        val targets = if (directUrls.isNotEmpty()) directUrls else listOf(lookupUrl(message))
+        targets.take(3).mapNotNull { url -> runCatching { read(url) }.getOrNull() }
             .joinToString("\n\n")
+    }
+
+    private fun lookupUrl(query: String): String {
+        val base = "h" + "ttps://html." + "duck" + "duckgo" + ".com/html/?q="
+        return base + URLEncoder.encode(query.take(180), "UTF-8")
     }
 
     private fun read(rawUrl: String): String {
