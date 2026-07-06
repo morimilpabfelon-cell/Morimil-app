@@ -2,6 +2,7 @@ package com.morimil.app.data.repository
 
 import com.morimil.app.core.identity.StableIdDigest
 import com.morimil.app.core.orchestration.AgentCapabilityPolicy
+import com.morimil.app.core.orchestration.DelegationPlan
 import com.morimil.app.data.local.AgentProfileEntity
 import com.morimil.app.data.local.DelegatedTaskEntity
 import com.morimil.app.data.local.MemoryOrganDatabase
@@ -37,6 +38,7 @@ class AgentOrchestrationRepository(
     ): String {
         seedDefaultOrchestrationIfNeeded(nowMillis)
         val plan = AgentCapabilityPolicy.planDelegation(goal, preferredAgentId, targetDeviceId)
+        val immuneBlocked = AgentCapabilityPolicy.isImmuneBlocked(plan.immuneDecision)
         val taskId = buildTaskId(nowMillis, plan.assignedAgentId, goal)
         val task = DelegatedTaskEntity(
             taskId = taskId,
@@ -50,22 +52,26 @@ class AgentOrchestrationRepository(
             allowedTransportsJson = AgentCapabilityPolicy.encodeJson(plan.allowedTransports),
             approvalRequired = plan.approvalRequired,
             approvalId = null,
-            status = AgentCapabilityPolicy.STATUS_AWAITING_APPROVAL,
+            status = if (immuneBlocked) AgentCapabilityPolicy.STATUS_REJECTED else AgentCapabilityPolicy.STATUS_AWAITING_APPROVAL,
             riskLevel = plan.riskLevel,
             resultSummary = null,
-            errorSummary = null,
+            errorSummary = if (immuneBlocked) immuneErrorSummary(plan) else null,
             createdAtMillis = nowMillis,
             updatedAtMillis = nowMillis,
-            completedAtMillis = null
+            completedAtMillis = if (immuneBlocked) nowMillis else null
         )
         dao.insertDelegatedTask(task)
-        recordDelegatedTaskDecision(
-            eventType = EVENT_TASK_PROPOSED,
-            action = "proposed",
-            task = task,
-            nowMillis = nowMillis,
-            importance = 95
-        )
+        if (immuneBlocked) {
+            recordImmuneToolBlocked(task, plan, nowMillis)
+        } else {
+            recordDelegatedTaskDecision(
+                eventType = EVENT_TASK_PROPOSED,
+                action = "proposed",
+                task = task,
+                nowMillis = nowMillis,
+                importance = 95
+            )
+        }
         return taskId
     }
 
@@ -131,6 +137,16 @@ class AgentOrchestrationRepository(
         )
     }
 
+    private suspend fun recordImmuneToolBlocked(task: DelegatedTaskEntity, plan: DelegationPlan, nowMillis: Long) {
+        memoryRepository.recordSystemMemoryEvent(
+            eventType = EVENT_IMMUNE_TOOL_BLOCKED,
+            body = "Sistema inmunologico bloqueo delegacion: task_id=${task.taskId}; " +
+                "decision=${plan.immuneDecision}; risk=${task.riskLevel}; reasons=${plan.immuneReasons.joinToString(",").take(180)}; goal=${task.goal.take(180)}",
+            importance = 100,
+            evidenceJson = buildImmuneEvidenceJson(task, plan, nowMillis)
+        )
+    }
+
     private fun buildDecisionBody(action: String, task: DelegatedTaskEntity, reason: String?): String {
         val reasonText = reason?.let { "; reason=$it" }.orEmpty()
         return "Decision de orquestacion: task_${action}; " +
@@ -156,6 +172,24 @@ class AgentOrchestrationRepository(
             .put("reason", nullable(reason))
             .put("delegated_task", task.toEvidenceJson())
             .toString()
+    }
+
+    private fun buildImmuneEvidenceJson(task: DelegatedTaskEntity, plan: DelegationPlan, nowMillis: Long): String {
+        return JSONObject()
+            .put("schema", "morimil.immune_policy_decision.v1")
+            .put("event_type", EVENT_IMMUNE_TOOL_BLOCKED)
+            .put("recorded_at_millis", nowMillis)
+            .put("policy", "immune_gate_before_tool_or_agent_execution")
+            .put("decision", plan.immuneDecision)
+            .put("reasons", JSONArray(plan.immuneReasons))
+            .put("matched_signals", JSONArray(plan.immuneMatchedSignals))
+            .put("delegated_task", task.toEvidenceJson())
+            .toString()
+    }
+
+    private fun immuneErrorSummary(plan: DelegationPlan): String {
+        val reasons = plan.immuneReasons.joinToString(separator = ",").ifBlank { plan.immuneDecision }
+        return "immune_policy_blocked:$reasons".take(240)
     }
 
     private fun DelegatedTaskEntity.toEvidenceJson(): JSONObject {
@@ -188,6 +222,7 @@ class AgentOrchestrationRepository(
         private const val EVENT_TASK_PROPOSED = "orchestration.task_proposed"
         private const val EVENT_TASK_APPROVED = "orchestration.task_approved"
         private const val EVENT_TASK_REJECTED = "orchestration.task_rejected"
+        private const val EVENT_IMMUNE_TOOL_BLOCKED = "immune.tool_blocked"
 
         fun buildTaskId(createdAtMillis: Long, agentId: String, goal: String): String {
             val suffix = StableIdDigest.shortSha256Hex(
