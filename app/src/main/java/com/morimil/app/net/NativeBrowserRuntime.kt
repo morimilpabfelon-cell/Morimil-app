@@ -10,10 +10,10 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import kotlinx.coroutines.suspendCancellableCoroutine
 import org.json.JSONObject
 import java.net.URL
 import kotlin.coroutines.resume
-import kotlinx.coroutines.suspendCancellableCoroutine
 
 object NativeBrowserRuntime {
     @Volatile
@@ -58,7 +58,9 @@ class NativeBrowserReader(
                     webView?.stopLoading()
                     webView?.destroy()
                 }
-                continuation.resume(result)
+                if (continuation.isActive) {
+                    continuation.resume(result)
+                }
             }
 
             val timeout = Runnable {
