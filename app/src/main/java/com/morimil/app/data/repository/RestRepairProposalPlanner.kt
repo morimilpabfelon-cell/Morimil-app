@@ -183,7 +183,7 @@ object RestRepairProposalPlanner {
             .sortedByDescending { event -> event.createdAtMillis }
         val stableMemories = events
             .filter { event -> event.memoryKind in IMPORTANT_MEMORY_KINDS }
-            .filterNot { event -> itIsCorrection(it = event) }
+            .filterNot { event -> isCorrection(event) }
 
         return corrections.flatMap { correction ->
             val correctionTokens = meaningfulTokens(correction.body)
@@ -204,8 +204,8 @@ object RestRepairProposalPlanner {
         }
     }
 
-    private fun itIsCorrection(it: MemoryEventEntity): Boolean {
-        return it.memoryKind == "correction" || it.eventType.contains("correction")
+    private fun isCorrection(event: MemoryEventEntity): Boolean {
+        return event.memoryKind == "correction" || event.eventType.contains("correction")
     }
 
     private fun normalizedBody(value: String): String {
