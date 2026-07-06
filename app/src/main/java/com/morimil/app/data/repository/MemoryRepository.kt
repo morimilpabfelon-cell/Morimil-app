@@ -265,7 +265,8 @@ class MemoryRepository(
     suspend fun recordSystemMemoryEvent(
         eventType: String,
         body: String,
-        importance: Int
+        importance: Int,
+        evidenceJson: String? = null
     ): String? {
         if (body.isBlank()) return null
         return MemoryAppendGate.withAppendLock {
@@ -277,7 +278,8 @@ class MemoryRepository(
                     eventType = eventType,
                     actor = "system",
                     body = body,
-                    importance = importance
+                    importance = importance,
+                    evidenceJsonOverride = evidenceJson
                 )
             }
         }
@@ -306,7 +308,8 @@ class MemoryRepository(
         eventType: String,
         actor: String,
         body: String,
-        importance: Int
+        importance: Int,
+        evidenceJsonOverride: String? = null
     ): String {
         val cleanBody = body.trim()
         val createdAtMillis = System.currentTimeMillis()
@@ -324,7 +327,7 @@ class MemoryRepository(
             maxOf(importance, classification.importance).coerceIn(1, 100)
         }
         val tagsJson = JSONArray(classification.tags).toString()
-        val evidenceJson = buildEvidenceJson(
+        val evidenceJson = evidenceJsonOverride?.takeIf { it.isNotBlank() } ?: buildEvidenceJson(
             eventType = eventType,
             actor = actor,
             source = source,
