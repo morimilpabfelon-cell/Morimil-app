@@ -4,6 +4,7 @@ import com.morimil.app.core.orchestration.AgentCapabilityPolicy
 import com.morimil.app.core.project.ProjectCreationIntent
 import com.morimil.app.core.project.ProjectIntentDetector
 import com.morimil.app.data.local.ProjectVaultEntity
+import java.text.Normalizer
 
 class ProjectAutostartCoordinator(
     private val projectVaultRepository: ProjectVaultRepository,
@@ -19,10 +20,11 @@ class ProjectAutostartCoordinator(
             actor = "user",
             body = message
         )
-        if (classification.memoryKind == "chat_noise") return null
+        if (classification.memoryKind == "chat_noise" || "project" !in classification.tags) return null
 
         val intent = ProjectIntentDetector.detect(message) ?: return null
-        if (existingVaults.any { vault -> vault.displayName.equals(intent.displayName, ignoreCase = true) }) {
+        val intentKey = normalizedProjectName(intent.displayName)
+        if (existingVaults.any { vault -> normalizedProjectName(vault.displayName) == intentKey }) {
             return null
         }
 
@@ -89,6 +91,13 @@ class ProjectAutostartCoordinator(
         }
 
         return base + specialist
+    }
+
+    private fun normalizedProjectName(value: String): String {
+        val decomposed = Normalizer.normalize(value.lowercase(), Normalizer.Form.NFD)
+        return decomposed
+            .replace(Regex("\\p{Mn}+"), "")
+            .replace(Regex("[^a-z0-9メ]+"), "")
     }
 
     private data class InitialAgentPlan(
