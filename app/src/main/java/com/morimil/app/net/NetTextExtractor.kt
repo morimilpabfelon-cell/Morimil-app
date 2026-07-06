@@ -20,16 +20,7 @@ object NetTextExtractor {
             .take(maxChars)
     }
 
-    private fun removeBetween(value: String, tag: String): String {
-        var output = value
-        val pattern = Regex("<" + tag + "[\\s\\S]*?</" + tag + ">", RegexOption.IGNORE_CASE)
-        while (pattern.containsMatchIn(output)) {
-            output = output.replace(pattern, " ")
-        }
-        return output
-    }
-
-    private fun decode(value: String): String {
+    fun decode(value: String): String {
         return value
             .replace("&amp;", "&")
             .replace("&lt;", "<")
@@ -37,5 +28,14 @@ object NetTextExtractor {
             .replace("&quot;", "\"")
             .replace("&#39;", "'")
             .replace("&nbsp;", " ")
+    }
+
+    private fun removeBetween(value: String, tag: String): String {
+        var output = value
+        val pattern = Regex("<" + tag + "[\\s\\S]*?</" + tag + ">", RegexOption.IGNORE_CASE)
+        while (pattern.containsMatchIn(output)) {
+            output = output.replace(pattern, " ")
+        }
+        return output
     }
 }
