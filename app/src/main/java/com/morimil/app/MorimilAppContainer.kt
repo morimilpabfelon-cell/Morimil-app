@@ -98,7 +98,10 @@ class MorimilAppContainer(context: Context) {
     }
 
     val agentOrchestrationRepository: AgentOrchestrationRepository by lazy {
-        AgentOrchestrationRepository(organDatabase)
+        AgentOrchestrationRepository(
+            organDatabase = organDatabase,
+            memoryRepository = memoryRepository
+        )
     }
 
     val appendLivingMemoryUseCase: AppendLivingMemoryUseCase by lazy {
