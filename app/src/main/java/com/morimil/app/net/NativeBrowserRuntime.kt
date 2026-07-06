@@ -88,7 +88,7 @@ class NativeBrowserReader(
                             complete(
                                 NetRenderedResult(
                                     ok = false,
-                                    error = "browser_main_frame_error:${error?.description.orEmpty()}"
+                                    error = "browser_main_frame_error:${error?.description?.toString().orEmpty()}"
                                 )
                             )
                         }
