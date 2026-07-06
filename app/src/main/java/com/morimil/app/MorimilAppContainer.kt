@@ -1,4 +1,4 @@
-﻿package com.morimil.app
+package com.morimil.app
 
 import android.content.Context
 import com.morimil.app.ai.ReasoningClient
@@ -7,6 +7,8 @@ import com.morimil.app.core.memory.MemoryIntegrityCore
 import com.morimil.app.data.genesis.GenesisReader
 import com.morimil.app.data.local.MemoryOrganDatabase
 import com.morimil.app.data.local.MorimilDatabase
+import com.morimil.app.data.repository.AgentInstanceLifecycleRepository
+import com.morimil.app.data.repository.AgentOrchestrationRepository
 import com.morimil.app.data.repository.CognitiveMigrationRepository
 import com.morimil.app.data.repository.MemoryLinkRepository
 import com.morimil.app.data.repository.MemoryOrganRepository
@@ -21,7 +23,6 @@ import com.morimil.app.domain.usecase.RunRestCycleUseCase
 import com.morimil.app.security.AndroidKeyStoreMemoryEventSigner
 import com.morimil.app.security.SecretVault
 import com.morimil.app.security.SharedPreferencesMemorySignatureEpochPolicy
-import com.morimil.app.data.repository.AgentOrchestrationRepository
 
 class MorimilAppContainer(context: Context) {
     private val appContext = context.applicationContext
@@ -112,6 +113,13 @@ class MorimilAppContainer(context: Context) {
         )
     }
 
+    val agentInstanceLifecycleRepository: AgentInstanceLifecycleRepository by lazy {
+        AgentInstanceLifecycleRepository(
+            organDatabase = organDatabase,
+            memoryRepository = memoryRepository
+        )
+    }
+
     val appendLivingMemoryUseCase: AppendLivingMemoryUseCase by lazy {
         AppendLivingMemoryUseCase(memoryRepository)
     }
@@ -149,4 +157,3 @@ class MorimilAppContainer(context: Context) {
         }
     }
 }
-
