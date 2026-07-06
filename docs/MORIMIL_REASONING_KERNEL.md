@@ -31,6 +31,22 @@ No usable model is available. Morimil must not pretend superior reasoning. It sh
 
 The API can improve intelligence. The API cannot be required for continuity.
 
+## Model backend boundary
+
+Ollama-style runtimes, local OpenAI-compatible servers, remote APIs and deterministic fallback are model backends. They are selected by a dedicated `ModelBackendRouter`.
+
+```text
+ReasoningKernel
+  -> ModelBackendRouter
+      -> REMOTE_API
+      -> LOCAL_HTTP
+      -> DETERMINISTIC_FALLBACK
+```
+
+`LOCAL_HTTP` is the class of backend used for Ollama-style local endpoints such as localhost, 127.0.0.1 or emulator bridge endpoints. It is real model execution, but it is still not the whole Morimil engine.
+
+The real engine is the kernel plus memory, policy, state, router, fallback and audit trail.
+
 ## Minimum reasoning state
 
 Each turn must have a local state object with at least:
@@ -83,8 +99,8 @@ The first implementation must be conservative:
 2. Add operating mode resolver.
 3. Add deterministic fallback response.
 4. Add `ReasoningKernel` as a central pipeline compatible with the current API client.
-5. Do not rewrite memory schemas.
-6. Do not remove existing ViewModel behavior until local compilation confirms the kernel is stable.
+5. Add explicit `ModelBackendRouter` for remote/local/fallback routing.
+6. Do not rewrite memory schemas.
 
 ## Future expansion
 
@@ -95,7 +111,7 @@ Fase 1: wire Chat -> ReasoningKernel
 Fase 2: add local critic
 Fase 3: add kernel trace event logging
 Fase 4: add local embeddings/retrieval
-Fase 5: add local model backend selection
+Fase 5: add richer local backend health checks
 Fase 6: add benchmark scores for memory recall, contradiction and API independence
 Fase 7: add self-improvement proposal loop with approval, diff, audit and rollback
 ```
