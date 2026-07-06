@@ -2,6 +2,7 @@ package com.morimil.app.data.repository
 
 import com.morimil.app.core.identity.StableIdDigest
 import com.morimil.app.core.orchestration.AgentCapabilityPolicy
+import com.morimil.app.core.orchestration.DelegationPlan
 import com.morimil.app.data.local.AgentInstanceEntity
 import com.morimil.app.data.local.DelegatedTaskEntity
 import com.morimil.app.data.local.MemoryOrganDatabase
@@ -60,6 +61,7 @@ class AgentInstanceLifecycleRepository(
         val vault = requireVault(instance.projectVaultId)
         val cleanGoal = goal.trim().ifBlank { "Preparar avance verificable para ${vault.displayName}" }
         val plan = AgentCapabilityPolicy.planDelegation(cleanGoal, instance.templateAgentId, targetDeviceId = null)
+        val immuneBlocked = AgentCapabilityPolicy.isImmuneBlocked(plan.immuneDecision)
         val taskId = buildProjectTaskId(nowMillis, agentInstanceId, cleanGoal)
         val task = DelegatedTaskEntity(
             taskId = taskId,
@@ -73,15 +75,20 @@ class AgentInstanceLifecycleRepository(
             allowedTransportsJson = AgentCapabilityPolicy.encodeJson(plan.allowedTransports),
             approvalRequired = true,
             approvalId = null,
-            status = AgentCapabilityPolicy.STATUS_AWAITING_APPROVAL,
+            status = if (immuneBlocked) AgentCapabilityPolicy.STATUS_REJECTED else AgentCapabilityPolicy.STATUS_AWAITING_APPROVAL,
             riskLevel = plan.riskLevel,
             resultSummary = null,
-            errorSummary = null,
+            errorSummary = if (immuneBlocked) immuneErrorSummary(plan) else null,
             createdAtMillis = nowMillis,
             updatedAtMillis = nowMillis,
-            completedAtMillis = null
+            completedAtMillis = if (immuneBlocked) nowMillis else null
         )
         dao.insertDelegatedTask(task)
+        if (immuneBlocked) {
+            dao.refreshProjectVaultActiveAgentCount(vault.vaultId, nowMillis)
+            recordTaskEvent(EVENT_IMMUNE_TOOL_BLOCKED, "blocked", vault, instance, task, nowMillis, "Sistema inmunologico bloqueo la tarea antes de asignarla.", 100)
+            return taskId
+        }
         dao.assignAgentInstanceTask(
             agentInstanceId = agentInstanceId,
             taskId = taskId,
@@ -351,6 +358,11 @@ class AgentInstanceLifecycleRepository(
         }
     }
 
+    private fun immuneErrorSummary(plan: DelegationPlan): String {
+        val reasons = plan.immuneReasons.joinToString(separator = ",").ifBlank { plan.immuneDecision }
+        return "immune_policy_blocked:$reasons".take(240)
+    }
+
     companion object {
         const val STATUS_WORKING = "working"
         const val STATUS_THINKING = "thinking"
@@ -367,6 +379,7 @@ class AgentInstanceLifecycleRepository(
         private const val EVENT_AGENT_RETIRED = "project.agent_retired"
         private const val EVENT_AGENT_QUARANTINED = "project.agent_quarantined"
         private const val EVENT_AGENT_PROMOTED = "project.agent_promoted"
+        private const val EVENT_IMMUNE_TOOL_BLOCKED = "immune.tool_blocked"
 
         fun buildAgentInstanceId(vaultId: String, templateAgentId: String, nowMillis: Long): String {
             val suffix = StableIdDigest.shortSha256Hex(
