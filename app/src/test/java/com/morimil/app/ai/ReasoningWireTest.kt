@@ -97,6 +97,28 @@ class ReasoningWireTest {
     }
 
     @Test
+    fun chatReplyParsesArrayContentParts() {
+        val cfg = ReasoningProviderConfig.fromPreset(ReasoningPreset.CHAT_COMPATIBLE)
+            .copy(baseUrl = "https://example.com/chat", model = "model-b")
+        val response = """
+            {"choices":[{"message":{"role":"assistant","content":[{"type":"text","text":"hola "},{"type":"text","text":"Morimil"}]}}]}
+        """.trimIndent()
+
+        assertEquals("hola Morimil", ReasoningWire.parseReply(cfg, response))
+    }
+
+    @Test
+    fun chatReplyParsesRefusalAsTextInsteadOfBlank() {
+        val cfg = ReasoningProviderConfig.fromPreset(ReasoningPreset.CHAT_COMPATIBLE)
+            .copy(baseUrl = "https://example.com/chat", model = "model-b")
+        val response = """
+            {"choices":[{"message":{"role":"assistant","content":null,"refusal":"No puedo hacer eso."}}]}
+        """.trimIndent()
+
+        assertEquals("No puedo hacer eso.", ReasoningWire.parseReply(cfg, response))
+    }
+
+    @Test
     fun responsesReplyParsesOutputText() {
         val cfg = ReasoningProviderConfig.fromPreset(ReasoningPreset.RESPONSES_COMPATIBLE)
             .copy(baseUrl = "https://example.com/v1/responses", model = "model-r")
@@ -105,6 +127,17 @@ class ReasoningWireTest {
         """.trimIndent()
 
         assertEquals("hola Morimil", ReasoningWire.parseReply(cfg, response))
+    }
+
+    @Test
+    fun responsesReplyParsesRefusalContent() {
+        val cfg = ReasoningProviderConfig.fromPreset(ReasoningPreset.RESPONSES_COMPATIBLE)
+            .copy(baseUrl = "https://example.com/v1/responses", model = "model-r")
+        val response = """
+            {"output":[{"type":"message","content":[{"type":"refusal","refusal":"No puedo hacer eso."}]}]}
+        """.trimIndent()
+
+        assertEquals("No puedo hacer eso.", ReasoningWire.parseReply(cfg, response))
     }
 
     @Test
