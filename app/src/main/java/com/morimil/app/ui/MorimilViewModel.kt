@@ -744,7 +744,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                     )
                 }
 
-                val memoryContext = repository.buildLivingMemoryContext()
+                val memoryContext = repository.buildLivingMemoryContext(cleanBody)
                 val knowledgeCapsuleContext = memoryOrganRepository.buildKnowledgeCapsuleContext()
                 val systemPrompt = SystemPromptBuilder.build(
                     genesis = genesis,
@@ -787,4 +787,3 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         private const val MAX_GRAPH_EVENT_LOOKUP = 60
     }
 }
-
