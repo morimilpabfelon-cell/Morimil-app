@@ -76,6 +76,11 @@ class AgentOrchestrationRepository(
     }
 
     suspend fun approveDelegatedTask(taskId: String, nowMillis: Long = System.currentTimeMillis()): Boolean {
+        val existingTask = dao.loadDelegatedTask(taskId) ?: return false
+        if (existingTask.errorSummary?.startsWith(IMMUNE_BLOCK_PREFIX) == true) {
+            recordImmuneApprovalDenied(existingTask, nowMillis)
+            return false
+        }
         val approvalId = "approval_${StableIdDigest.shortSha256Hex("task_approval", listOf(taskId, nowMillis.toString()))}"
         val updated = dao.approveDelegatedTask(
             taskId = taskId,
@@ -147,6 +152,21 @@ class AgentOrchestrationRepository(
         )
     }
 
+    private suspend fun recordImmuneApprovalDenied(task: DelegatedTaskEntity, nowMillis: Long) {
+        memoryRepository.recordSystemMemoryEvent(
+            eventType = EVENT_IMMUNE_APPROVAL_DENIED,
+            body = "Sistema inmunologico rechazo aprobacion de tarea bloqueada: task_id=${task.taskId}; risk=${task.riskLevel}; goal=${task.goal.take(180)}",
+            importance = 100,
+            evidenceJson = JSONObject()
+                .put("schema", "morimil.immune_policy_decision.v1")
+                .put("event_type", EVENT_IMMUNE_APPROVAL_DENIED)
+                .put("recorded_at_millis", nowMillis)
+                .put("policy", "blocked_tasks_cannot_be_approved")
+                .put("delegated_task", task.toEvidenceJson())
+                .toString()
+        )
+    }
+
     private fun buildDecisionBody(action: String, task: DelegatedTaskEntity, reason: String?): String {
         val reasonText = reason?.let { "; reason=$it" }.orEmpty()
         return "Decision de orquestacion: task_${action}; " +
@@ -189,7 +209,7 @@ class AgentOrchestrationRepository(
 
     private fun immuneErrorSummary(plan: DelegationPlan): String {
         val reasons = plan.immuneReasons.joinToString(separator = ",").ifBlank { plan.immuneDecision }
-        return "immune_policy_blocked:$reasons".take(240)
+        return "$IMMUNE_BLOCK_PREFIX:$reasons".take(240)
     }
 
     private fun DelegatedTaskEntity.toEvidenceJson(): JSONObject {
@@ -223,6 +243,8 @@ class AgentOrchestrationRepository(
         private const val EVENT_TASK_APPROVED = "orchestration.task_approved"
         private const val EVENT_TASK_REJECTED = "orchestration.task_rejected"
         private const val EVENT_IMMUNE_TOOL_BLOCKED = "immune.tool_blocked"
+        private const val EVENT_IMMUNE_APPROVAL_DENIED = "immune.approval_denied"
+        private const val IMMUNE_BLOCK_PREFIX = "immune_policy_blocked"
 
         fun buildTaskId(createdAtMillis: Long, agentId: String, goal: String): String {
             val suffix = StableIdDigest.shortSha256Hex(
