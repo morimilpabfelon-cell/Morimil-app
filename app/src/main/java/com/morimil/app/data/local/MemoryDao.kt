@@ -11,6 +11,9 @@ interface MemoryDao {
     @Query("SELECT * FROM memory_messages ORDER BY createdAtMillis ASC, id ASC")
     fun observeMessages(): Flow<List<MemoryMessageEntity>>
 
+    @Query("SELECT * FROM memory_messages ORDER BY createdAtMillis DESC, id DESC LIMIT :limit")
+    suspend fun loadRecentMessages(limit: Int): List<MemoryMessageEntity>
+
     @Query("SELECT COUNT(*) FROM memory_messages")
     suspend fun countMessages(): Int
 
