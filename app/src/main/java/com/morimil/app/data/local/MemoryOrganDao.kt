@@ -1,4 +1,4 @@
-﻿package com.morimil.app.data.local
+package com.morimil.app.data.local
 
 import androidx.room.Dao
 import androidx.room.Insert
@@ -168,11 +168,13 @@ interface MemoryOrganDao {
         errorsJson: String,
         updatedAtMillis: Long
     ): Int
+
     @Query("SELECT * FROM project_vaults ORDER BY updatedAtMillis DESC")
     fun observeProjectVaults(): Flow<List<ProjectVaultEntity>>
 
     @Query("SELECT COUNT(*) FROM project_vaults")
     suspend fun countProjectVaults(): Int
+
     @Query("SELECT * FROM project_vaults WHERE vaultId = :vaultId LIMIT 1")
     suspend fun loadProjectVault(vaultId: String): ProjectVaultEntity?
 
@@ -217,6 +219,19 @@ interface MemoryOrganDao {
         updatedAtMillis: Long
     ): Int
 
+    @Query(
+        """
+        UPDATE project_vaults
+        SET activeAgentCount = (
+                SELECT COUNT(*) FROM agent_instances
+                WHERE projectVaultId = :vaultId
+                  AND status IN ('working', 'thinking', 'awaiting_review', 'promoted')
+            ),
+            updatedAtMillis = :updatedAtMillis
+        WHERE vaultId = :vaultId
+        """
+    )
+    suspend fun refreshProjectVaultActiveAgentCount(vaultId: String, updatedAtMillis: Long): Int
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertProjectVaults(vaults: List<ProjectVaultEntity>): List<Long>
@@ -224,11 +239,58 @@ interface MemoryOrganDao {
     @Query("SELECT * FROM agent_instances ORDER BY updatedAtMillis DESC LIMIT 60")
     fun observeAgentInstances(): Flow<List<AgentInstanceEntity>>
 
+    @Query("SELECT * FROM agent_instances WHERE agentInstanceId = :agentInstanceId LIMIT 1")
+    suspend fun loadAgentInstance(agentInstanceId: String): AgentInstanceEntity?
+
     @Query("SELECT * FROM agent_instances WHERE projectVaultId = :vaultId ORDER BY updatedAtMillis DESC")
     suspend fun loadAgentInstancesForVault(vaultId: String): List<AgentInstanceEntity>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAgentInstance(agent: AgentInstanceEntity)
+
+    @Query(
+        """
+        UPDATE agent_instances
+        SET status = :status,
+            qualityScore = :qualityScore,
+            errorCount = :errorCount,
+            currentTaskId = :currentTaskId,
+            lastHeartbeatAtMillis = :lastHeartbeatAtMillis,
+            updatedAtMillis = :updatedAtMillis,
+            retiredAtMillis = :retiredAtMillis,
+            retireReason = :retireReason
+        WHERE agentInstanceId = :agentInstanceId
+        """
+    )
+    suspend fun updateAgentInstanceLifecycle(
+        agentInstanceId: String,
+        status: String,
+        qualityScore: Int,
+        errorCount: Int,
+        currentTaskId: String?,
+        lastHeartbeatAtMillis: Long?,
+        updatedAtMillis: Long,
+        retiredAtMillis: Long?,
+        retireReason: String?
+    ): Int
+
+    @Query(
+        """
+        UPDATE agent_instances
+        SET currentTaskId = :taskId,
+            status = :status,
+            lastHeartbeatAtMillis = :lastHeartbeatAtMillis,
+            updatedAtMillis = :updatedAtMillis
+        WHERE agentInstanceId = :agentInstanceId
+        """
+    )
+    suspend fun assignAgentInstanceTask(
+        agentInstanceId: String,
+        taskId: String,
+        status: String,
+        lastHeartbeatAtMillis: Long,
+        updatedAtMillis: Long
+    ): Int
 
     @Query("SELECT * FROM orchestrator_devices ORDER BY authorizationStatus ASC, updatedAtMillis DESC")
     fun observeOrchestratorDevices(): Flow<List<OrchestratorDeviceEntity>>
@@ -290,6 +352,22 @@ interface MemoryOrganDao {
         updatedAtMillis: Long,
         completedAtMillis: Long
     ): Int
+
+    @Query(
+        """
+        UPDATE delegated_tasks
+        SET status = :status,
+            resultSummary = :resultSummary,
+            updatedAtMillis = :updatedAtMillis,
+            completedAtMillis = :completedAtMillis
+        WHERE taskId = :taskId
+        """
+    )
+    suspend fun updateDelegatedTaskResult(
+        taskId: String,
+        status: String,
+        resultSummary: String,
+        updatedAtMillis: Long,
+        completedAtMillis: Long?
+    ): Int
 }
-
-
