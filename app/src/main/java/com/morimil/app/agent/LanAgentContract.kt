@@ -112,9 +112,10 @@ class LanAgentPolicy {
         private fun isPrivateIpv4(host: String): Boolean {
             val parts = host.split('.')
             if (parts.size != 4) return false
-            val numbers = parts.map { it.toIntOrNull() ?: return false }
-            val first = numbers[0]
-            val second = numbers[1]
+            val first = parts[0].toIntOrNull() ?: return false
+            val second = parts[1].toIntOrNull() ?: return false
+            parts[2].toIntOrNull() ?: return false
+            parts[3].toIntOrNull() ?: return false
             return first == 10 ||
                 (first == 172 && second in 16..31) ||
                 (first == 192 && second == 168) ||
