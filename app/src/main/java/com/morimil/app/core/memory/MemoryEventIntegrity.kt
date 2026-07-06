@@ -13,8 +13,10 @@ class MemoryEventIntegrity(
     ): Boolean {
         var expectedPreviousHash = if (requireGenesisStart) null else events.firstOrNull()?.previousEventHash
         val requiredSignatureEpochHash = signatureEpochPolicy.signedEpochEventHash()
+        val signingKeyExists = signatureEpochPolicy.signingKeyExists()
         var signatureEpochReached = false
         var signatureEpochFound = requiredSignatureEpochHash == null
+        var signedEventFound = false
         events.forEach { event ->
             if (event.eventHash == LEGACY_EVENT_HASH) {
                 if (signatureEpochReached) return false
@@ -23,6 +25,7 @@ class MemoryEventIntegrity(
             }
             if (memoryEventIntegrityFailure(event, expectedPreviousHash) != null) return false
             val eventIsSigned = event.hasKeystoreSignature()
+            if (eventIsSigned) signedEventFound = true
             when {
                 requiredSignatureEpochHash != null && event.eventHash == requiredSignatureEpochHash -> {
                     if (!eventIsSigned) return false
@@ -30,9 +33,15 @@ class MemoryEventIntegrity(
                     signatureEpochFound = true
                 }
                 signatureEpochReached && !eventIsSigned -> return false
-                requiredSignatureEpochHash == null && eventIsSigned -> signatureEpochReached = true
+                requiredSignatureEpochHash == null && eventIsSigned -> {
+                    signatureEpochReached = true
+                    signatureEpochFound = true
+                }
             }
             expectedPreviousHash = event.eventHash
+        }
+        if (requireGenesisStart && signingKeyExists && requiredSignatureEpochHash == null && !signedEventFound) {
+            return false
         }
         return signatureEpochFound || !requireGenesisStart
     }
