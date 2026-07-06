@@ -35,4 +35,16 @@ class MemoryEventClassifierTest {
         assertTrue(classification.memoryKind != "chat_noise")
         assertTrue(classification.importance > 8)
     }
+
+    @Test
+    fun companyVaultLanguageIsTaggedAsProject() {
+        val classification = MemoryEventClassifier.classify(
+            eventType = "conversation.user_message",
+            actor = "user",
+            body = "vamos a hacer una empresa de IonPay"
+        )
+
+        assertTrue(classification.memoryKind != "chat_noise")
+        assertTrue("project" in classification.tags)
+    }
 }
