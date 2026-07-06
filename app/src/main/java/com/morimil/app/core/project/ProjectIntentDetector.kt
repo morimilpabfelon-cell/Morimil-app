@@ -11,6 +11,14 @@ object ProjectIntentDetector {
         "vamos a crear",
         "vamos a hacer",
         "quiero crear",
+        "estoy creando",
+        "estamos creando",
+        "estoy desarrollando",
+        "estamos desarrollando",
+        "estoy construyendo",
+        "estamos construyendo",
+        "tengo una empresa",
+        "tengo un proyecto",
         "crea una",
         "crear una",
         "hacer una",
@@ -22,7 +30,25 @@ object ProjectIntentDetector {
         "crear bóveda",
         "new company",
         "create a company",
-        "start a project"
+        "start a project",
+        "i am building",
+        "we are building"
+    )
+
+    private val negativeMarkers = listOf(
+        "no vamos a crear",
+        "no voy a crear",
+        "no la vamos a crear",
+        "no lo vamos a crear",
+        "todavia no",
+        "todavía no",
+        "solo estamos hablando",
+        "solo estamos revisando",
+        "aun no crear",
+        "aún no crear",
+        "do not create",
+        "don't create",
+        "not creating yet"
     )
 
     private val projectNouns = listOf(
@@ -41,8 +67,8 @@ object ProjectIntentDetector {
     )
 
     private val namePatterns = listOf(
-        Regex("(?:empresa|startup|compania|compañia|proyecto|boveda|bóveda|app|producto|company|project|vault)\\s+(?:llamada|llamado|de|named|called)\\s+([\\p{L}\\p{N}_\\-メ]+(?:\\s+[\\p{L}\\p{N}_\\-メ]+){0,3})", RegexOption.IGNORE_CASE),
-        Regex("(?:llamada|llamado|named|called|nombre)\\s+([\\p{L}\\p{N}_\\-メ]+(?:\\s+[\\p{L}\\p{N}_\\-メ]+){0,3})", RegexOption.IGNORE_CASE)
+        Regex("(?:llamada|llamado|named|called|nombre)\\s+([\\p{L}\\p{N}_\\-メ]+(?:\\s+[\\p{L}\\p{N}_\\-メ]+){0,4})", RegexOption.IGNORE_CASE),
+        Regex("(?:empresa|startup|compania|compañia|proyecto|boveda|bóveda|app|producto|company|project|vault)\\s+de\\s+([\\p{L}\\p{N}_\\-メ]+(?:\\s+[\\p{L}\\p{N}_\\-メ]+){0,4})", RegexOption.IGNORE_CASE)
     )
 
     private val stopWords = setOf(
@@ -55,16 +81,22 @@ object ProjectIntentDetector {
         "sin",
         "y",
         "o",
+        "pero",
+        "como",
         "the",
         "for",
         "with",
-        "and"
+        "and",
+        "but",
+        "as"
     )
 
     fun detect(text: String): ProjectCreationIntent? {
         val cleanText = text.trim()
         if (cleanText.length < 8) return null
         val lower = cleanText.lowercase()
+        if (negativeMarkers.any { marker -> marker in lower }) return null
+
         val hasStartMarker = startMarkers.any { marker -> marker in lower }
         val hasProjectNoun = projectNouns.any { noun -> noun in lower }
         if (!hasStartMarker || !hasProjectNoun) return null
@@ -87,7 +119,7 @@ object ProjectIntentDetector {
             .trim(' ', '.', ',', ':', ';', '"', '\'', '`')
             .split(" ")
             .takeWhile { token -> token.lowercase().trim(',', '.', ';', ':') !in stopWords }
-            .take(4)
+            .take(5)
             .joinToString(" ")
             .trim(' ', '.', ',', ':', ';', '"', '\'', '`')
 
