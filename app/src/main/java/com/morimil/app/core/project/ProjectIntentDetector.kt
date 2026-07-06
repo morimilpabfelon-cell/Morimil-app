@@ -9,13 +9,17 @@ data class ProjectCreationIntent(
 object ProjectIntentDetector {
     private val startMarkers = listOf(
         "vamos a crear",
+        "vamos a hacer",
         "quiero crear",
         "crea una",
         "crear una",
+        "hacer una",
         "inicia una",
         "iniciar una",
         "abre una boveda",
+        "abre una bóveda",
         "crear boveda",
+        "crear bóveda",
         "new company",
         "create a company",
         "start a project"
@@ -36,15 +40,25 @@ object ProjectIntentDetector {
         "vault"
     )
 
-    private val nameMarkers = listOf(
-        "llamada",
-        "llamado",
-        "llamar",
-        "nombre",
-        "llamada:",
-        "llamado:",
-        "called",
-        "named"
+    private val namePatterns = listOf(
+        Regex("(?:empresa|startup|compania|compañia|proyecto|boveda|bóveda|app|producto|company|project|vault)\\s+(?:llamada|llamado|de|named|called)\\s+([\\p{L}\\p{N}_\\-メ]+(?:\\s+[\\p{L}\\p{N}_\\-メ]+){0,3})", RegexOption.IGNORE_CASE),
+        Regex("(?:llamada|llamado|named|called|nombre)\\s+([\\p{L}\\p{N}_\\-メ]+(?:\\s+[\\p{L}\\p{N}_\\-メ]+){0,3})", RegexOption.IGNORE_CASE)
+    )
+
+    private val stopWords = setOf(
+        "que",
+        "para",
+        "porque",
+        "donde",
+        "cuando",
+        "con",
+        "sin",
+        "y",
+        "o",
+        "the",
+        "for",
+        "with",
+        "and"
     )
 
     fun detect(text: String): ProjectCreationIntent? {
@@ -65,23 +79,14 @@ object ProjectIntentDetector {
     }
 
     private fun extractName(text: String): String? {
-        val markerMatch = nameMarkers
-            .mapNotNull { marker ->
-                val index = text.lowercase().indexOf(marker)
-                if (index >= 0) marker to index else null
-            }
-            .minByOrNull { it.second }
-
-        val rawName = if (markerMatch != null) {
-            text.substring(markerMatch.second + markerMatch.first.length)
-        } else {
-            text.substringAfterLast(" de ", missingDelimiterValue = text)
-                .substringAfterLast(" for ", missingDelimiterValue = text)
-        }
+        val rawName = namePatterns.firstNotNullOfOrNull { pattern ->
+            pattern.find(text)?.groupValues?.getOrNull(1)
+        } ?: return null
 
         val cleaned = rawName
             .trim(' ', '.', ',', ':', ';', '"', '\'', '`')
             .split(" ")
+            .takeWhile { token -> token.lowercase().trim(',', '.', ';', ':') !in stopWords }
             .take(4)
             .joinToString(" ")
             .trim(' ', '.', ',', ':', ';', '"', '\'', '`')
