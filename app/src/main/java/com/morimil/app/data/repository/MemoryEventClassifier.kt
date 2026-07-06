@@ -32,6 +32,7 @@ object MemoryEventClassifier {
         )
 
         val tags = linkedSetOf<String>()
+        if (eventType.startsWith("memory.autobiography")) tags += "autobiography"
         if (lower.contains("genesis")) tags += "genesis"
         if (lower.contains("memoria") || lower.contains("recuerd")) tags += "memory"
         if (lower.contains("api") || lower.contains("motor") || lower.contains("razon")) tags += "reasoning"
@@ -42,6 +43,7 @@ object MemoryEventClassifier {
 
         val kind = when {
             eventType.startsWith("genesis") -> "identity"
+            eventType.startsWith("memory.autobiography") -> "identity"
             eventType == "memory_review.aprobado" -> "approval"
             eventType == "memory_review.ruido_degradado" -> "chat_noise"
             eventType == "memory_review.correccion_requerida" -> "correction"
