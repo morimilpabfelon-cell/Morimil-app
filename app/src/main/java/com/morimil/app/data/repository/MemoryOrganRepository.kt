@@ -5,8 +5,6 @@ import com.morimil.app.data.local.AutobiographicalSnapshotEntity
 import com.morimil.app.data.local.KnowledgeCapsuleEntity
 import com.morimil.app.data.local.MemoryOrganDatabase
 import kotlinx.coroutines.flow.Flow
-import org.json.JSONArray
-import org.json.JSONObject
 
 class MemoryOrganRepository(
     database: MemoryOrganDatabase,
@@ -51,12 +49,12 @@ class MemoryOrganRepository(
         sourceEventHash: String? = null
     ): KnowledgeCapsuleEntity? {
         val clean = text.trim()
-        if (!hasExplicitCapsuleIntent(clean)) return null
+        if (!KnowledgeIntakeClassifier.hasExplicitCapsuleIntent(clean)) return null
 
-        val title = inferTitle(clean)
-        val category = inferCategory(clean)
-        val tags = inferTags(clean, category)
-        val claims = inferClaims(clean)
+        val title = KnowledgeIntakeClassifier.inferTitle(clean)
+        val category = KnowledgeIntakeClassifier.inferCategory(clean)
+        val tags = KnowledgeIntakeClassifier.inferTags(clean, category)
+        val claims = KnowledgeIntakeClassifier.inferClaims(clean)
         if (claims.isEmpty() && clean.length < 120) return null
 
         return appendKnowledgeCapsule(
@@ -97,19 +95,16 @@ class MemoryOrganRepository(
         val versionsForTitle = dao.loadCapsulesByTitle(cleanTitle)
         val nextVersion = (versionsForTitle.maxOfOrNull { it.capsuleVersion } ?: 0) + 1
         val previousCapsuleHash = existingChain.lastOrNull()?.capsuleHash
-        val cleanClaims = buildClaimsJson(claims)
-        val cleanTags = JSONArray(tags.map { it.trim() }.filter { it.isNotBlank() }).toString()
+        val cleanClaims = KnowledgeIntakeClassifier.buildClaimsJson(claims)
+        val cleanTags = KnowledgeIntakeClassifier.buildTagsJson(tags)
         val cleanSummary = summary.trim()
         val cleanConfidence = confidence.coerceIn(1, 100)
-        val capsuleId = "${slug(cleanTitle)}-v$nextVersion"
-        val evidenceJson = JSONObject()
-            .put("schema", "morimil.knowledge_capsule_evidence.v1")
-            .put("source", source)
-            .put("source_event_hash", sourceEventHash)
-            .put("user_approved", source.contains("approved", ignoreCase = true))
-            .put("status", "active")
-            .put("summary_excerpt", cleanSummary.take(240))
-            .toString()
+        val capsuleId = "${KnowledgeIntakeClassifier.slug(cleanTitle)}-v$nextVersion"
+        val evidenceJson = KnowledgeIntakeClassifier.buildEvidenceJson(
+            source = source,
+            sourceEventHash = sourceEventHash,
+            summary = cleanSummary
+        )
         val capsuleHash = memoryIntegrityCore.hashCapsuleV2(
             genesisCoreId = genesisCoreId,
             capsuleId = capsuleId,
@@ -167,130 +162,7 @@ class MemoryOrganRepository(
         }
         return capsules.joinToString("\n") { capsule ->
             "- [${capsule.capsuleCategory}/${capsule.status}/v${capsule.capsuleVersion}/${capsule.privacyVisibility}/c${capsule.confidence}/${capsule.capsuleHash.take(19)}] " +
-                "${capsule.title}: ${capsule.summary.take(500)} claims=${capsule.claimsJson.take(420)} tags=${capsule.tags}"
+                "${capsule.title}: ${capsule.summary.take(500)} claims=${capsule.claimsJson.take(420)} tags=${capsule.tags} evidence=${capsule.evidenceJson.take(320)}"
         }
-    }
-
-    private fun hasExplicitCapsuleIntent(text: String): Boolean {
-        val lower = text.lowercase()
-        return listOf(
-            "crea una capsula",
-            "crea una capsula",
-            "guardar como capsula",
-            "guardar como capsula",
-            "guarda esto como conocimiento",
-            "knowledge capsule",
-            "type\": \"knowledge_capsule",
-            "manual interno",
-            "documentacion estable",
-            "documentacion estable",
-            "regla estable",
-            "mis reglas personales",
-            "arquitectura del sistema de memoria",
-            "errores frecuentes que debe evitar"
-        ).any { lower.contains(it) }
-    }
-
-    private fun inferTitle(text: String): String {
-        val jsonTitle = Regex("\"title\"\\s*:\\s*\"([^\"]{4,100})\"", RegexOption.IGNORE_CASE)
-            .find(text)
-            ?.groupValues
-            ?.getOrNull(1)
-        if (!jsonTitle.isNullOrBlank()) return jsonTitle
-
-        val quoted = Regex("\"([^\"]{6,90})\"").find(text)?.groupValues?.getOrNull(1)
-        if (!quoted.isNullOrBlank() && !quoted.contains("knowledge_capsule")) return quoted
-
-        val afterTitle = Regex("title\\s*[:=]\\s*([^\\n\\r,}]{4,100})", RegexOption.IGNORE_CASE)
-            .find(text)
-            ?.groupValues
-            ?.getOrNull(1)
-            ?.trim()
-            ?.trim('"')
-        if (!afterTitle.isNullOrBlank()) return afterTitle
-
-        val lower = text.lowercase()
-        return when {
-            lower.contains("reglas personales") -> "Reglas personales de Morimil"
-            lower.contains("android") -> "Documentacion tecnica Android"
-            lower.contains("arquitectura") && lower.contains("memoria") -> "Arquitectura del sistema de memoria"
-            lower.contains("manual interno") || lower.contains("politic") -> "Manual interno de politicas"
-            lower.contains("errores frecuentes") || lower.contains("debe evitar") -> "Errores frecuentes que debe evitar"
-            lower.contains("diseno") || lower.contains("diseno") -> "Diseno de la app Morimil"
-            else -> text.lineSequence().firstOrNull()?.take(80)?.ifBlank { null } ?: "Knowledge capsule"
-        }
-    }
-
-    private fun inferCategory(text: String): String {
-        val lower = text.lowercase()
-        return when {
-            lower.contains("reglas personales") || lower.contains("preferencia") -> "personal_rules"
-            lower.contains("android") || lower.contains("documentacion") || lower.contains("documentacion") -> "technical_docs"
-            lower.contains("arquitectura") && lower.contains("memoria") -> "memory_architecture"
-            lower.contains("manual interno") || lower.contains("politic") -> "internal_policy"
-            lower.contains("error") || lower.contains("debe evitar") -> "error_prevention"
-            lower.contains("diseno") || lower.contains("diseno") -> "app_design"
-            else -> "general_knowledge"
-        }
-    }
-
-    private fun inferTags(text: String, category: String): List<String> {
-        val lower = text.lowercase()
-        val tags = linkedSetOf("knowledge", category)
-        if (lower.contains("android")) tags += "android"
-        if (lower.contains("memoria")) tags += "memory"
-        if (lower.contains("arquitectura")) tags += "architecture"
-        if (lower.contains("politic")) tags += "policy"
-        if (lower.contains("error")) tags += "errors"
-        if (lower.contains("diseno") || lower.contains("diseno")) tags += "design"
-        if (lower.contains("morimil")) tags += "morimil"
-        if (lower.contains("api")) tags += "api"
-        if (lower.contains("local")) tags += "local_first"
-        return tags.toList()
-    }
-
-    private fun inferClaims(text: String): List<String> {
-        val explicitClaims = Regex("\"claims\"\\s*:\\s*\\[(.*?)\\]", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
-            .find(text)
-            ?.groupValues
-            ?.getOrNull(1)
-        if (!explicitClaims.isNullOrBlank()) {
-            val quoted = Regex("\"([^\"]{8,260})\"").findAll(explicitClaims).map { it.groupValues[1].trim() }.toList()
-            if (quoted.isNotEmpty()) return quoted.take(16)
-        }
-
-        return text
-            .split('.', '\n', ';')
-            .map { it.trim().trim('-', '*') }
-            .filter { it.length in 24..260 }
-            .filter {
-                val lower = it.lowercase()
-                listOf("debe", "necesita", "funciona", "guarda", "recuerda", "evitar", "regla", "arquitectura", "memoria", "local").any { key ->
-                    lower.contains(key)
-                }
-            }
-            .distinct()
-            .take(16)
-    }
-
-    private fun buildClaimsJson(claims: List<String>): String {
-        val root = JSONArray()
-        claims.map { it.trim() }
-            .filter { it.isNotBlank() }
-            .distinct()
-            .take(16)
-            .forEach { claim ->
-                root.put(
-                    JSONObject()
-                        .put("claim", claim)
-                        .put("confidence", 90)
-                        .put("source", "user_approved")
-                )
-            }
-        return root.toString()
-    }
-
-    private fun slug(value: String): String {
-        return value.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').ifBlank { "knowledge-capsule" }
     }
 }
