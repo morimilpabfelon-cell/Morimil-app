@@ -258,24 +258,29 @@ class ReasoningClient {
         history: List<ChatTurn>
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
-            val valid = config.validated()
+            val requestedValid = config.validated()
+            val latestUserMessage = history.lastOrNull { turn -> turn.role == "user" }?.content.orEmpty()
+            val valid = ReasoningBudgetPolicy
+                .effectiveConfigForMessage(requestedValid, latestUserMessage)
+                .validated()
             if (valid.requiresRuntimeKey) {
                 require(runtimeKey.isNotBlank()) { "Falta la llave de razonamiento." }
             }
-            require(history.isNotEmpty()) { "No hay mensaje para enviar." }
+            val compactHistory = ReasoningBudgetPolicy.compactHistory(history)
+            require(compactHistory.isNotEmpty()) { "No hay mensaje para enviar." }
 
             val initialReply = sendSingleRequest(
                 valid = valid,
                 runtimeKey = runtimeKey,
                 systemPrompt = systemPrompt,
-                history = history
+                history = compactHistory
             )
             require(initialReply.text.isNotBlank()) { "El motor no devolvio texto." }
             recoverTruncatedReply(
                 valid = valid,
                 runtimeKey = runtimeKey,
                 systemPrompt = systemPrompt,
-                originalHistory = history,
+                originalHistory = compactHistory,
                 initialReply = initialReply
             ).text
         }
@@ -372,7 +377,7 @@ class ReasoningClient {
     }
 
     companion object {
-        const val MAX_HISTORY_MESSAGES = 50
+        const val MAX_HISTORY_MESSAGES = ReasoningBudgetPolicy.DEFAULT_HISTORY_MESSAGES
         private const val TIMEOUT_MS = 45000
         private const val MAX_CONTINUATION_CALLS = 1
         private const val CONTINUATION_PROMPT = "Continua exactamente desde donde se corto la respuesta anterior. No reinicies, no repitas introducciones y no cambies de tema."
