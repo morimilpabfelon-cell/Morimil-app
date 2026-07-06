@@ -21,6 +21,7 @@ import com.morimil.app.domain.usecase.AppendLivingMemoryUseCase
 import com.morimil.app.domain.usecase.ProposeCognitiveMigrationUseCase
 import com.morimil.app.domain.usecase.RunRestCycleUseCase
 import com.morimil.app.reasoning.ReasoningKernel
+import com.morimil.app.reasoning.trace.KernelTraceRepository
 import com.morimil.app.security.AndroidKeyStoreMemoryEventSigner
 import com.morimil.app.security.SecretVault
 import com.morimil.app.security.SharedPreferencesMemorySignatureEpochPolicy
@@ -126,6 +127,10 @@ class MorimilAppContainer(context: Context) {
         AppendLivingMemoryUseCase(memoryRepository)
     }
 
+    val kernelTraceRepository: KernelTraceRepository by lazy {
+        KernelTraceRepository(appendLivingMemoryUseCase)
+    }
+
     val runRestCycleUseCase: RunRestCycleUseCase by lazy {
         RunRestCycleUseCase(restCycleRepository)
     }
@@ -158,7 +163,8 @@ class MorimilAppContainer(context: Context) {
             appendLivingMemoryUseCase = appendLivingMemoryUseCase,
             runRestCycleUseCase = runRestCycleUseCase,
             recallScheduleRepository = recallScheduleRepository,
-            reasoningClient = reasoningClient
+            reasoningClient = reasoningClient,
+            kernelTraceRepository = kernelTraceRepository
         )
     }
 
