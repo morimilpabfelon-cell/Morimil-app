@@ -1,12 +1,18 @@
 package com.morimil.app.data.repository
 
+import com.morimil.app.core.constitution.CoreConstitutionDecision
+import com.morimil.app.core.constitution.CoreConstitutionGuard
+import com.morimil.app.core.constitution.CoreConstitutionResult
 import com.morimil.app.core.identity.StableIdDigest
 import com.morimil.app.data.local.MemoryOrganDatabase
 import com.morimil.app.data.local.MigrationRecordEntity
 import kotlinx.coroutines.flow.Flow
 import org.json.JSONArray
 
-class MigrationRecordRepository(organDatabase: MemoryOrganDatabase) {
+class MigrationRecordRepository(
+    organDatabase: MemoryOrganDatabase,
+    private val memoryRepository: MemoryRepository? = null
+) {
     private val organDao = organDatabase.memoryOrganDao()
 
     val recentMigrationRecords: Flow<List<MigrationRecordEntity>> = organDao.observeRecentMigrationRecords(RECENT_MIGRATION_LIMIT)
@@ -45,6 +51,20 @@ class MigrationRecordRepository(organDatabase: MemoryOrganDatabase) {
         approvedByUser: Boolean,
         approvalId: String?
     ): String {
+        val constitutionResult = CoreConstitutionGuard.evaluateMigrationPlan(
+            migrationType = migrationType,
+            affectedArtifacts = affectedArtifacts,
+            chainVerified = chainVerified,
+            backupRequired = backupRequired,
+            approvalRequired = approvalRequired,
+            rollbackAvailable = rollbackAvailable,
+            approvedByUser = approvedByUser
+        )
+        if (constitutionResult.decision == CoreConstitutionDecision.DENY) {
+            recordCoreMigrationBlocked(migrationType, constitutionResult)
+            error("Core constitution guard blocked migration: ${constitutionResult.reasons.joinToString(",")}")
+        }
+
         val now = System.currentTimeMillis()
         val migrationId = buildMigrationId(now, migrationType, fromVersion, toVersion)
         organDao.insertMigrationRecord(
@@ -61,8 +81,11 @@ class MigrationRecordRepository(organDatabase: MemoryOrganDatabase) {
                 chainVerified = chainVerified,
                 backupRequired = backupRequired,
                 stepsJson = JSONArray(steps).toString(),
-                expectedEffect = expectedEffect,
-                riskLevel = riskLevel,
+                expectedEffect = appendConstitutionNotes(
+                    expectedEffect = expectedEffect,
+                    constitutionResult = constitutionResult
+                ),
+                riskLevel = maxRisk(riskLevel, constitutionResult.riskLevel),
                 approvalRequired = approvalRequired,
                 approvedByUser = approvedByUser,
                 approvalId = approvalId,
@@ -148,6 +171,47 @@ class MigrationRecordRepository(organDatabase: MemoryOrganDatabase) {
         require(rows > 0) { "Migration record update failed." }
     }
 
+    private suspend fun recordCoreMigrationBlocked(
+        migrationType: String,
+        constitutionResult: CoreConstitutionResult
+    ) {
+        memoryRepository?.recordSystemMemoryEvent(
+            eventType = EVENT_CORE_GUARD_BLOCKED,
+            body = "Core constitution guard blocked migration: migration_type=$migrationType; " +
+                "reasons=${constitutionResult.reasons.joinToString(",")}; " +
+                "required_controls=${constitutionResult.requiredControls.joinToString(",")}",
+            importance = 100,
+            evidenceJson = CoreConstitutionGuard.evidenceJson(constitutionResult, migrationType)
+        )
+    }
+
+    private fun appendConstitutionNotes(expectedEffect: String, constitutionResult: CoreConstitutionResult): String {
+        if (constitutionResult.decision == CoreConstitutionDecision.ALLOW && constitutionResult.reasons == listOf("non_core_migration")) {
+            return expectedEffect
+        }
+        return buildString {
+            appendLine(expectedEffect)
+            appendLine("core_constitution_decision=${constitutionResult.decision.name.lowercase()}")
+            appendLine("core_constitution_risk=${constitutionResult.riskLevel}")
+            appendLine("core_constitution_reasons=${constitutionResult.reasons.joinToString(",")}")
+            appendLine("core_constitution_required_controls=${constitutionResult.requiredControls.joinToString(",")}")
+        }.trim()
+    }
+
+    private fun maxRisk(left: String, right: String): String {
+        return if (riskRank(right) > riskRank(left)) right else left
+    }
+
+    private fun riskRank(risk: String): Int {
+        return when (risk.lowercase()) {
+            "low" -> 0
+            "medium" -> 1
+            "high" -> 2
+            "critical" -> 3
+            else -> 1
+        }
+    }
+
     companion object {
         private const val CREATED_BY_LOCAL_RUNTIME = "local_runtime"
         private const val STATUS_PLANNED = "planned"
@@ -156,6 +220,7 @@ class MigrationRecordRepository(organDatabase: MemoryOrganDatabase) {
         private const val STATUS_FAILED = "failed"
         private const val STATUS_ROLLED_BACK = "rolled_back"
         private const val RECENT_MIGRATION_LIMIT = 20
+        private const val EVENT_CORE_GUARD_BLOCKED = "core.guard_blocked"
 
         fun buildMigrationId(
             createdAtMillis: Long,
