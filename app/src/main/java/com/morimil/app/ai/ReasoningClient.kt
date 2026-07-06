@@ -1,5 +1,7 @@
 package com.morimil.app.ai
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -138,53 +140,55 @@ object ReasoningWire {
 }
 
 class ReasoningClient {
-    fun sendMessage(
+    suspend fun sendMessage(
         config: ReasoningProviderConfig,
         runtimeKey: String,
         systemPrompt: String,
         history: List<ChatTurn>
-    ): Result<String> = runCatching {
-        val valid = config.validated()
-        if (valid.requiresRuntimeKey) {
-            require(runtimeKey.isNotBlank()) { "Falta la llave de razonamiento." }
-        }
-        require(history.isNotEmpty()) { "No hay mensaje para enviar." }
+    ): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val valid = config.validated()
+            if (valid.requiresRuntimeKey) {
+                require(runtimeKey.isNotBlank()) { "Falta la llave de razonamiento." }
+            }
+            require(history.isNotEmpty()) { "No hay mensaje para enviar." }
 
-        val requestBody = ReasoningWire.buildBody(valid, systemPrompt, history)
-        val connection = (URL(valid.baseUrl).openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = TIMEOUT_MS
-            readTimeout = TIMEOUT_MS
-            doOutput = true
-            setRequestProperty("Content-Type", "application/json")
-            when (valid.wireFormat) {
-                ReasoningWireFormat.MESSAGES -> {
-                    if (runtimeKey.isNotBlank()) setRequestProperty("x-" + "api-key", runtimeKey)
-                    setRequestProperty(MESSAGES_VERSION_HEADER, MESSAGES_VERSION)
-                }
-                ReasoningWireFormat.CHAT,
-                ReasoningWireFormat.RESPONSES -> {
-                    if (runtimeKey.isNotBlank()) setRequestProperty("Authorization", "Bearer " + runtimeKey)
+            val requestBody = ReasoningWire.buildBody(valid, systemPrompt, history)
+            val connection = (URL(valid.baseUrl).openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = TIMEOUT_MS
+                readTimeout = TIMEOUT_MS
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                when (valid.wireFormat) {
+                    ReasoningWireFormat.MESSAGES -> {
+                        if (runtimeKey.isNotBlank()) setRequestProperty("x-" + "api-key", runtimeKey)
+                        setRequestProperty(MESSAGES_VERSION_HEADER, MESSAGES_VERSION)
+                    }
+                    ReasoningWireFormat.CHAT,
+                    ReasoningWireFormat.RESPONSES -> {
+                        if (runtimeKey.isNotBlank()) setRequestProperty("Authorization", "Bearer " + runtimeKey)
+                    }
                 }
             }
-        }
 
-        try {
-            connection.outputStream.use { it.write(requestBody.toByteArray(Charsets.UTF_8)) }
-            val statusCode = connection.responseCode
-            val responseBody = if (statusCode in 200..299) {
-                connection.inputStream.bufferedReader().use { it.readText() }
-            } else {
-                connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            try {
+                connection.outputStream.use { it.write(requestBody.toByteArray(Charsets.UTF_8)) }
+                val statusCode = connection.responseCode
+                val responseBody = if (statusCode in 200..299) {
+                    connection.inputStream.bufferedReader().use { it.readText() }
+                } else {
+                    connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                }
+                require(statusCode in 200..299) {
+                    "Motor de razonamiento rechazo la solicitud: HTTP $statusCode $responseBody"
+                }
+                val reply = ReasoningWire.parseReply(valid, responseBody)
+                require(reply.isNotBlank()) { "El motor no devolvio texto." }
+                reply
+            } finally {
+                connection.disconnect()
             }
-            require(statusCode in 200..299) {
-                "Motor de razonamiento rechazo la solicitud: HTTP $statusCode $responseBody"
-            }
-            val reply = ReasoningWire.parseReply(valid, responseBody)
-            require(reply.isNotBlank()) { "El motor no devolvio texto." }
-            reply
-        } finally {
-            connection.disconnect()
         }
     }
 
