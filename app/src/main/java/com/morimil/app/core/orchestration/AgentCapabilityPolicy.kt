@@ -2,6 +2,8 @@ package com.morimil.app.core.orchestration
 
 import com.morimil.app.core.immunity.ImmuneDecision
 import com.morimil.app.core.immunity.MorimilImmunePolicy
+import com.morimil.app.core.tools.ToolCapabilityDecision
+import com.morimil.app.core.tools.ToolCapabilityRegistry
 import org.json.JSONArray
 import java.util.Locale
 
@@ -43,17 +45,20 @@ object AgentCapabilityPolicy {
         val cleanGoal = goal.trim().ifBlank { "Preparar trabajo delegado" }
         val inferredAgentId = preferredAgentId ?: inferAgent(cleanGoal)
         val baseActions = allowedActionsFor(inferredAgentId)
+        val toolsetResult = ToolCapabilityRegistry.validateActionIds(baseActions)
         val baseTransports = transportsFor(inferredAgentId)
         val immuneResult = MorimilImmunePolicy.evaluateToolRequest(
             goal = cleanGoal,
             allowedActions = baseActions,
             approvalRequired = true
         )
-        val blocked = immuneResult.decision == ImmuneDecision.DENY || immuneResult.decision == ImmuneDecision.QUARANTINE
+        val immuneBlocked = immuneResult.decision == ImmuneDecision.DENY || immuneResult.decision == ImmuneDecision.QUARANTINE
+        val registryBlocked = toolsetResult.decision == ToolCapabilityDecision.DENY
+        val blocked = immuneBlocked || registryBlocked
         val agentId = if (blocked) AGENT_SECURITY else inferredAgentId
         val actions = if (blocked) emptyList() else baseActions
         val transports = if (blocked) emptyList() else baseTransports
-        val risk = maxRisk(riskFor(inferredAgentId, baseActions), immuneResult.riskLevel)
+        val risk = maxRisk(maxRisk(riskFor(inferredAgentId, baseActions), immuneResult.riskLevel), toolsetResult.riskLevel)
         return DelegationPlan(
             assignedAgentId = agentId,
             targetDeviceId = targetDeviceId,
@@ -61,7 +66,15 @@ object AgentCapabilityPolicy {
             allowedTransports = transports,
             approvalRequired = true,
             riskLevel = risk,
-            contextSummary = buildContextSummary(cleanGoal, agentId, risk, immuneResult.decision, immuneResult.reasons),
+            contextSummary = buildContextSummary(
+                cleanGoal,
+                agentId,
+                risk,
+                immuneResult.decision,
+                immuneResult.reasons,
+                toolsetResult.decision,
+                toolsetResult.reasons
+            ),
             immuneDecision = immuneResult.decision.name.lowercase(Locale.ROOT),
             immuneReasons = immuneResult.reasons,
             immuneMatchedSignals = immuneResult.matchedSignals
@@ -91,15 +104,7 @@ object AgentCapabilityPolicy {
     }
 
     private fun allowedActionsFor(agentId: String): List<String> {
-        return when (agentId) {
-            AGENT_GITHUB -> listOf("read_repository", "inspect_branch", "propose_diff", "prepare_pr_notes")
-            AGENT_ANDROID_BUILD -> listOf("run_gradle_tests", "run_assemble_debug", "summarize_build_output")
-            AGENT_FILE_AUDIT -> listOf("read_allowed_files", "summarize_files", "propose_patch")
-            AGENT_RESEARCH -> listOf("research_web", "summarize_sources", "produce_brief")
-            AGENT_DESIGN -> listOf("inspect_ui", "propose_visual_changes", "produce_design_notes")
-            AGENT_SECURITY -> listOf("audit_permissions", "audit_risk", "recommend_policy")
-            else -> listOf("prepare_command", "await_human_approval", "report_result")
-        }
+        return ToolCapabilityRegistry.actionsForAgent(agentId)
     }
 
     private fun transportsFor(agentId: String): List<String> {
@@ -111,11 +116,8 @@ object AgentCapabilityPolicy {
     }
 
     private fun riskFor(agentId: String, actions: List<String>): String {
-        return when {
-            agentId == AGENT_PC_EXECUTOR -> "high"
-            actions.any { it.contains("run_") || it.contains("propose_patch") } -> "medium"
-            else -> "low"
-        }
+        val registryRisk = ToolCapabilityRegistry.riskForActions(actions)
+        return if (agentId == AGENT_PC_EXECUTOR) maxRisk(registryRisk, "high") else registryRisk
     }
 
     private fun buildContextSummary(
@@ -123,11 +125,16 @@ object AgentCapabilityPolicy {
         agentId: String,
         risk: String,
         immuneDecision: ImmuneDecision,
-        immuneReasons: List<String>
+        immuneReasons: List<String>,
+        toolDecision: ToolCapabilityDecision,
+        toolReasons: List<String>
     ): String {
         val reasons = immuneReasons.joinToString(separator = ",").take(120).ifBlank { "none" }
+        val toolRegistryReasons = toolReasons.joinToString(separator = ",").take(120).ifBlank { "none" }
         return "Morimil delega como orquestador. agente=$agentId riesgo=$risk " +
-            "immune_decision=${immuneDecision.name.lowercase(Locale.ROOT)} immune_reasons=$reasons objetivo=${goal.take(180)}"
+            "immune_decision=${immuneDecision.name.lowercase(Locale.ROOT)} immune_reasons=$reasons " +
+            "tool_registry_decision=${toolDecision.name.lowercase(Locale.ROOT)} tool_registry_reasons=$toolRegistryReasons " +
+            "objetivo=${goal.take(180)}"
     }
 
     private fun maxRisk(left: String, right: String): String {
