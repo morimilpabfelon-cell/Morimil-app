@@ -33,7 +33,7 @@ class OrganismHealthUiStateTest {
         assertEquals("recalls: 0 activos", health.recallLabel)
         assertEquals("auditoria: hace 2h", health.auditAgeLabel)
         assertEquals("descanso: hace 45m", health.restCycleLabel)
-        assertEquals("Local: motor local activo", health.motorLabel)
+        assertEquals("API principal: motor local activo", health.motorLabel)
         assertEquals("accion: continuar", health.recommendedActionLabel)
         assertFalse(health.memoryNeedsAttention)
         assertFalse(health.auditNeedsAttention)
@@ -169,14 +169,11 @@ class OrganismHealthUiStateTest {
 
     private fun localSlot(): ReasoningMotorSlot {
         return ReasoningMotorSlot(
-            id = 1,
-            label = "Local",
             config = ReasoningProviderConfig(
                 preset = ReasoningPreset.LOCAL_COMPATIBLE,
                 baseUrl = "http://127.0.0.1:11434/v1/chat/completions",
                 model = "local-model"
-            ),
-            enabled = true
+            )
         )
     }
 
