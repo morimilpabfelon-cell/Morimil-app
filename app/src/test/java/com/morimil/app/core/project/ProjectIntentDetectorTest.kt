@@ -41,4 +41,16 @@ class ProjectIntentDetectorTest {
 
         assertNull(intent)
     }
+
+    @Test
+    fun ignoresCasualChatAndImprovementTalk() {
+        listOf(
+            "hola",
+            "dale",
+            "correcto y eso lo podemos mejorar nivel ASI",
+            "esto lo podemos mejorar antes de avanzar"
+        ).forEach { text ->
+            assertNull(ProjectIntentDetector.detect(text))
+        }
+    }
 }
