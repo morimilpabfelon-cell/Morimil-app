@@ -173,6 +173,50 @@ interface MemoryOrganDao {
 
     @Query("SELECT COUNT(*) FROM project_vaults")
     suspend fun countProjectVaults(): Int
+    @Query("SELECT * FROM project_vaults WHERE vaultId = :vaultId LIMIT 1")
+    suspend fun loadProjectVault(vaultId: String): ProjectVaultEntity?
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertProjectVault(vault: ProjectVaultEntity)
+
+    @Query(
+        """
+        UPDATE project_vaults
+        SET status = :status,
+            healthStatus = :healthStatus,
+            progressPercent = :progressPercent,
+            roadmapSummary = :roadmapSummary,
+            updatedAtMillis = :updatedAtMillis,
+            completedAtMillis = :completedAtMillis
+        WHERE vaultId = :vaultId
+        """
+    )
+    suspend fun completeProjectVault(
+        vaultId: String,
+        status: String,
+        healthStatus: String,
+        progressPercent: Int,
+        roadmapSummary: String,
+        updatedAtMillis: Long,
+        completedAtMillis: Long
+    ): Int
+
+    @Query(
+        """
+        UPDATE project_vaults
+        SET status = :status,
+            healthStatus = :healthStatus,
+            updatedAtMillis = :updatedAtMillis
+        WHERE vaultId = :vaultId
+        """
+    )
+    suspend fun archiveProjectVault(
+        vaultId: String,
+        status: String,
+        healthStatus: String,
+        updatedAtMillis: Long
+    ): Int
+
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertProjectVaults(vaults: List<ProjectVaultEntity>): List<Long>
@@ -247,4 +291,5 @@ interface MemoryOrganDao {
         completedAtMillis: Long
     ): Int
 }
+
 

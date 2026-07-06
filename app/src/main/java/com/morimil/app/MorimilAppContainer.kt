@@ -1,4 +1,4 @@
-package com.morimil.app
+﻿package com.morimil.app
 
 import android.content.Context
 import com.morimil.app.ai.ReasoningClient
@@ -12,6 +12,7 @@ import com.morimil.app.data.repository.MemoryLinkRepository
 import com.morimil.app.data.repository.MemoryOrganRepository
 import com.morimil.app.data.repository.MemoryRepository
 import com.morimil.app.data.repository.MigrationRecordRepository
+import com.morimil.app.data.repository.ProjectVaultRepository
 import com.morimil.app.data.repository.RecallScheduleRepository
 import com.morimil.app.data.repository.RestCycleRepository
 import com.morimil.app.domain.usecase.AppendLivingMemoryUseCase
@@ -97,6 +98,13 @@ class MorimilAppContainer(context: Context) {
         )
     }
 
+    val projectVaultRepository: ProjectVaultRepository by lazy {
+        ProjectVaultRepository(
+            organDatabase = organDatabase,
+            memoryRepository = memoryRepository
+        )
+    }
+
     val agentOrchestrationRepository: AgentOrchestrationRepository by lazy {
         AgentOrchestrationRepository(
             organDatabase = organDatabase,
@@ -141,3 +149,4 @@ class MorimilAppContainer(context: Context) {
         }
     }
 }
+

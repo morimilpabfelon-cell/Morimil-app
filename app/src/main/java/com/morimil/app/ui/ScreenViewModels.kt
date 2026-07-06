@@ -1,4 +1,4 @@
-package com.morimil.app.ui
+﻿package com.morimil.app.ui
 
 import com.morimil.app.data.local.AutobiographicalSnapshotEntity
 import com.morimil.app.data.local.DecisionLogEntity
@@ -9,6 +9,7 @@ import com.morimil.app.data.local.MemoryMessageEntity
 import com.morimil.app.data.local.MemorySnapshotEntity
 import com.morimil.app.data.local.MigrationRecordEntity
 import com.morimil.app.data.local.ProjectStateEntity
+import com.morimil.app.data.local.ProjectVaultEntity
 import com.morimil.app.data.local.RecallScheduleEntity
 import com.morimil.app.runtime.RestCycleScheduleStatus
 import kotlinx.coroutines.flow.Flow
@@ -48,6 +49,7 @@ data class MemoryUiState(
 )
 
 data class PcHandoffUiState(
+    val vaults: List<ProjectVaultEntity> = emptyList(),
     val devices: List<OrchestratorDeviceEntity> = emptyList(),
     val agents: List<AgentProfileEntity> = emptyList(),
     val tasks: List<DelegatedTaskEntity> = emptyList()
@@ -198,11 +200,13 @@ class MotorViewModel internal constructor(private val owner: MorimilViewModel) {
 
 class PcHandoffViewModel internal constructor(private val owner: MorimilViewModel) {
     val uiState: StateFlow<PcHandoffUiState> = combine(
+        owner.projectVaults,
         owner.orchestratorDevices,
         owner.agentProfiles,
         owner.delegatedTasks
-    ) { devices, agents, tasks ->
+    ) { vaults, devices, agents, tasks ->
         PcHandoffUiState(
+            vaults = vaults,
             devices = devices,
             agents = agents,
             tasks = tasks
@@ -210,6 +214,9 @@ class PcHandoffViewModel internal constructor(private val owner: MorimilViewMode
     }.stateIn(owner.viewModelScope, SharingStarted.WhileSubscribed(5_000), PcHandoffUiState())
 
     fun seedOrchestration() = owner.seedAgentOrchestration()
+    fun createProjectVault(name: String, mission: String) = owner.createProjectVault(name, mission)
+    fun completeVault(vaultId: String, summary: String) = owner.completeProjectVault(vaultId, summary)
+    fun archiveVault(vaultId: String) = owner.archiveProjectVault(vaultId)
     fun proposeAndroidBuildTask() = owner.proposeDelegatedTask("Correr pruebas Android y assembleDebug en un entorno autorizado")
     fun proposeRepoReviewTask() = owner.proposeDelegatedTask("Revisar repositorio GitHub, detectar riesgos y proponer mejoras")
     fun approveTask(taskId: String) = owner.approveDelegatedTask(taskId)

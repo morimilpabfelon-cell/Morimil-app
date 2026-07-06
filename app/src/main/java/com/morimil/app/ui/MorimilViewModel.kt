@@ -1,4 +1,4 @@
-package com.morimil.app.ui
+﻿package com.morimil.app.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -20,6 +20,7 @@ import com.morimil.app.data.local.MemoryMessageEntity
 import com.morimil.app.data.local.MemorySnapshotEntity
 import com.morimil.app.data.local.MigrationRecordEntity
 import com.morimil.app.data.local.ProjectStateEntity
+import com.morimil.app.data.local.ProjectVaultEntity
 import com.morimil.app.data.local.RecallScheduleEntity
 import com.morimil.app.data.local.UserWorkspaceEntity
 import com.morimil.app.data.repository.MemoryLinkRepository
@@ -52,6 +53,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     private val appendLivingMemoryUseCase = container.appendLivingMemoryUseCase
     private val runRestCycleUseCase = container.runRestCycleUseCase
     private val proposeCognitiveMigrationUseCase = container.proposeCognitiveMigrationUseCase
+    private val projectVaultRepository = container.projectVaultRepository
     private val agentOrchestrationRepository = container.agentOrchestrationRepository
     private val genesisReader = container.genesisReader
     private val secretVault = container.secretVault
@@ -162,6 +164,12 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     private var selectedMemoryLinksJob: Job? = null
 
     val recentMigrationRecords: StateFlow<List<MigrationRecordEntity>> = migrationRecordRepository.recentMigrationRecords.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList()
+    )
+
+    val projectVaults: StateFlow<List<ProjectVaultEntity>> = projectVaultRepository.projectVaults.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList()
@@ -594,6 +602,34 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun createProjectVault(displayName: String, mission: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runObservedInternalTask("project_vault.create") {
+                projectVaultRepository.createProjectVaultFromIntent(
+                    displayName = displayName,
+                    mission = mission,
+                    sourceContext = "founder_instruction"
+                )
+            }
+        }
+    }
+
+    fun completeProjectVault(vaultId: String, finalSummary: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runObservedInternalTask("project_vault.complete") {
+                projectVaultRepository.completeProjectVault(vaultId, finalSummary)
+            }
+        }
+    }
+
+    fun archiveProjectVault(vaultId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runObservedInternalTask("project_vault.archive") {
+                projectVaultRepository.archiveProjectVault(vaultId, "archived_by_founder")
+            }
+        }
+    }
+
     fun seedAgentOrchestration() {
         viewModelScope.launch(Dispatchers.IO) {
             runObservedInternalTask("agent_orchestration.seed") {
@@ -751,3 +787,4 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         private const val MAX_GRAPH_EVENT_LOOKUP = 60
     }
 }
+
