@@ -476,3 +476,15 @@ private fun shouldShowDaySeparator(messages: List<MemoryMessageEntity>, index: I
 private fun dayLabel(createdAtMillis: Long): String {
     return SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(createdAtMillis))
 }
+
+private fun timeLabel(createdAtMillis: Long): String {
+    return SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(createdAtMillis))
+}
+
+private fun healthStatusColor(level: HealthStatusLevel): Color {
+    return if (level == HealthStatusLevel.Stable) {
+        Color(0xFF2E7D32)
+    } else {
+        Color(0xFFC62828)
+    }
+}
