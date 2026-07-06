@@ -32,6 +32,10 @@ class RestCycleRepository(
         organDatabase = organDatabase,
         memoryIntegrityCore = memoryIntegrityCore
     )
+    private val localNervousSystemRepository = LocalNervousSystemRepository(
+        database = database,
+        memoryRepository = memoryRepository
+    )
 
     suspend fun runLocalRestCycleIfDue(force: Boolean = false): Boolean {
         return runLocalRestCycleIfDue(force = force, approvedMigrationId = null)
@@ -76,11 +80,21 @@ class RestCycleRepository(
         val summary = buildRestCycleSummary(events, now)
         if (summary.isBlank()) return false
 
+        val chainScanStartedAtMillis = System.currentTimeMillis()
         val fullChainEvents = memoryDao.loadMemoryEventAuditChain()
         val fullChainVerified = memoryIntegrityCore.verifyMemoryEventChain(fullChainEvents)
+        val chainScanLatencyMillis = System.currentTimeMillis() - chainScanStartedAtMillis
         val organReconciliation = organReconciliationRepository.reconcileAgainstMemoryEvents(
             validMemoryEventHashes = fullChainEvents.map { event -> event.eventHash }.toSet(),
             memoryChainVerified = fullChainVerified
+        )
+        localNervousSystemRepository.recordHealthCheckIfDegraded(
+            source = "rest_cycle_preflight",
+            fullMemoryChain = fullChainEvents,
+            memoryChainVerified = fullChainVerified,
+            chainScanLatencyMillis = chainScanLatencyMillis,
+            organReconciliation = organReconciliation,
+            nowMillis = now
         )
         val maintenanceReport = RestCycleMaintenancePlanner.build(
             mode = if (force) RestCycleMode.Deep else RestCycleMode.Normal,
