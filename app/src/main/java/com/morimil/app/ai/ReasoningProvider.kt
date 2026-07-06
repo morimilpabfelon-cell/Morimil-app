@@ -66,7 +66,7 @@ data class ReasoningProviderConfig(
     }
 
     companion object {
-        const val DEFAULT_MAX_TOKENS = 1024
+        const val DEFAULT_MAX_TOKENS = 4096
         const val MAX_ALLOWED_TOKENS = 32768
 
         fun default(): ReasoningProviderConfig = fromPreset(ReasoningPreset.CUSTOM)
