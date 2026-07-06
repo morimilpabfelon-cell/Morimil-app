@@ -3,6 +3,7 @@ package com.morimil.app
 import android.content.Context
 import com.morimil.app.ai.ReasoningClient
 import com.morimil.app.ai.ReasoningConfigStore
+import com.morimil.app.ai.ReasoningUsageLedger
 import com.morimil.app.core.memory.MemoryIntegrityCore
 import com.morimil.app.data.genesis.GenesisReader
 import com.morimil.app.data.local.MemoryOrganDatabase
@@ -145,8 +146,12 @@ class MorimilAppContainer(context: Context) {
         ReasoningConfigStore(appContext)
     }
 
+    val reasoningUsageLedger: ReasoningUsageLedger by lazy {
+        ReasoningUsageLedger(appContext)
+    }
+
     val reasoningClient: ReasoningClient by lazy {
-        ReasoningClient()
+        ReasoningClient(reasoningUsageLedger)
     }
 
     companion object {
