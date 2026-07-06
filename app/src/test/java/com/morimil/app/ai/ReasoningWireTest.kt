@@ -71,7 +71,7 @@ class ReasoningWireTest {
         assertEquals("SYS", body.getString("instructions"))
         assertEquals("model-r", body.getString("model"))
         assertEquals(3, input.length())
-        assertEquals(1024, body.getInt("max_output_tokens"))
+        assertEquals(ReasoningProviderConfig.DEFAULT_MAX_TOKENS, body.getInt("max_output_tokens"))
     }
 
     @Test
@@ -86,6 +86,21 @@ class ReasoningWireTest {
     }
 
     @Test
+    fun messagesReplyDetectsMaxTokenStopReason() {
+        val cfg = ReasoningProviderConfig.fromPreset(ReasoningPreset.MESSAGES_COMPATIBLE)
+            .copy(model = "model-a")
+        val response = """
+            {"stop_reason":"max_tokens","content":[{"type":"text","text":"texto parcial"}]}
+        """.trimIndent()
+
+        val parsed = ReasoningWire.parseReplyResult(cfg, response)
+
+        assertEquals("texto parcial", parsed.text)
+        assertTrue(parsed.truncated)
+        assertEquals("max_tokens", parsed.finishReason)
+    }
+
+    @Test
     fun chatReplyParsesFirstChoice() {
         val cfg = ReasoningProviderConfig.fromPreset(ReasoningPreset.CHAT_COMPATIBLE)
             .copy(baseUrl = "https://example.com/chat", model = "model-b")
@@ -94,6 +109,21 @@ class ReasoningWireTest {
         """.trimIndent()
 
         assertEquals("hola Morimil", ReasoningWire.parseReply(cfg, response))
+    }
+
+    @Test
+    fun chatReplyDetectsLengthFinishReason() {
+        val cfg = ReasoningProviderConfig.fromPreset(ReasoningPreset.CHAT_COMPATIBLE)
+            .copy(baseUrl = "https://example.com/chat", model = "model-b")
+        val response = """
+            {"choices":[{"finish_reason":"length","message":{"role":"assistant","content":"respuesta parcial"}}]}
+        """.trimIndent()
+
+        val parsed = ReasoningWire.parseReplyResult(cfg, response)
+
+        assertEquals("respuesta parcial", parsed.text)
+        assertTrue(parsed.truncated)
+        assertEquals("length", parsed.finishReason)
     }
 
     @Test
@@ -127,6 +157,21 @@ class ReasoningWireTest {
         """.trimIndent()
 
         assertEquals("hola Morimil", ReasoningWire.parseReply(cfg, response))
+    }
+
+    @Test
+    fun responsesReplyDetectsIncompleteMaxOutputTokens() {
+        val cfg = ReasoningProviderConfig.fromPreset(ReasoningPreset.RESPONSES_COMPATIBLE)
+            .copy(baseUrl = "https://example.com/v1/responses", model = "model-r")
+        val response = """
+            {"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output_text":"respuesta parcial"}
+        """.trimIndent()
+
+        val parsed = ReasoningWire.parseReplyResult(cfg, response)
+
+        assertEquals("respuesta parcial", parsed.text)
+        assertTrue(parsed.truncated)
+        assertEquals("max_output_tokens", parsed.finishReason)
     }
 
     @Test
