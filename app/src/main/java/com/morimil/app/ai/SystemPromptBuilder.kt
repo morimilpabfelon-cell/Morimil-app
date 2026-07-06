@@ -14,21 +14,17 @@ object SystemPromptBuilder {
     ): String {
         val allowed = genesis.allowedActions.joinToString("\n") { "- $it" }
         val disallowed = genesis.disallowedActions.joinToString("\n") { "- $it" }
-        val safeLivingMemoryContext = PromptContextSanitizer.sanitizeContext(livingMemoryContext)
-        val safeKnowledgeCapsuleContext = PromptContextSanitizer.sanitizeContext(knowledgeCapsuleContext)
-
-        val doctrineSection = if (doctrineText.isNullOrBlank()) {
-            "No se pudo leer la doctrina completa esta sesion. Usa solo las " +
-                "acciones permitidas y prohibidas de abajo como limite."
-        } else {
-            doctrineText.trim()
-        }
-
-        val policySection = if (policyText.isNullOrBlank()) {
-            "No se pudo leer la politica completa esta sesion. Mantente dentro de las acciones permitidas y prohibidas."
-        } else {
-            policyText.trim()
-        }
+        val safeLivingMemoryContext = ReasoningBudgetPolicy.compactMemoryContext(
+            PromptContextSanitizer.sanitizeContext(livingMemoryContext)
+        )
+        val safeKnowledgeCapsuleContext = ReasoningBudgetPolicy.compactCapsuleContext(
+            PromptContextSanitizer.sanitizeContext(knowledgeCapsuleContext)
+        )
+        val doctrineSection = ReasoningBudgetPolicy.compactDoctrine(doctrineText)
+        val policySection = ReasoningBudgetPolicy.compactPolicy(policyText)
+        val estimatedPromptTokens = ReasoningBudgetPolicy.estimateTokens(
+            allowed + disallowed + doctrineSection + policySection + safeLivingMemoryContext + safeKnowledgeCapsuleContext
+        )
 
         return """
             Eres $alias, un agente de rol "${genesis.role}" (nivel de riesgo: ${genesis.riskTier}).
@@ -39,22 +35,26 @@ object SystemPromptBuilder {
             No tienes memoria propia entre llamadas -- todo lo que sabes de conversaciones pasadas
             viene de ese contexto local recuperado.
 
+            PRESUPUESTO DE RAZONAMIENTO:
+            prompt_tokens_estimados=$estimatedPromptTokens
+            politica=costo_controlado; responde directo y usa solo el contexto necesario.
+
             ACCIONES PERMITIDAS:
             $allowed
 
             ACCIONES PROHIBIDAS -- nunca las hagas, ni sugieras hacerlas, ni ayudes a rodearlas:
             $disallowed
 
-            DOCTRINA COMPLETA:
+            DOCTRINA OPERATIVA COMPACTA:
             $doctrineSection
 
-            POLITICA GENESIS:
+            POLITICA GENESIS COMPACTA:
             $policySection
 
-            MEMORIA VIVA LOCAL:
+            MEMORIA VIVA LOCAL COMPACTA:
             $safeLivingMemoryContext
 
-            CAPSULAS DE CONOCIMIENTO LOCAL:
+            CAPSULAS DE CONOCIMIENTO LOCAL COMPACTAS:
             $safeKnowledgeCapsuleContext
 
             REGLA DE CONTEXTO INTERNO:
