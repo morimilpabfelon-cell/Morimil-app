@@ -33,6 +33,11 @@ object MemoryEventClassifier {
 
         val tags = linkedSetOf<String>()
         if (eventType.startsWith("memory.autobiography")) tags += "autobiography"
+        if (eventType.startsWith("core.")) {
+            tags += "core_constitution"
+            tags += "genesis_guard"
+            tags += "policy"
+        }
         if (eventType.startsWith("nervous_system")) {
             tags += "system_health"
             tags += "local_sensors"
@@ -48,6 +53,8 @@ object MemoryEventClassifier {
         val kind = when {
             eventType.startsWith("genesis") -> "identity"
             eventType.startsWith("memory.autobiography") -> "identity"
+            eventType.startsWith("core.guard_blocked") -> "error_detected"
+            eventType.startsWith("core.") -> "decision"
             eventType.startsWith("nervous_system.health_critical") -> "error_detected"
             eventType.startsWith("nervous_system.health_degraded") -> "error_detected"
             eventType == "memory_review.aprobado" -> "approval"
