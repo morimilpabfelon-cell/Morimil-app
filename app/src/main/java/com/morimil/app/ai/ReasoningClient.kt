@@ -6,8 +6,15 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
 
 data class ChatTurn(val role: String, val content: String)
+
+data class ReasoningParsedReply(
+    val text: String,
+    val truncated: Boolean = false,
+    val finishReason: String? = null
+)
 
 object ReasoningWire {
     fun buildBody(
@@ -23,12 +30,26 @@ object ReasoningWire {
     }
 
     fun parseReply(config: ReasoningProviderConfig, responseBody: String): String {
+        return parseReplyResult(config, responseBody).text
+    }
+
+    fun parseReplyResult(config: ReasoningProviderConfig, responseBody: String): ReasoningParsedReply {
         val parsed = when (config.wireFormat) {
-            ReasoningWireFormat.MESSAGES -> parseMessagesReply(responseBody)
-            ReasoningWireFormat.CHAT -> parseChatReply(responseBody)
-            ReasoningWireFormat.RESPONSES -> parseResponsesReply(responseBody)
+            ReasoningWireFormat.MESSAGES -> parseMessagesReplyResult(responseBody)
+            ReasoningWireFormat.CHAT -> parseChatReplyResult(responseBody)
+            ReasoningWireFormat.RESPONSES -> parseResponsesReplyResult(responseBody)
         }
-        return parsed.ifBlank { parseFallbackReply(responseBody) }
+        if (parsed.text.isNotBlank()) return parsed
+
+        val fallback = parseFallbackReplyResult(responseBody)
+        return if (fallback.text.isBlank()) {
+            parsed
+        } else {
+            fallback.copy(
+                truncated = parsed.truncated || fallback.truncated,
+                finishReason = parsed.finishReason ?: fallback.finishReason
+            )
+        }
     }
 
     private fun messagesBody(
@@ -86,9 +107,13 @@ object ReasoningWire {
             .toString()
     }
 
-    private fun parseMessagesReply(body: String): String {
+    private fun parseMessagesReplyResult(body: String): ReasoningParsedReply {
         val root = JSONObject(body)
-        val content = root.optJSONArray("content") ?: return ""
+        val content = root.optJSONArray("content") ?: return ReasoningParsedReply(
+            text = "",
+            truncated = isTruncatedReason(root.nullableString("stop_reason")),
+            finishReason = root.nullableString("stop_reason")
+        )
         val output = StringBuilder()
         for (i in 0 until content.length()) {
             val block = content.optJSONObject(i) ?: continue
@@ -96,24 +121,48 @@ object ReasoningWire {
                 output.append(block.optString("text"))
             }
         }
-        return output.toString()
+        val finishReason = root.nullableString("stop_reason") ?: root.nullableString("finish_reason")
+        return ReasoningParsedReply(
+            text = output.toString(),
+            truncated = isTruncatedReason(finishReason),
+            finishReason = finishReason
+        )
     }
 
-    private fun parseChatReply(body: String): String {
+    private fun parseChatReplyResult(body: String): ReasoningParsedReply {
         val root = JSONObject(body)
-        val choices = root.optJSONArray("choices") ?: return ""
-        val first = choices.optJSONObject(0) ?: return ""
-        val message = first.optJSONObject("message") ?: return ""
-        val content = firstContentValue(message, "content", "reasoning_content", "refusal") ?: return ""
-        return parseContentValue(content)
+        val choices = root.optJSONArray("choices") ?: return ReasoningParsedReply("")
+        val first = choices.optJSONObject(0) ?: return ReasoningParsedReply("")
+        val message = first.optJSONObject("message") ?: return ReasoningParsedReply("")
+        val content = firstContentValue(message, "content", "reasoning_content", "refusal") ?: return ReasoningParsedReply("")
+        val finishReason = first.nullableString("finish_reason") ?: message.nullableString("finish_reason")
+        return ReasoningParsedReply(
+            text = parseContentValue(content),
+            truncated = isTruncatedReason(finishReason),
+            finishReason = finishReason
+        )
     }
 
-    private fun parseResponsesReply(body: String): String {
+    private fun parseResponsesReplyResult(body: String): ReasoningParsedReply {
         val root = JSONObject(body)
         val direct = root.optString("output_text")
-        if (direct.isNotBlank()) return direct
+        val status = root.nullableString("status")
+        val incompleteReason = root.optJSONObject("incomplete_details")?.nullableString("reason")
+        val finishReason = incompleteReason ?: status
+        val truncated = isTruncatedReason(incompleteReason) || status == "incomplete" && incompleteReason == null
+        if (direct.isNotBlank()) {
+            return ReasoningParsedReply(
+                text = direct,
+                truncated = truncated,
+                finishReason = finishReason
+            )
+        }
 
-        val output = root.optJSONArray("output") ?: return ""
+        val output = root.optJSONArray("output") ?: return ReasoningParsedReply(
+            text = "",
+            truncated = truncated,
+            finishReason = finishReason
+        )
         val text = StringBuilder()
         for (i in 0 until output.length()) {
             val item = output.optJSONObject(i) ?: continue
@@ -126,20 +175,32 @@ object ReasoningWire {
                 }
             }
         }
-        return text.toString()
+        return ReasoningParsedReply(
+            text = text.toString(),
+            truncated = truncated,
+            finishReason = finishReason
+        )
     }
 
-    private fun parseFallbackReply(body: String): String {
+    private fun parseFallbackReplyResult(body: String): ReasoningParsedReply {
         return runCatching {
             val root = JSONObject(body)
-            root.optString("output_text").takeIf { it.isNotBlank() }
+            val text = root.optString("output_text").takeIf { it.isNotBlank() }
                 ?: root.optJSONObject("message")?.let { parseContentValue(firstContentValue(it, "content", "refusal") ?: "") }
                 ?: root.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.let { message ->
                     parseContentValue(firstContentValue(message, "content", "refusal") ?: "")
                 }
                 ?: root.optJSONObject("error")?.optString("message")?.takeIf { it.isNotBlank() }
                 ?: ""
-        }.getOrDefault("")
+            val finishReason = root.nullableString("finish_reason")
+                ?: root.nullableString("stop_reason")
+                ?: root.optJSONObject("incomplete_details")?.nullableString("reason")
+            ReasoningParsedReply(
+                text = text,
+                truncated = isTruncatedReason(finishReason),
+                finishReason = finishReason
+            )
+        }.getOrDefault(ReasoningParsedReply(""))
     }
 
     private fun firstContentValue(root: JSONObject, vararg keys: String): Any? {
@@ -172,6 +233,21 @@ object ReasoningWire {
             else -> ""
         }
     }
+
+    private fun JSONObject.nullableString(key: String): String? {
+        if (!has(key) || isNull(key)) return null
+        return optString(key).takeIf { value -> value.isNotBlank() }
+    }
+
+    private fun isTruncatedReason(reason: String?): Boolean {
+        val clean = reason?.trim()?.lowercase(Locale.ROOT).orEmpty()
+        return clean == "length" ||
+            clean == "max_tokens" ||
+            clean == "max_output_tokens" ||
+            clean == "token_limit" ||
+            clean.contains("max_token") ||
+            clean.contains("output_token")
+    }
 }
 
 class ReasoningClient {
@@ -188,48 +264,118 @@ class ReasoningClient {
             }
             require(history.isNotEmpty()) { "No hay mensaje para enviar." }
 
-            val requestBody = ReasoningWire.buildBody(valid, systemPrompt, history)
-            val connection = (URL(valid.baseUrl).openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                connectTimeout = TIMEOUT_MS
-                readTimeout = TIMEOUT_MS
-                doOutput = true
-                setRequestProperty("Content-Type", "application/json")
-                when (valid.wireFormat) {
-                    ReasoningWireFormat.MESSAGES -> {
-                        if (runtimeKey.isNotBlank()) setRequestProperty("x-" + "api-key", runtimeKey)
-                        setRequestProperty(MESSAGES_VERSION_HEADER, MESSAGES_VERSION)
-                    }
-                    ReasoningWireFormat.CHAT,
-                    ReasoningWireFormat.RESPONSES -> {
-                        if (runtimeKey.isNotBlank()) setRequestProperty("Authorization", "Bearer " + runtimeKey)
-                    }
-                }
-            }
+            val initialReply = sendSingleRequest(
+                valid = valid,
+                runtimeKey = runtimeKey,
+                systemPrompt = systemPrompt,
+                history = history
+            )
+            require(initialReply.text.isNotBlank()) { "El motor no devolvio texto." }
+            recoverTruncatedReply(
+                valid = valid,
+                runtimeKey = runtimeKey,
+                systemPrompt = systemPrompt,
+                originalHistory = history,
+                initialReply = initialReply
+            ).text
+        }
+    }
 
-            try {
-                connection.outputStream.use { it.write(requestBody.toByteArray(Charsets.UTF_8)) }
-                val statusCode = connection.responseCode
-                val responseBody = if (statusCode in 200..299) {
-                    connection.inputStream.bufferedReader().use { it.readText() }
-                } else {
-                    connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+    private fun sendSingleRequest(
+        valid: ReasoningProviderConfig,
+        runtimeKey: String,
+        systemPrompt: String,
+        history: List<ChatTurn>
+    ): ReasoningParsedReply {
+        val requestBody = ReasoningWire.buildBody(valid, systemPrompt, history)
+        val connection = (URL(valid.baseUrl).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = TIMEOUT_MS
+            readTimeout = TIMEOUT_MS
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json")
+            when (valid.wireFormat) {
+                ReasoningWireFormat.MESSAGES -> {
+                    if (runtimeKey.isNotBlank()) setRequestProperty("x-" + "api-key", runtimeKey)
+                    setRequestProperty(MESSAGES_VERSION_HEADER, MESSAGES_VERSION)
                 }
-                require(statusCode in 200..299) {
-                    "Motor de razonamiento rechazo la solicitud: HTTP $statusCode $responseBody"
+                ReasoningWireFormat.CHAT,
+                ReasoningWireFormat.RESPONSES -> {
+                    if (runtimeKey.isNotBlank()) setRequestProperty("Authorization", "Bearer " + runtimeKey)
                 }
-                val reply = ReasoningWire.parseReply(valid, responseBody)
-                require(reply.isNotBlank()) { "El motor no devolvio texto." }
-                reply
-            } finally {
-                connection.disconnect()
             }
         }
+
+        return try {
+            connection.outputStream.use { it.write(requestBody.toByteArray(Charsets.UTF_8)) }
+            val statusCode = connection.responseCode
+            val responseBody = if (statusCode in 200..299) {
+                connection.inputStream.bufferedReader().use { it.readText() }
+            } else {
+                connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            }
+            require(statusCode in 200..299) {
+                "Motor de razonamiento rechazo la solicitud: HTTP $statusCode $responseBody"
+            }
+            ReasoningWire.parseReplyResult(valid, responseBody)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun recoverTruncatedReply(
+        valid: ReasoningProviderConfig,
+        runtimeKey: String,
+        systemPrompt: String,
+        originalHistory: List<ChatTurn>,
+        initialReply: ReasoningParsedReply
+    ): ReasoningParsedReply {
+        if (!initialReply.truncated) return initialReply
+
+        var combinedText = initialReply.text.trimEnd()
+        var continuationHistory = originalHistory +
+            ChatTurn(role = "assistant", content = initialReply.text) +
+            ChatTurn(role = "user", content = CONTINUATION_PROMPT)
+
+        repeat(MAX_CONTINUATION_CALLS) {
+            val continuation = sendSingleRequest(
+                valid = valid,
+                runtimeKey = runtimeKey,
+                systemPrompt = systemPrompt,
+                history = continuationHistory
+            )
+            if (continuation.text.isBlank()) {
+                return initialReply.copy(text = appendTruncationWarning(combinedText), truncated = true)
+            }
+            combinedText = joinContinuation(combinedText, continuation.text)
+            if (!continuation.truncated) {
+                return initialReply.copy(text = combinedText, truncated = false, finishReason = continuation.finishReason)
+            }
+            continuationHistory = continuationHistory +
+                ChatTurn(role = "assistant", content = continuation.text) +
+                ChatTurn(role = "user", content = CONTINUATION_PROMPT)
+        }
+
+        return initialReply.copy(text = appendTruncationWarning(combinedText), truncated = true)
+    }
+
+    private fun joinContinuation(left: String, right: String): String {
+        val cleanLeft = left.trimEnd()
+        val cleanRight = right.trimStart()
+        if (cleanLeft.isBlank()) return cleanRight
+        if (cleanRight.isBlank()) return cleanLeft
+        return cleanLeft + "\n" + cleanRight
+    }
+
+    private fun appendTruncationWarning(text: String): String {
+        return text.trimEnd() + "\n\n[Morimil detecto que el motor corto la respuesta por limite de salida. Sube max_tokens/max_output_tokens o pide continuar.]"
     }
 
     companion object {
         const val MAX_HISTORY_MESSAGES = 50
         private const val TIMEOUT_MS = 45000
+        private const val MAX_CONTINUATION_CALLS = 1
+        private const val CONTINUATION_PROMPT = "Continua exactamente desde donde se corto la respuesta anterior. No reinicies, no repitas introducciones y no cambies de tema."
         private val MESSAGES_VERSION_HEADER = "anth" + "ropic-version"
         private const val MESSAGES_VERSION = "2023-06-01"
     }
