@@ -1,4 +1,4 @@
-﻿package com.morimil.app.ui
+package com.morimil.app.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.morimil.app.data.local.AgentInstanceEntity
 import com.morimil.app.data.local.DelegatedTaskEntity
 import com.morimil.app.data.local.OrchestratorDeviceEntity
 import com.morimil.app.data.local.ProjectVaultEntity
@@ -43,7 +44,16 @@ fun PcHandoffScreen(viewModel: PcHandoffViewModel) {
             onComplete = { viewModel.completeVault(selectedVault.vaultId, selectedVault.roadmapSummary) },
             onArchive = { viewModel.archiveVault(selectedVault.vaultId) },
             onApproveTask = viewModel::approveTask,
-            onRejectTask = viewModel::rejectTask
+            onRejectTask = viewModel::rejectTask,
+            onCreateAgent = viewModel::createAgentForVault,
+            onAssignAgentTask = viewModel::assignAgentTask,
+            onSubmitAgentResult = viewModel::submitAgentResult,
+            onMarkAgentWorking = viewModel::markAgentWorking,
+            onMarkAgentThinking = viewModel::markAgentThinking,
+            onMarkAgentAwaitingReview = viewModel::markAgentAwaitingReview,
+            onRetireAgent = viewModel::retireAgent,
+            onQuarantineAgent = viewModel::quarantineAgent,
+            onPromoteAgent = viewModel::promoteAgent
         )
         return
     }
@@ -57,7 +67,6 @@ fun PcHandoffScreen(viewModel: PcHandoffViewModel) {
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = viewModel::seedOrchestration) { Text("Inicializar entornos") }
-            Button(onClick = { viewModel.createProjectVault("IonPay", "Empresa de billetera de pagos y arquitectura fintech") }) { Text("Crear IonPay") }
         }
 
         ProjectCard(
@@ -102,11 +111,22 @@ private fun ProjectVaultDetailScreen(
     onComplete: () -> Unit,
     onArchive: () -> Unit,
     onApproveTask: (String) -> Unit,
-    onRejectTask: (String) -> Unit
+    onRejectTask: (String) -> Unit,
+    onCreateAgent: (String) -> Unit,
+    onAssignAgentTask: (String, String) -> Unit,
+    onSubmitAgentResult: (String, String) -> Unit,
+    onMarkAgentWorking: (String) -> Unit,
+    onMarkAgentThinking: (String) -> Unit,
+    onMarkAgentAwaitingReview: (String) -> Unit,
+    onRetireAgent: (String) -> Unit,
+    onQuarantineAgent: (String) -> Unit,
+    onPromoteAgent: (String) -> Unit
 ) {
+    val relatedAgents = uiState.agentInstances.filter { agent -> agent.projectVaultId == vault.vaultId }
     val relatedTasks = uiState.tasks.filter { task ->
         task.goal.contains(vault.displayName, ignoreCase = true) ||
-            task.contextSummary.contains(vault.displayName, ignoreCase = true)
+            task.contextSummary.contains(vault.displayName, ignoreCase = true) ||
+            relatedAgents.any { agent -> task.assignedAgentId == agent.agentInstanceId }
     }
 
     Column(
@@ -127,10 +147,26 @@ private fun ProjectVaultDetailScreen(
         ProjectCard("Roadmap", vault.roadmapSummary, vault.healthStatus)
 
         Text("Enjambre", style = MaterialTheme.typography.titleMedium)
-        if (vault.activeAgentCount == 0) {
-            ProjectCard("Sin agentes activos", "La boveda ya existe. El siguiente bloque crea agentes-instancia por tarea dentro de esta boveda.", "planning")
+        Button(onClick = { onCreateAgent(vault.vaultId) }, enabled = vault.status == "active") {
+            Text("Crear agente temporal")
+        }
+        if (relatedAgents.isEmpty()) {
+            ProjectCard("Sin agentes activos", "Crea agentes temporales solo cuando la boveda tenga trabajo concreto.", "planning")
         } else {
-            ProjectCard("Agentes activos", "${vault.activeAgentCount} agentes trabajando en esta boveda.", "active")
+            relatedAgents.forEach { agent ->
+                AgentInstanceCard(
+                    vault = vault,
+                    agent = agent,
+                    onAssignTask = onAssignAgentTask,
+                    onSubmitResult = onSubmitAgentResult,
+                    onMarkWorking = onMarkAgentWorking,
+                    onMarkThinking = onMarkAgentThinking,
+                    onMarkAwaitingReview = onMarkAgentAwaitingReview,
+                    onRetire = onRetireAgent,
+                    onQuarantine = onQuarantineAgent,
+                    onPromote = onPromoteAgent
+                )
+            }
         }
 
         Text("Tareas relacionadas", style = MaterialTheme.typography.titleMedium)
@@ -199,6 +235,72 @@ private fun CompactVaultRow(vault: ProjectVaultEntity, onSelect: () -> Unit) {
             }
             AssistChip(onClick = onSelect, label = { Text(vault.status) })
         }
+    }
+}
+
+@Composable
+private fun AgentInstanceCard(
+    vault: ProjectVaultEntity,
+    agent: AgentInstanceEntity,
+    onAssignTask: (String, String) -> Unit,
+    onSubmitResult: (String, String) -> Unit,
+    onMarkWorking: (String) -> Unit,
+    onMarkThinking: (String) -> Unit,
+    onMarkAwaitingReview: (String) -> Unit,
+    onRetire: (String) -> Unit,
+    onQuarantine: (String) -> Unit,
+    onPromote: (String) -> Unit
+) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(agent.displayName, style = MaterialTheme.typography.titleMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssistChip(onClick = {}, label = { Text(agentStatusLabel(agent.status)) })
+                AssistChip(onClick = {}, label = { Text("calidad=${agent.qualityScore}") })
+                AssistChip(onClick = {}, label = { Text("errores=${agent.errorCount}") })
+            }
+            Text(agent.briefing, maxLines = 3)
+            Text("plantilla=${agent.templateAgentId}; tarea=${agent.currentTaskId ?: "ninguna"}")
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = {
+                    onAssignTask(
+                        agent.agentInstanceId,
+                        "Preparar avance verificable para ${vault.displayName}: riesgos, siguiente paso y artefacto esperado."
+                    )
+                }) { Text("Asignar tarea") }
+                Button(onClick = {
+                    onSubmitResult(
+                        agent.agentInstanceId,
+                        "Resultado registrado desde UI; pendiente de revision humana."
+                    )
+                }) { Text("Enviar resultado") }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { onMarkWorking(agent.agentInstanceId) }) { Text("Verde") }
+                Button(onClick = { onMarkThinking(agent.agentInstanceId) }) { Text("Azul") }
+                Button(onClick = { onMarkAwaitingReview(agent.agentInstanceId) }) { Text("Amarillo") }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { onQuarantine(agent.agentInstanceId) }) { Text("Rojo") }
+                Button(onClick = { onRetire(agent.agentInstanceId) }) { Text("Gris") }
+                Button(onClick = { onPromote(agent.agentInstanceId) }) { Text("Dorado") }
+            }
+        }
+    }
+}
+
+private fun agentStatusLabel(status: String): String {
+    return when (status) {
+        "working" -> "verde: trabajando"
+        "thinking" -> "azul: pensando"
+        "awaiting_review" -> "amarillo: revision"
+        "error_quarantined" -> "rojo: cuarentena"
+        "retired" -> "gris: retirado"
+        "promoted" -> "dorado: promovido"
+        else -> status
     }
 }
 
