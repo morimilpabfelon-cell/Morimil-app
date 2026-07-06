@@ -5,7 +5,10 @@ import com.morimil.app.core.memory.MemorySignatureEpochPolicy
 import com.morimil.app.core.memory.MemorySignatureEpochRecorder
 
 class SharedPreferencesMemorySignatureEpochPolicy(
-    context: Context
+    context: Context,
+    private val signingKeyExistsProvider: () -> Boolean = {
+        AndroidKeyStoreMemoryEventSigner.signingKeyExists()
+    }
 ) : MemorySignatureEpochPolicy, MemorySignatureEpochRecorder {
     private val preferences = context.applicationContext.getSharedPreferences(
         PREFERENCES_NAME,
@@ -14,6 +17,10 @@ class SharedPreferencesMemorySignatureEpochPolicy(
 
     override fun signedEpochEventHash(): String? {
         return preferences.getString(KEY_SIGNED_EPOCH_EVENT_HASH, null)
+    }
+
+    override fun signingKeyExists(): Boolean {
+        return signingKeyExistsProvider()
     }
 
     override fun recordSignedEvent(eventHash: String) {
