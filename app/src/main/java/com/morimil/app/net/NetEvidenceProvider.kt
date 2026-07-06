@@ -24,6 +24,12 @@ class NetEvidenceProvider(
         val notes = resolution.notes.toMutableList()
         val blocks = mutableListOf<String>()
         resolution.targets.take(MAX_TARGETS_PER_TURN).forEach { url ->
+            val policy = NetSourcePolicy.validateUrl(url)
+            if (!policy.allowed) {
+                notes += "source_denied:${shortUrl(url)}:${policy.reason}"
+                return@forEach
+            }
+
             val result = fetcher.fetch(url)
             if (result.ok) {
                 val text = NetTextExtractor.readable(result.body, MAX_CONTEXT_CHARS_PER_SOURCE)
@@ -47,6 +53,11 @@ class NetEvidenceProvider(
     }
 
     private suspend fun readRendered(url: String, notes: MutableList<String>): String? {
+        val policy = NetSourcePolicy.validateUrl(url)
+        if (!policy.allowed) {
+            notes += "browser_denied:${shortUrl(url)}:${policy.reason}"
+            return null
+        }
         val rendered = renderedFetcher.fetch(url)
         if (!rendered.ok) {
             notes += "browser_failed:${shortUrl(url)}:${rendered.error.orEmpty().take(120)}"
@@ -95,7 +106,7 @@ class NetEvidenceProvider(
             .map { match -> match.groupValues[1] }
             .toList()
         return hrefs.mapNotNull { href -> normalizeLookupHref(href) }
-            .filter { value -> value.startsWith("https://") }
+            .filter { value -> NetSourcePolicy.validateUrl(value).allowed }
             .distinct()
             .take(MAX_SEARCH_LINKS)
     }
@@ -156,16 +167,20 @@ class HttpNetRawFetcher(
     private val readTimeoutMillis: Int = 20_000
 ) : NetRawFetcher {
     override fun fetch(rawUrl: String): NetFetchResult {
+        return fetchWithRedirects(rawUrl = rawUrl, redirectCount = 0)
+    }
+
+    private fun fetchWithRedirects(rawUrl: String, redirectCount: Int): NetFetchResult {
+        val policy = NetSourcePolicy.validateUrl(rawUrl)
+        if (!policy.allowed) return NetFetchResult(ok = false, error = policy.reason)
+
         return runCatching {
             val url = URL(rawUrl)
-            if (url.protocol != "https") {
-                return NetFetchResult(ok = false, error = "non_https_source")
-            }
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = connectTimeoutMillis
                 readTimeout = readTimeoutMillis
-                instanceFollowRedirects = true
+                instanceFollowRedirects = false
                 setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.7")
                 setRequestProperty("Accept-Language", "es-PE,es;q=0.9,en;q=0.8")
                 setRequestProperty("Cache-Control", "no-cache")
@@ -173,6 +188,18 @@ class HttpNetRawFetcher(
             }
             try {
                 val code = connection.responseCode
+                if (code in HTTP_REDIRECT_CODES) {
+                    if (redirectCount >= MAX_REDIRECTS) return NetFetchResult(ok = false, error = "redirect_limit")
+                    val location = connection.getHeaderField("Location")
+                        ?: return NetFetchResult(ok = false, error = "redirect_without_location")
+                    val nextUrl = URL(url, location).toExternalForm()
+                    val redirectPolicy = NetSourcePolicy.validateUrl(nextUrl)
+                    if (!redirectPolicy.allowed) {
+                        return NetFetchResult(ok = false, error = "redirect_denied:${redirectPolicy.reason}")
+                    }
+                    return fetchWithRedirects(nextUrl, redirectCount + 1)
+                }
+
                 val stream = if (code in 200..299) connection.inputStream else connection.errorStream
                 val body = stream?.bufferedReader()?.use { reader -> reader.readText().take(MAX_RAW_CHARS) }.orEmpty()
                 if (code !in 200..299) {
@@ -190,6 +217,8 @@ class HttpNetRawFetcher(
 
     companion object {
         private const val MAX_RAW_CHARS = 250_000
+        private const val MAX_REDIRECTS = 3
+        private val HTTP_REDIRECT_CODES = setOf(301, 302, 303, 307, 308)
         private const val MOBILE_USER_AGENT = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Mobile Safari/537.36"
     }
 }
