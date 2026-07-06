@@ -11,7 +11,7 @@ class NetEvidenceProvider(
     private val readTimeoutMillis: Int = 20_000
 ) {
     suspend fun build(message: String): String = withContext(Dispatchers.IO) {
-        if (message.trim().isEmpty()) return@withContext ""
+        if (NetIntentDetector.shouldUseNet(message).not()) return@withContext ""
         val directUrls = NetUrlExtractor.extract(message)
         val targets = if (directUrls.isNotEmpty()) directUrls else listOf(lookupUrl(message))
         targets.take(3).mapNotNull { url -> runCatching { read(url) }.getOrNull() }
