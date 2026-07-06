@@ -35,4 +35,18 @@ class MemoryEventClassifierTest {
         assertTrue(classification.memoryKind != "chat_noise")
         assertTrue(classification.importance > 8)
     }
+
+    @Test
+    fun autobiographicalUpdateIsIdentityMemory() {
+        val classification = MemoryEventClassifier.classify(
+            eventType = "memory.autobiography_updated",
+            actor = "system",
+            body = "Autobiografia local consolidada desde rest cycle."
+        )
+
+        assertEquals("identity", classification.memoryKind)
+        assertTrue("autobiography" in classification.tags)
+        assertTrue("identity" in classification.tags)
+        assertEquals(100, classification.importance)
+    }
 }
