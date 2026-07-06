@@ -8,8 +8,12 @@ import com.morimil.app.data.local.MemoryOrganDatabase
 import com.morimil.app.data.local.OrchestratorDeviceEntity
 import kotlinx.coroutines.flow.Flow
 import org.json.JSONArray
+import org.json.JSONObject
 
-class AgentOrchestrationRepository(organDatabase: MemoryOrganDatabase) {
+class AgentOrchestrationRepository(
+    organDatabase: MemoryOrganDatabase,
+    private val memoryRepository: MemoryRepository
+) {
     private val dao = organDatabase.memoryOrganDao()
 
     val orchestratorDevices: Flow<List<OrchestratorDeviceEntity>> = dao.observeOrchestratorDevices()
@@ -55,30 +59,136 @@ class AgentOrchestrationRepository(organDatabase: MemoryOrganDatabase) {
             completedAtMillis = null
         )
         dao.insertDelegatedTask(task)
+        recordDelegatedTaskDecision(
+            eventType = EVENT_TASK_PROPOSED,
+            action = "proposed",
+            task = task,
+            nowMillis = nowMillis,
+            importance = 95
+        )
         return taskId
     }
 
     suspend fun approveDelegatedTask(taskId: String, nowMillis: Long = System.currentTimeMillis()): Boolean {
         val approvalId = "approval_${StableIdDigest.shortSha256Hex("task_approval", listOf(taskId, nowMillis.toString()))}"
-        return dao.approveDelegatedTask(
+        val updated = dao.approveDelegatedTask(
             taskId = taskId,
             approvalId = approvalId,
             status = AgentCapabilityPolicy.STATUS_APPROVED,
             updatedAtMillis = nowMillis
         ) > 0
+        if (updated) {
+            dao.loadDelegatedTask(taskId)?.let { task ->
+                recordDelegatedTaskDecision(
+                    eventType = EVENT_TASK_APPROVED,
+                    action = "approved",
+                    task = task,
+                    nowMillis = nowMillis,
+                    importance = 100
+                )
+            }
+        }
+        return updated
     }
 
     suspend fun rejectDelegatedTask(taskId: String, reason: String, nowMillis: Long = System.currentTimeMillis()): Boolean {
-        return dao.rejectDelegatedTask(
+        val cleanReason = reason.take(240)
+        val updated = dao.rejectDelegatedTask(
             taskId = taskId,
             status = AgentCapabilityPolicy.STATUS_REJECTED,
-            errorSummary = reason.take(240),
+            errorSummary = cleanReason,
             updatedAtMillis = nowMillis,
             completedAtMillis = nowMillis
         ) > 0
+        if (updated) {
+            dao.loadDelegatedTask(taskId)?.let { task ->
+                recordDelegatedTaskDecision(
+                    eventType = EVENT_TASK_REJECTED,
+                    action = "rejected",
+                    task = task,
+                    nowMillis = nowMillis,
+                    reason = cleanReason,
+                    importance = 95
+                )
+            }
+        }
+        return updated
     }
 
+    private suspend fun recordDelegatedTaskDecision(
+        eventType: String,
+        action: String,
+        task: DelegatedTaskEntity,
+        nowMillis: Long,
+        reason: String? = null,
+        importance: Int
+    ) {
+        memoryRepository.recordSystemMemoryEvent(
+            eventType = eventType,
+            body = buildDecisionBody(action, task, reason),
+            importance = importance,
+            evidenceJson = buildDecisionEvidenceJson(eventType, action, task, nowMillis, reason)
+        )
+    }
+
+    private fun buildDecisionBody(action: String, task: DelegatedTaskEntity, reason: String?): String {
+        val reasonText = reason?.let { "; reason=$it" }.orEmpty()
+        return "Decision de orquestacion: task_${action}; " +
+            "task_id=${task.taskId}; agent=${task.assignedAgentId}; " +
+            "target_device=${task.targetDeviceId ?: "none"}; risk=${task.riskLevel}; " +
+            "approval_required=${task.approvalRequired}; status=${task.status}; " +
+            "goal=${task.goal}$reasonText"
+    }
+
+    private fun buildDecisionEvidenceJson(
+        eventType: String,
+        action: String,
+        task: DelegatedTaskEntity,
+        nowMillis: Long,
+        reason: String?
+    ): String {
+        return JSONObject()
+            .put("schema", "morimil.orchestration_decision.v1")
+            .put("event_type", eventType)
+            .put("action", action)
+            .put("recorded_at_millis", nowMillis)
+            .put("policy", "decision_equals_memory")
+            .put("reason", nullable(reason))
+            .put("delegated_task", task.toEvidenceJson())
+            .toString()
+    }
+
+    private fun DelegatedTaskEntity.toEvidenceJson(): JSONObject {
+        return JSONObject()
+            .put("task_id", taskId)
+            .put("created_by", createdBy)
+            .put("assigned_agent_id", assignedAgentId)
+            .put("target_device_id", nullable(targetDeviceId))
+            .put("goal", goal)
+            .put("context_summary", contextSummary)
+            .put("input_refs_json", inputRefsJson)
+            .put("allowed_actions_json", allowedActionsJson)
+            .put("allowed_transports_json", allowedTransportsJson)
+            .put("approval_required", approvalRequired)
+            .put("approval_id", nullable(approvalId))
+            .put("status", status)
+            .put("risk_level", riskLevel)
+            .put("result_summary", nullable(resultSummary))
+            .put("error_summary", nullable(errorSummary))
+            .put("created_at_millis", createdAtMillis)
+            .put("updated_at_millis", updatedAtMillis)
+            .put("completed_at_millis", nullable(completedAtMillis))
+    }
+
+    private fun nullable(value: String?): Any = value ?: JSONObject.NULL
+
+    private fun nullable(value: Long?): Any = value ?: JSONObject.NULL
+
     companion object {
+        private const val EVENT_TASK_PROPOSED = "orchestration.task_proposed"
+        private const val EVENT_TASK_APPROVED = "orchestration.task_approved"
+        private const val EVENT_TASK_REJECTED = "orchestration.task_rejected"
+
         fun buildTaskId(createdAtMillis: Long, agentId: String, goal: String): String {
             val suffix = StableIdDigest.shortSha256Hex(
                 namespace = "delegated_task",
