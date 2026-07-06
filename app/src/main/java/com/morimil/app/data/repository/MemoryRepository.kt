@@ -3,6 +3,9 @@ package com.morimil.app.data.repository
 import androidx.room.withTransaction
 import com.morimil.app.core.memory.MemoryEventSigner
 import com.morimil.app.core.memory.MemoryIntegrityCore
+import com.morimil.app.core.memory.MemoryRelevanceCandidate
+import com.morimil.app.core.memory.MemoryRelevanceScorer
+import com.morimil.app.core.memory.RankedMemoryCandidate
 import com.morimil.app.data.genesis.GenesisIdentity
 import com.morimil.app.data.local.DecisionLogEntity
 import com.morimil.app.data.local.GenesisCoreEntity
@@ -204,26 +207,40 @@ class MemoryRepository(
         }
     }
 
-    suspend fun buildLivingMemoryContext(): String {
+    suspend fun buildLivingMemoryContext(query: String? = null): String {
         val snapshot = memoryDao.getLivingMemorySnapshot()
-        val events = memoryDao.loadMemoryContext(30)
-            .sortedWith(compareBy<MemoryEventEntity> { it.createdAtMillis }.thenBy { it.id })
+        val cleanQuery = query?.trim().orEmpty()
+        val eventText = if (cleanQuery.isBlank()) {
+            memoryDao.loadMemoryContext(DEFAULT_MEMORY_CONTEXT_LIMIT)
+                .sortedWith(compareBy<MemoryEventEntity> { it.createdAtMillis }.thenBy { it.id })
+                .joinToString("\n") { event -> formatMemoryEvent(event) }
+        } else {
+            val candidates = memoryDao.loadMemoryContext(RELEVANCE_CANDIDATE_LIMIT)
+                .map { event -> event.toRelevanceCandidate() }
+            val ranked = MemoryRelevanceScorer.rank(
+                query = cleanQuery,
+                candidates = candidates,
+                limit = DEFAULT_MEMORY_CONTEXT_LIMIT
+            )
+            ranked.joinToString("\n") { item -> formatRankedMemoryEvent(item) }
+        }
 
         val snapshotText = snapshot?.summary ?: "No living memory snapshot yet."
-        val eventText = events.joinToString("\n") { event ->
-            "- [${event.memoryKind}/${event.eventType}/${event.actor}/${event.source}/${event.privacyVisibility}/i${event.importance}/c${event.confidence}/${event.eventHash.take(19)}] " +
-                "tags=${event.tagsJson} evidence=${event.evidenceJson.take(180)} text=${event.body.take(500)}"
-        }
+        val retrievalMode = if (cleanQuery.isBlank()) "importance_recent_fallback" else "query_relevance_v1"
 
         return """
             LIVING MEMORY SNAPSHOT:
             $snapshotText
 
+            MEMORY RETRIEVAL:
+            mode=$retrievalMode
+            query=${cleanQuery.take(180).ifBlank { "none" }}
+
             RELEVANT LOCAL MEMORY EVENTS:
-            ${eventText.ifBlank { "- No memory events yet." }}
+            ${eventText.ifBlank { "- No memory events matched this query." }}
 
             MEMORY RULE:
-            Treat these local memory events as the valid phone memory. Prefer user-confirmed decisions, corrections and preferences over generic conversation text. Ignore chat_noise unless the user explicitly confirms it.
+            Treat these local memory events as the valid phone memory. Prefer user-confirmed decisions, corrections and preferences over generic conversation text. Ignore chat_noise unless the user explicitly confirms it. If retrieved memories conflict, prefer corrections and newer user-confirmed decisions; say uncertainty instead of pretending certainty.
         """.trimIndent()
     }
 
@@ -416,6 +433,35 @@ class MemoryRepository(
         return MemoryEventClassifier.scoreImportance(body)
     }
 
+    private fun formatMemoryEvent(event: MemoryEventEntity): String {
+        return "- [${event.memoryKind}/${event.eventType}/${event.actor}/${event.source}/${event.privacyVisibility}/i${event.importance}/c${event.confidence}/${event.eventHash.take(19)}] " +
+            "tags=${event.tagsJson} evidence=${event.evidenceJson.take(180)} text=${event.body.take(500)}"
+    }
+
+    private fun formatRankedMemoryEvent(item: RankedMemoryCandidate): String {
+        val event = item.candidate
+        return "- [${event.memoryKind}/${event.eventType}/${event.actor}/${event.source}/${event.privacyVisibility}/i${event.importance}/c${event.confidence}/${event.eventHash.take(19)}/r${item.score}] " +
+            "reasons=${item.reasons.joinToString(",").take(140)} tags=${event.tagsJson} evidence=${event.evidenceJson.take(180)} text=${event.body.take(500)}"
+    }
+
+    private fun MemoryEventEntity.toRelevanceCandidate(): MemoryRelevanceCandidate {
+        return MemoryRelevanceCandidate(
+            eventHash = eventHash,
+            memoryKind = memoryKind,
+            eventType = eventType,
+            actor = actor,
+            source = source,
+            privacyVisibility = privacyVisibility,
+            importance = importance,
+            confidence = confidence,
+            userConfirmed = userConfirmed,
+            tagsJson = tagsJson,
+            evidenceJson = evidenceJson,
+            body = body,
+            createdAtMillis = createdAtMillis
+        )
+    }
+
     private fun buildEvidenceJson(
         eventType: String,
         actor: String,
@@ -533,6 +579,8 @@ class MemoryRepository(
     companion object {
         private const val MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE = "memory_integrity.quarantine"
         private const val MEMORY_EVENT_TAIL_VERIFICATION_LIMIT = 12
+        private const val DEFAULT_MEMORY_CONTEXT_LIMIT = 30
+        private const val RELEVANCE_CANDIDATE_LIMIT = 120
         private const val PRIVATE_LOCAL = "private_local"
     }
 }
