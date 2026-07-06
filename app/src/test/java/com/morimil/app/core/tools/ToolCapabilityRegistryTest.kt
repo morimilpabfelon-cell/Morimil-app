@@ -45,8 +45,18 @@ class ToolCapabilityRegistryTest {
     }
 
     @Test
+    fun knownDangerousGithubActionIsExplicitlyBlocked() {
+        val result = ToolCapabilityRegistry.evaluateAction(ToolCapabilityRegistry.ACTION_GITHUB_PUSH, humanApproved = true)
+
+        assertEquals(ToolCapabilityDecision.DENY, result.decision)
+        assertEquals("critical", result.riskLevel)
+        assertTrue("irreversible_or_production_action_blocked" in result.reasons)
+        assertTrue("manual_out_of_band_review" in result.requiredControls)
+    }
+
+    @Test
     fun unknownActionIsDeniedUntilRegistered() {
-        val result = ToolCapabilityRegistry.evaluateAction("github_push")
+        val result = ToolCapabilityRegistry.evaluateAction("unregistered_shell_tool")
 
         assertEquals(ToolCapabilityDecision.DENY, result.decision)
         assertEquals("critical", result.riskLevel)
