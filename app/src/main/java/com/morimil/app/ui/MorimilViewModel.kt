@@ -1,4 +1,4 @@
-﻿package com.morimil.app.ui
+package com.morimil.app.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -24,6 +24,7 @@ import com.morimil.app.data.local.ProjectVaultEntity
 import com.morimil.app.data.local.RecallScheduleEntity
 import com.morimil.app.data.local.UserWorkspaceEntity
 import com.morimil.app.data.repository.MemoryLinkRepository
+import com.morimil.app.data.repository.ProjectAutostartCoordinator
 import com.morimil.app.data.repository.RestCycleRepository
 import com.morimil.app.runtime.RestCycleScheduler
 import com.morimil.app.runtime.RestCycleScheduleStatus
@@ -55,6 +56,10 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     private val proposeCognitiveMigrationUseCase = container.proposeCognitiveMigrationUseCase
     private val projectVaultRepository = container.projectVaultRepository
     private val agentOrchestrationRepository = container.agentOrchestrationRepository
+    private val projectAutostartCoordinator = ProjectAutostartCoordinator(
+        projectVaultRepository = projectVaultRepository,
+        agentInstanceLifecycleRepository = container.agentInstanceLifecycleRepository
+    )
     private val genesisReader = container.genesisReader
     private val secretVault = container.secretVault
     private val reasoningConfigStore = container.reasoningConfigStore
@@ -722,6 +727,14 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                 val recent = priorHistory + ChatTurn(role = "user", content = cleanBody)
 
                 val userMemoryEvent = appendLivingMemoryUseCase.appendUserMessage(cleanBody)
+                withContext(Dispatchers.IO) {
+                    runObservedInternalTask("project_intent.autostart") {
+                        projectAutostartCoordinator.startFromMessageIfNeeded(
+                            message = cleanBody,
+                            existingVaults = projectVaults.value
+                        )
+                    }
+                }
                 val activeGenesisCoreId = userMemoryEvent?.genesisCoreId
                     ?: genesisCore.value?.coreId
                     ?: "primary_genesis"
@@ -787,4 +800,3 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         private const val MAX_GRAPH_EVENT_LOOKUP = 60
     }
 }
-
