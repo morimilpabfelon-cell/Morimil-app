@@ -23,11 +23,12 @@ object ReasoningWire {
     }
 
     fun parseReply(config: ReasoningProviderConfig, responseBody: String): String {
-        return when (config.wireFormat) {
+        val parsed = when (config.wireFormat) {
             ReasoningWireFormat.MESSAGES -> parseMessagesReply(responseBody)
             ReasoningWireFormat.CHAT -> parseChatReply(responseBody)
             ReasoningWireFormat.RESPONSES -> parseResponsesReply(responseBody)
         }
+        return parsed.ifBlank { parseFallbackReply(responseBody) }
     }
 
     private fun messagesBody(
@@ -103,19 +104,8 @@ object ReasoningWire {
         val choices = root.optJSONArray("choices") ?: return ""
         val first = choices.optJSONObject(0) ?: return ""
         val message = first.optJSONObject("message") ?: return ""
-        val content = message.opt("content") ?: return ""
-        return when (content) {
-            is String -> content
-            is JSONArray -> {
-                val output = StringBuilder()
-                for (i in 0 until content.length()) {
-                    val part = content.optJSONObject(i) ?: continue
-                    output.append(part.optString("text"))
-                }
-                output.toString()
-            }
-            else -> ""
-        }
+        val content = message.opt("content") ?: message.opt("reasoning_content") ?: message.opt("refusal") ?: return ""
+        return parseContentValue(content)
     }
 
     private fun parseResponsesReply(body: String): String {
@@ -132,10 +122,47 @@ object ReasoningWire {
                 val part = content.optJSONObject(j) ?: continue
                 when (part.optString("type")) {
                     "output_text", "text" -> text.append(part.optString("text"))
+                    "refusal" -> text.append(part.optString("refusal"))
                 }
             }
         }
         return text.toString()
+    }
+
+    private fun parseFallbackReply(body: String): String {
+        return runCatching {
+            val root = JSONObject(body)
+            root.optString("output_text").takeIf { it.isNotBlank() }
+                ?: root.optJSONObject("message")?.let { parseContentValue(it.opt("content") ?: it.opt("refusal") ?: "") }
+                ?: root.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.let { message ->
+                    parseContentValue(message.opt("content") ?: message.opt("refusal") ?: "")
+                }
+                ?: root.optJSONObject("error")?.optString("message")?.takeIf { it.isNotBlank() }
+                ?: ""
+        }.getOrDefault("")
+    }
+
+    private fun parseContentValue(content: Any?): String {
+        return when (content) {
+            is String -> content
+            is JSONObject -> content.optString("text").ifBlank { content.optString("content") }.ifBlank { content.optString("refusal") }
+            is JSONArray -> {
+                val output = StringBuilder()
+                for (i in 0 until content.length()) {
+                    val part = content.opt(i)
+                    when (part) {
+                        is String -> output.append(part)
+                        is JSONObject -> output.append(
+                            part.optString("text")
+                                .ifBlank { part.optString("content") }
+                                .ifBlank { part.optString("refusal") }
+                        )
+                    }
+                }
+                output.toString()
+            }
+            else -> ""
+        }
     }
 }
 
