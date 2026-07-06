@@ -2,6 +2,7 @@ package com.morimil.app.core.memory
 
 interface MemorySignatureEpochPolicy {
     fun signedEpochEventHash(): String?
+    fun signingKeyExists(): Boolean = false
 }
 
 interface MemorySignatureEpochRecorder {
@@ -10,5 +11,6 @@ interface MemorySignatureEpochRecorder {
 
 object NoopMemorySignatureEpochPolicy : MemorySignatureEpochPolicy, MemorySignatureEpochRecorder {
     override fun signedEpochEventHash(): String? = null
+    override fun signingKeyExists(): Boolean = false
     override fun recordSignedEvent(eventHash: String) = Unit
 }
