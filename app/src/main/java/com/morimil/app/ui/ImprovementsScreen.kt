@@ -115,7 +115,7 @@ fun ImprovementsScreen(viewModel: MorimilViewModel) {
             }
         }
 
-        DecisionHistoryCard(decisionHistory)
+        ImprovementAuditSection(decisionHistory)
 
         proposals.forEach { proposal ->
             ImprovementProposalCard(
@@ -140,29 +140,55 @@ fun ImprovementsScreen(viewModel: MorimilViewModel) {
 }
 
 @Composable
-private fun DecisionHistoryCard(history: List<ImprovementDecisionHistoryEntry>) {
+private fun ImprovementAuditSection(history: List<ImprovementDecisionHistoryEntry>) {
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Historial de decisiones", style = MaterialTheme.typography.titleMedium)
+            Text("Auditoria local de mejoras", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Registro local de decisiones sobre propuestas. Esto no ejecuta mejoras; solo muestra evidencia persistida en Room.",
+                style = MaterialTheme.typography.bodySmall
+            )
 
             if (history.isEmpty()) {
                 Text(
-                    "Todavia no hay decisiones registradas.",
+                    "Todavia no hay decisiones auditadas.",
                     style = MaterialTheme.typography.bodySmall
                 )
             } else {
-                history.take(8).forEach { entry ->
-                    Text(
-                        "${entry.decision.toUiLabel()} - ${entry.proposalTitle}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Text(
-                        entry.decidedAtMillis.toDecisionTimeLabel(),
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                Text(
+                    "Eventos cargados: ${history.size}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                val latest = history.first()
+                Text(
+                    "Ultima decision: ${latest.decision.toUiLabel()} - ${latest.proposalTitle}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    "Fecha: ${latest.decidedAtMillis.toDecisionTimeLabel()}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                history.forEach { entry ->
+                    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                "${entry.decision.toUiLabel()} - ${entry.proposalTitle}",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text("Fecha: ${entry.decidedAtMillis.toDecisionTimeLabel()}", style = MaterialTheme.typography.bodySmall)
+                            Text("Proposal ID: ${entry.proposalId}", style = MaterialTheme.typography.bodySmall)
+                            Text("Fuente: ${entry.source}", style = MaterialTheme.typography.bodySmall)
+                            Text("Schema: v${entry.schemaVersion}", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
                 }
             }
         }

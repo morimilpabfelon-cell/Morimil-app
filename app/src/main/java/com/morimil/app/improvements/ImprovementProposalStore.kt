@@ -54,7 +54,9 @@ class ImprovementProposalStore(context: Context) {
                     proposalTitle = entity.proposalTitle,
                     decision = runCatching { ImprovementDecision.valueOf(entity.decision) }
                         .getOrDefault(ImprovementDecision.PENDING),
-                    decidedAtMillis = entity.decidedAtMillis
+                    decidedAtMillis = entity.decidedAtMillis,
+                    source = entity.source,
+                    schemaVersion = entity.schemaVersion
                 )
             }
     }
@@ -328,7 +330,7 @@ class ImprovementProposalStore(context: Context) {
             id = "on-device-runtime",
             title = "Modelo local dentro del telefono",
             problem = "Hoy el motor local depende de la PC encendida y en la misma red.",
-            proposal = "Agregar backend LOCAL_IN_PROCESS para modelo pequeÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±o en Android cuando la memoria ya tenga reencarnacion segura.",
+            proposal = "Agregar backend LOCAL_IN_PROCESS para modelo pequeÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±o en Android cuando la memoria ya tenga reencarnacion segura.",
             risk = "Medio/alto. Puede aumentar complejidad y consumo del telefono; no debe venir antes del backup.",
             affectedAreas = listOf("router", "runtime local", "Android", "modelo on-device"),
             actionPlan = listOf(
