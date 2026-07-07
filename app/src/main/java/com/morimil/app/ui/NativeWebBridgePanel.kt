@@ -302,11 +302,11 @@ fun NativeWebBridgePanel(
                                                 return@capturePage
                                             }
 
-                                            val secondary = secondaryCandidateAfter(
+                                            val secondary = NativeWebResearchPolicy.secondaryCandidateAfter(
                                                 primary = capture.source,
                                                 candidates = candidateSources
                                             )
-                                            val decision = multiSourceDecision(capture, secondary)
+                                            val decision = NativeWebResearchPolicy.multiSourceDecision(capture, secondary)
                                             if (decision.shouldOpenSecondary && secondary != null) {
                                                 primaryCapture = capture
                                                 selectedSource = secondary
@@ -323,14 +323,19 @@ fun NativeWebBridgePanel(
                                                 phase = WebBridgePhase.SECONDARY_SOURCE_PAGE
                                                 view.loadUrl(secondary.url)
                                             } else {
-                                                finishWithContext(request, capture, null, decision.toVerification())
+                                                finishWithContext(
+                                                    request = request,
+                                                    primary = capture,
+                                                    secondary = null,
+                                                    verifier = NativeWebResearchPolicy.toVerification(decision)
+                                                )
                                             }
                                         }
                                     }
                                     WebBridgePhase.SECONDARY_SOURCE_PAGE -> {
                                         NativeWebContextPublisher.capturePage(view, request, selectedSource) { secondaryCapture ->
                                             val primary = primaryCapture
-                                            val verifier = verifySources(primary, secondaryCapture)
+                                            val verifier = NativeWebResearchPolicy.verifySources(primary, secondaryCapture)
                                             if (verifier.confidence == "LOW" && attemptResearchRetry(view, request, "verificacion multisource debil")) {
                                                 return@capturePage
                                             }
@@ -657,74 +662,6 @@ private fun selectBestUsefulResults(
     }
 }
 
-private fun secondaryCandidateAfter(
-    primary: NativeSelectedWebSource?,
-    candidates: List<NativeSelectedWebSource>
-): NativeSelectedWebSource? {
-    val primaryUrl = primary?.url.orEmpty()
-    val primaryHost = primary?.host.orEmpty()
-    return candidates.firstOrNull { candidate ->
-        candidate.url != primaryUrl && candidate.host != primaryHost
-    }
-}
-
-private fun multiSourceDecision(
-    primary: NativeWebCapture,
-    secondaryCandidate: NativeSelectedWebSource?
-): NativeMultiSourceDecision {
-    val shouldOpen = primary.confidence != "HIGH" && secondaryCandidate != null
-    return NativeMultiSourceDecision(
-        shouldOpenSecondary = shouldOpen,
-        status = if (shouldOpen) "secondary_required" else "single_source_sufficient",
-        confidence = primary.confidence,
-        reason = when {
-            primary.confidence == "HIGH" -> "fuente primaria con confianza alta"
-            secondaryCandidate == null -> "sin segunda fuente candidata"
-            else -> "confianza primaria no alta; se requiere contraste"
-        }
-    )
-}
-
-private fun verifySources(
-    primary: NativeWebCapture?,
-    secondary: NativeWebCapture?
-): NativeMultiSourceVerification {
-    if (primary == null && secondary == null) {
-        return NativeMultiSourceVerification(
-            status = "no_sources_captured",
-            confidence = "LOW",
-            reason = "ninguna fuente capturada con contenido suficiente"
-        )
-    }
-    if (primary == null || secondary == null) {
-        val remaining = primary ?: secondary
-        return NativeMultiSourceVerification(
-            status = "single_source_after_secondary_attempt",
-            confidence = remaining?.confidence ?: "LOW",
-            reason = "solo una fuente quedo disponible despues del intento de contraste"
-        )
-    }
-
-    val overlap = NativeWebEvidenceRules.keywordOverlap(primary.text, secondary.text)
-    val bothTrusted = NativeWebEvidenceRules.isTrustedTechnicalHost(hostFromDisplayUrl(primary.url)) &&
-        NativeWebEvidenceRules.isTrustedTechnicalHost(hostFromDisplayUrl(secondary.url))
-    val confidence = when {
-        overlap >= 6 && (primary.confidence == "HIGH" || secondary.confidence == "HIGH") -> "HIGH"
-        overlap >= 4 && bothTrusted -> "HIGH"
-        overlap >= 3 -> "MEDIUM"
-        else -> "LOW"
-    }
-    return NativeMultiSourceVerification(
-        status = if (overlap >= 3) "cross_source_supported" else "cross_source_weak_overlap",
-        confidence = confidence,
-        reason = "overlap_keywords=$overlap primary=${primary.confidence} secondary=${secondary.confidence}"
-    )
-}
-
-private fun hostFromDisplayUrl(url: String): String {
-    return displayUrl(url).substringBefore('/').removePrefix("www.")
-}
-
 private fun navigationTraceText(
     request: NativeWebRequest,
     events: List<NativeNavigationEvent>
@@ -778,14 +715,6 @@ private fun tabTitle(url: String): String {
 private fun decodeJsString(raw: String?): String {
     val value = raw?.takeIf { it != "null" } ?: return ""
     return JSONArray("[$value]").getString(0)
-}
-
-private fun NativeMultiSourceDecision.toVerification(): NativeMultiSourceVerification {
-    return NativeMultiSourceVerification(
-        status = status,
-        confidence = confidence,
-        reason = reason
-    )
 }
 
 private val BraveWindow = Color(0xFF1E1E23)
