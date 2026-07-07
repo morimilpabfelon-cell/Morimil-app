@@ -7,7 +7,7 @@ object NativeWebNeedDetector {
     fun shouldOpen(input: String): Boolean {
         val normalized = normalize(input)
         if (normalized.isBlank()) return false
-        return TERMS.any { term -> normalized.contains(term) }
+        return EXPLICIT_WEB_TERMS.any { term -> normalized.contains(term) }
     }
 
     private fun normalize(value: String): String {
@@ -17,17 +17,27 @@ object NativeWebNeedDetector {
             .trim()
     }
 
-    private val TERMS = listOf(
+    /**
+     * Native web is an owner-requested tool, not a background habit.
+     * Broad content words such as recipe, price or news are intentionally not
+     * triggers by themselves because web pages are untrusted external input.
+     */
+    private val EXPLICIT_WEB_TERMS = listOf(
         "busca",
         "buscar",
+        "buscame",
+        "buscame",
+        "buscalo",
+        "buscala",
+        "buscalos",
+        "buscalas",
         "investiga",
-        "receta",
-        "reseta",
-        "noticia",
-        "actual",
-        "precio",
-        "ultimo",
-        "ultima",
-        "caldo de gallina"
+        "internet",
+        "web",
+        "google",
+        "en linea",
+        "online",
+        "consulta la red",
+        "navega"
     )
 }
