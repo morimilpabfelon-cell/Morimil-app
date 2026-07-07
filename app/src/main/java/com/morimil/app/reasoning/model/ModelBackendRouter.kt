@@ -1,6 +1,7 @@
 package com.morimil.app.reasoning.model
 
 import com.morimil.app.ai.ReasoningProviderConfig
+import com.morimil.app.reasoning.ReasoningIntent
 import com.morimil.app.reasoning.ReasoningMode
 import com.morimil.app.reasoning.ReasoningModeResolver
 
@@ -17,32 +18,32 @@ data class ModelBackendDecision(
     val endpoint: String,
     val model: String,
     val usable: Boolean,
-    val reason: String
+    val reason: String,
+    val taskComplexity: ReasoningTaskComplexity = ReasoningTaskComplexity.UNKNOWN,
+    val routingHint: String = "prefer_safe_default"
 )
 
-/**
- * Real backend routing boundary for Morimil.
- *
- * Ollama-style local servers are treated as LOCAL_HTTP model backends. Remote
- * providers are REMOTE_API backends. Neither one is the reasoning kernel.
- */
 object ModelBackendRouter {
     fun select(
         runtimeLabel: String,
         config: ReasoningProviderConfig,
-        runtimeAccess: String
+        runtimeAccess: String,
+        input: String = "",
+        intent: ReasoningIntent = ReasoningIntent.UNKNOWN
     ): ModelBackendDecision {
         val endpoint = config.baseUrl.trim()
         val model = config.model.trim()
         val mode = ReasoningModeResolver.resolve(config, runtimeAccess)
+        val complexity = ReasoningTaskComplexityClassifier.classify(input, intent)
+        val hint = ReasoningTaskComplexityClassifier.routingHint(complexity)
         if (endpoint.isBlank()) {
-            return fallback("missing_endpoint", runtimeLabel, endpoint, model)
+            return fallback("missing_endpoint", runtimeLabel, endpoint, model, complexity, hint)
         }
         if (model.isBlank()) {
-            return fallback("missing_model", runtimeLabel, endpoint, model)
+            return fallback("missing_model", runtimeLabel, endpoint, model, complexity, hint)
         }
         if (config.requiresRuntimeKey && runtimeAccess.isBlank()) {
-            return fallback("missing_remote_runtime_access", runtimeLabel, endpoint, model)
+            return fallback("missing_remote_runtime_access", runtimeLabel, endpoint, model, complexity, hint)
         }
         val kind = when (mode) {
             ReasoningMode.LOCAL_OPERATIVE -> ModelBackendKind.LOCAL_HTTP
@@ -58,10 +59,12 @@ object ModelBackendRouter {
             model = model,
             usable = usable,
             reason = when (kind) {
-                ModelBackendKind.LOCAL_HTTP -> "local_http_backend_selected"
-                ModelBackendKind.REMOTE_API -> "remote_api_backend_selected"
-                ModelBackendKind.DETERMINISTIC_FALLBACK -> "safe_degraded_fallback_selected"
-            }
+                ModelBackendKind.LOCAL_HTTP -> "local_http_backend_selected:$hint"
+                ModelBackendKind.REMOTE_API -> "remote_api_backend_selected:$hint"
+                ModelBackendKind.DETERMINISTIC_FALLBACK -> "safe_degraded_fallback_selected:$hint"
+            },
+            taskComplexity = complexity,
+            routingHint = hint
         )
     }
 
@@ -69,7 +72,9 @@ object ModelBackendRouter {
         reason: String,
         runtimeLabel: String,
         endpoint: String,
-        model: String
+        model: String,
+        complexity: ReasoningTaskComplexity,
+        routingHint: String
     ): ModelBackendDecision {
         return ModelBackendDecision(
             kind = ModelBackendKind.DETERMINISTIC_FALLBACK,
@@ -78,7 +83,9 @@ object ModelBackendRouter {
             endpoint = endpoint,
             model = model,
             usable = false,
-            reason = reason
+            reason = "$reason:$routingHint",
+            taskComplexity = complexity,
+            routingHint = routingHint
         )
     }
 }
