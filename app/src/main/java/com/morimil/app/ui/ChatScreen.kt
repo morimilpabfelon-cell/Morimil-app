@@ -108,6 +108,8 @@ fun ChatScreen(viewModel: ChatViewModel) {
         )
         Spacer(Modifier.height(16.dp))
         ChatVoiceControls(viewModel)
+        Spacer(Modifier.height(12.dp))
+        NativeWebBridgePanel(onPageReady = viewModel::sendMessage)
         Spacer(Modifier.height(16.dp))
 
         LazyColumn(
@@ -160,8 +162,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
                 enabled = !isSending && draft.isNotBlank(),
                 onClick = {
                     val message = draft
-                    queueNativeWebIfNeeded(message)
-                    viewModel.sendMessage(message)
+                    sendOrQueueNativeWeb(message, viewModel)
                     draft = ""
                 }
             ) {
@@ -415,8 +416,7 @@ private fun ChatVoiceControls(viewModel: ChatViewModel) {
                         voiceStatus = "No se recibio texto."
                     } else {
                         voiceStatus = "Texto reconocido y enviado."
-                        queueNativeWebIfNeeded(bestMatch)
-                        viewModel.sendMessage(bestMatch)
+                        sendOrQueueNativeWeb(bestMatch, viewModel)
                     }
                 }
             }
@@ -473,12 +473,13 @@ private fun ChatVoiceControls(viewModel: ChatViewModel) {
     }
 }
 
-private fun queueNativeWebIfNeeded(message: String) {
+private fun sendOrQueueNativeWeb(message: String, viewModel: ChatViewModel) {
     if (NativeWebNeedDetector.shouldOpen(message)) {
         NativeWebRequestStore.requestSearch(message)
+    } else {
+        viewModel.sendMessage(message)
     }
 }
-
 private fun shouldShowDaySeparator(messages: List<MemoryMessageEntity>, index: Int): Boolean {
     if (index == 0) return true
     return dayLabel(messages[index].createdAtMillis) != dayLabel(messages[index - 1].createdAtMillis)
@@ -499,3 +500,4 @@ private fun healthStatusColor(level: HealthStatusLevel): Color {
         Color(0xFFC62828)
     }
 }
+
