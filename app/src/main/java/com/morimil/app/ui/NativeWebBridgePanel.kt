@@ -49,7 +49,8 @@ import org.json.JSONArray
 private enum class WebBridgePhase {
     IDLE,
     SEARCH_RESULTS,
-    SOURCE_PAGE
+    PRIMARY_SOURCE_PAGE,
+    SECONDARY_SOURCE_PAGE
 }
 
 @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
@@ -62,6 +63,8 @@ fun NativeWebBridgePanel(
     var activeWebView by remember { mutableStateOf<WebView?>(null) }
     var activeRequest by remember { mutableStateOf<NativeWebRequest?>(null) }
     var selectedSource by remember { mutableStateOf<NativeSelectedWebSource?>(null) }
+    var candidateSources by remember { mutableStateOf(emptyList<NativeSelectedWebSource>()) }
+    var primaryCapture by remember { mutableStateOf<NativeWebCapture?>(null) }
     var navigationEvents by remember { mutableStateOf(emptyList<NativeNavigationEvent>()) }
     var phase by remember { mutableStateOf(WebBridgePhase.IDLE) }
     var currentUrl by remember { mutableStateOf(BRAVE_HOME_URL) }
@@ -117,10 +120,30 @@ fun NativeWebBridgePanel(
         navigationEvents = (navigationEvents + event).takeLast(MAX_NAVIGATION_EVENTS)
     }
 
+    fun finishWithContext(
+        request: NativeWebRequest,
+        primary: NativeWebCapture?,
+        secondary: NativeWebCapture?,
+        verifier: NativeMultiSourceVerification
+    ) {
+        publishWebContext(
+            request = request,
+            primary = primary,
+            secondary = secondary,
+            navigationTrace = navigationTraceText(request, navigationEvents),
+            verifier = verifier
+        )
+        NativeWebRequestStore.markHandled(request)
+        phase = WebBridgePhase.IDLE
+        onPageReady(request.query)
+    }
+
     LaunchedEffect(pendingRequest) {
         val request = pendingRequest ?: return@LaunchedEffect
         activeRequest = request
         selectedSource = null
+        candidateSources = emptyList()
+        primaryCapture = null
         resetNavigationTrace(request)
         phase = WebBridgePhase.SEARCH_RESULTS
         activeWebView?.loadUrl(toSearchUrl(request.searchQuery))
@@ -159,6 +182,8 @@ fun NativeWebBridgePanel(
                 onHome = {
                     activeRequest = null
                     selectedSource = null
+                    candidateSources = emptyList()
+                    primaryCapture = null
                     navigationEvents = emptyList()
                     phase = WebBridgePhase.IDLE
                     activeWebView?.loadUrl(BRAVE_HOME_URL)
@@ -193,49 +218,83 @@ fun NativeWebBridgePanel(
                                 val request = activeRequest ?: return
                                 when (phase) {
                                     WebBridgePhase.SEARCH_RESULTS -> {
-                                        selectBestUsefulResult(view, request) { selected ->
-                                            if (selected == null) {
+                                        selectBestUsefulResults(view, request) { selected ->
+                                            val primary = selected.firstOrNull()
+                                            if (primary == null) {
                                                 recordNavigationEvent(
                                                     request = request,
                                                     type = "NO_USEFUL_CANDIDATE",
                                                     detail = "sin candidato util; se captura la pagina actual"
                                                 )
-                                                capturePageText(
-                                                    webView = view,
-                                                    request = request,
-                                                    selectedSource = selectedSource,
-                                                    navigationTrace = navigationTraceText(request, navigationEvents),
-                                                    onDone = { readyQuery ->
-                                                        finishIfReady(request, readyQuery, onPageReady) { phase = it }
-                                                    }
-                                                )
+                                                capturePage(view, request, selectedSource) { capture ->
+                                                    val verifier = NativeMultiSourceVerification(
+                                                        status = "single_source_fallback",
+                                                        confidence = capture?.confidence ?: "LOW",
+                                                        reason = "sin segunda fuente seleccionable"
+                                                    )
+                                                    finishWithContext(request, capture, null, verifier)
+                                                }
                                             } else {
-                                                selectedSource = selected
+                                                candidateSources = selected
+                                                selectedSource = primary
                                                 recordNavigationEvent(
                                                     request = request,
                                                     type = "SOURCE_SELECTED",
-                                                    detail = "fuente seleccionada",
-                                                    url = selected.url,
-                                                    title = selected.title,
-                                                    host = selected.host,
-                                                    score = selected.score,
-                                                    reason = selected.reason
+                                                    detail = "fuente primaria seleccionada",
+                                                    url = primary.url,
+                                                    title = primary.title,
+                                                    host = primary.host,
+                                                    score = primary.score,
+                                                    reason = primary.reason
                                                 )
-                                                phase = WebBridgePhase.SOURCE_PAGE
-                                                view.loadUrl(selected.url)
+                                                phase = WebBridgePhase.PRIMARY_SOURCE_PAGE
+                                                view.loadUrl(primary.url)
                                             }
                                         }
                                     }
-                                    WebBridgePhase.SOURCE_PAGE -> {
-                                        capturePageText(
-                                            webView = view,
-                                            request = request,
-                                            selectedSource = selectedSource,
-                                            navigationTrace = navigationTraceText(request, navigationEvents),
-                                            onDone = { readyQuery ->
-                                                finishIfReady(request, readyQuery, onPageReady) { phase = it }
+                                    WebBridgePhase.PRIMARY_SOURCE_PAGE -> {
+                                        capturePage(view, request, selectedSource) { capture ->
+                                            if (capture == null) {
+                                                val verifier = NativeMultiSourceVerification(
+                                                    status = "primary_capture_failed",
+                                                    confidence = "LOW",
+                                                    reason = "captura primaria insuficiente"
+                                                )
+                                                finishWithContext(request, null, null, verifier)
+                                                return@capturePage
                                             }
-                                        )
+
+                                            val secondary = secondaryCandidateAfter(
+                                                primary = capture.source,
+                                                candidates = candidateSources
+                                            )
+                                            val decision = multiSourceDecision(capture, secondary)
+                                            if (decision.shouldOpenSecondary && secondary != null) {
+                                                primaryCapture = capture
+                                                selectedSource = secondary
+                                                recordNavigationEvent(
+                                                    request = request,
+                                                    type = "SECONDARY_SOURCE_SELECTED",
+                                                    detail = "fuente secundaria seleccionada para contraste",
+                                                    url = secondary.url,
+                                                    title = secondary.title,
+                                                    host = secondary.host,
+                                                    score = secondary.score,
+                                                    reason = secondary.reason
+                                                )
+                                                phase = WebBridgePhase.SECONDARY_SOURCE_PAGE
+                                                view.loadUrl(secondary.url)
+                                            } else {
+                                                finishWithContext(request, capture, null, decision.toVerification())
+                                            }
+                                        }
+                                    }
+                                    WebBridgePhase.SECONDARY_SOURCE_PAGE -> {
+                                        capturePage(view, request, selectedSource) { secondaryCapture ->
+                                            val primary = primaryCapture
+                                            val verifier = verifySources(primary, secondaryCapture)
+                                            finishWithContext(request, primary, secondaryCapture, verifier)
+                                        }
                                     }
                                     WebBridgePhase.IDLE -> Unit
                                 }
@@ -260,6 +319,8 @@ fun NativeWebBridgePanel(
                     if (request != null && activeRequest?.requestedAtMillis != request.requestedAtMillis) {
                         activeRequest = request
                         selectedSource = null
+                        candidateSources = emptyList()
+                        primaryCapture = null
                         resetNavigationTrace(request)
                         phase = WebBridgePhase.SEARCH_RESULTS
                         webView.loadUrl(toSearchUrl(request.searchQuery))
@@ -419,35 +480,22 @@ private fun WebView.configureAsDesktopBrowser() {
     isHorizontalScrollBarEnabled = false
 }
 
-private fun finishIfReady(
-    request: NativeWebRequest,
-    readyQuery: String?,
-    onPageReady: (String) -> Unit,
-    setPhase: (WebBridgePhase) -> Unit
-) {
-    if (readyQuery != null) {
-        NativeWebRequestStore.markHandled(request)
-        setPhase(WebBridgePhase.IDLE)
-        onPageReady(readyQuery)
-    }
-}
-
 private fun toSearchUrl(query: String): String {
     val encoded = java.net.URLEncoder.encode(query.trim(), Charsets.UTF_8.name())
     return "$BRAVE_SEARCH_URL$encoded"
 }
 
-private fun selectBestUsefulResult(
+private fun selectBestUsefulResults(
     webView: WebView,
     request: NativeWebRequest,
-    onSelected: (NativeSelectedWebSource?) -> Unit
+    onSelected: (List<NativeSelectedWebSource>) -> Unit
 ) {
     val intentName = request.intent.name
     val script = """
         (function() {
             var intent = "$intentName";
             var links = Array.prototype.slice.call(document.querySelectorAll('a'));
-            var best = null;
+            var candidates = [];
 
             function cleanUrl(rawHref) {
                 if (!rawHref) return '';
@@ -520,36 +568,44 @@ private fun selectBestUsefulResult(
                     score: scored.score,
                     reason: scored.reason
                 };
-                if (best === null || candidate.score > best.score) best = candidate;
+                var duplicate = candidates.some(function(existing) {
+                    return existing.url === candidate.url || existing.host === candidate.host;
+                });
+                if (!duplicate) candidates.push(candidate);
             }
 
-            if (best === null) return JSON.stringify({ url: '', title: '', host: '', score: 0, reason: 'sin candidato util' });
-            return JSON.stringify(best);
+            candidates.sort(function(a, b) { return b.score - a.score; });
+            return JSON.stringify({ candidates: candidates.slice(0, 3) });
         })();
     """.trimIndent()
 
     webView.evaluateJavascript(script) { raw ->
         val selected = runCatching {
             val jsonText = decodeJsString(raw)
-            val json = org.json.JSONObject(jsonText)
-            NativeSelectedWebSource(
-                url = json.optString("url"),
-                title = json.optString("title"),
-                host = json.optString("host"),
-                score = json.optInt("score"),
-                reason = json.optString("reason")
-            )
-        }.getOrNull()?.takeIf { it.url.isNotBlank() }
+            val array = org.json.JSONObject(jsonText).optJSONArray("candidates") ?: JSONArray()
+            buildList {
+                for (index in 0 until array.length()) {
+                    val json = array.optJSONObject(index) ?: continue
+                    val source = NativeSelectedWebSource(
+                        url = json.optString("url"),
+                        title = json.optString("title"),
+                        host = json.optString("host"),
+                        score = json.optInt("score"),
+                        reason = json.optString("reason")
+                    )
+                    if (source.url.isNotBlank()) add(source)
+                }
+            }
+        }.getOrDefault(emptyList())
         onSelected(selected)
     }
 }
 
-private fun capturePageText(
+private fun capturePage(
     webView: WebView,
     request: NativeWebRequest,
     selectedSource: NativeSelectedWebSource?,
-    navigationTrace: String,
-    onDone: (String?) -> Unit
+    onDone: (NativeWebCapture?) -> Unit
 ) {
     val script = """
         (function() {
@@ -560,53 +616,95 @@ private fun capturePageText(
         })();
     """.trimIndent()
     webView.evaluateJavascript(script) { raw ->
-        runCatching {
+        val capture = runCatching {
             val jsonText = decodeJsString(raw)
             val json = org.json.JSONObject(jsonText)
             val text = json.optString("text").trim()
-            if (text.length < 120) {
-                onDone(null)
-            } else {
-                val contextText = buildString {
-                    appendLine("FUENTE_EXTERNA")
-                    appendLine("modo=web_nativa_navegada")
-                    appendLine("query_original=${request.query}")
-                    appendLine("query_busqueda=${request.searchQuery}")
-                    appendLine("intent=${request.intent}")
-                    appendLine("strategy=${request.strategy}")
-                    appendLine(
-                        webEvidenceGateText(
-                            request = request,
-                            selectedSource = selectedSource,
-                            url = json.optString("url"),
-                            textChars = text.length
-                        )
-                    )
-                    appendLine(navigationTrace)
-                    selectedSource?.let { source ->
-                        appendLine("selected_source_url=${source.url}")
-                        appendLine("selected_source_host=${source.host}")
-                        appendLine("selected_source_score=${source.score}")
-                        appendLine("selected_source_reason=${source.reason}")
-                    }
-                    appendLine("title=${json.optString("title")}")
-                    appendLine("url=${json.optString("url")}")
-                    appendLine("content:")
-                    appendLine(text.take(MAX_CAPTURED_TEXT_CHARS))
-                }
-                NativeWebContextStore.update(
-                    NativeWebPageContext(
-                        title = json.optString("title"),
-                        url = json.optString("url"),
-                        text = contextText
-                    )
+            if (text.length < 120) return@runCatching null
+
+            val url = json.optString("url")
+            val title = json.optString("title")
+            val host = selectedSource?.host?.ifBlank { hostFromDisplayUrl(url) } ?: hostFromDisplayUrl(url)
+            val score = selectedSource?.score ?: 0
+            val confidence = evidenceConfidence(host = host, score = score, textChars = text.length)
+            NativeWebCapture(
+                title = title,
+                url = url,
+                text = text,
+                textChars = text.length,
+                source = selectedSource,
+                confidence = confidence,
+                evidenceGate = webEvidenceGateText(
+                    request = request,
+                    selectedSource = selectedSource,
+                    url = url,
+                    textChars = text.length
                 )
-                onDone(request.query)
+            )
+        }.getOrNull()
+        onDone(capture)
+    }
+}
+
+private fun publishWebContext(
+    request: NativeWebRequest,
+    primary: NativeWebCapture?,
+    secondary: NativeWebCapture?,
+    navigationTrace: String,
+    verifier: NativeMultiSourceVerification
+) {
+    val title = primary?.title ?: secondary?.title ?: "Sin captura suficiente"
+    val url = primary?.url ?: secondary?.url ?: "about:blank"
+    val contextText = buildString {
+        appendLine("FUENTE_EXTERNA")
+        appendLine("modo=web_nativa_multisource")
+        appendLine("query_original=${request.query}")
+        appendLine("query_busqueda=${request.searchQuery}")
+        appendLine("intent=${request.intent}")
+        appendLine("strategy=${request.strategy}")
+        appendLine(multiSourceVerifierText(verifier))
+        appendLine(navigationTrace)
+        primary?.let { capture ->
+            appendLine("PRIMARY_SOURCE")
+            appendLine(capture.evidenceGate)
+            capture.source?.let { source ->
+                appendLine("selected_source_url=${source.url}")
+                appendLine("selected_source_host=${source.host}")
+                appendLine("selected_source_score=${source.score}")
+                appendLine("selected_source_reason=${source.reason}")
             }
-        }.onFailure {
-            onDone(null)
+            appendLine("title=${capture.title}")
+            appendLine("url=${capture.url}")
+            appendLine("content:")
+            appendLine(capture.text.take(MAX_PRIMARY_CAPTURED_TEXT_CHARS))
+        }
+        secondary?.let { capture ->
+            appendLine("SECONDARY_SOURCE")
+            appendLine(capture.evidenceGate)
+            capture.source?.let { source ->
+                appendLine("secondary_source_url=${source.url}")
+                appendLine("secondary_source_host=${source.host}")
+                appendLine("secondary_source_score=${source.score}")
+                appendLine("secondary_source_reason=${source.reason}")
+            }
+            appendLine("title=${capture.title}")
+            appendLine("url=${capture.url}")
+            appendLine("content:")
+            appendLine(capture.text.take(MAX_SECONDARY_CAPTURED_TEXT_CHARS))
+        }
+        if (primary == null && secondary == null) {
+            appendLine("capture_status=failed")
+            appendLine("content:")
+            appendLine("No se pudo capturar evidencia web suficiente para esta busqueda.")
         }
     }
+    NativeWebContextStore.update(
+        NativeWebPageContext(
+            title = title,
+            url = url,
+            text = contextText
+        )
+    )
 }
 
 private fun webEvidenceGateText(
@@ -652,6 +750,97 @@ private fun evidenceConfidenceReason(host: String, score: Int, textChars: Int): 
         score >= 80 -> "score alto pero fuente no primaria"
         else -> "evidencia util solo como contexto temporal"
     }
+}
+
+private fun secondaryCandidateAfter(
+    primary: NativeSelectedWebSource?,
+    candidates: List<NativeSelectedWebSource>
+): NativeSelectedWebSource? {
+    val primaryUrl = primary?.url.orEmpty()
+    val primaryHost = primary?.host.orEmpty()
+    return candidates.firstOrNull { candidate ->
+        candidate.url != primaryUrl && candidate.host != primaryHost
+    }
+}
+
+private fun multiSourceDecision(
+    primary: NativeWebCapture,
+    secondaryCandidate: NativeSelectedWebSource?
+): NativeMultiSourceDecision {
+    val shouldOpen = primary.confidence != "HIGH" && secondaryCandidate != null
+    return NativeMultiSourceDecision(
+        shouldOpenSecondary = shouldOpen,
+        status = if (shouldOpen) "secondary_required" else "single_source_sufficient",
+        confidence = primary.confidence,
+        reason = when {
+            primary.confidence == "HIGH" -> "fuente primaria con confianza alta"
+            secondaryCandidate == null -> "sin segunda fuente candidata"
+            else -> "confianza primaria no alta; se requiere contraste"
+        }
+    )
+}
+
+private fun verifySources(
+    primary: NativeWebCapture?,
+    secondary: NativeWebCapture?
+): NativeMultiSourceVerification {
+    if (primary == null && secondary == null) {
+        return NativeMultiSourceVerification(
+            status = "no_sources_captured",
+            confidence = "LOW",
+            reason = "ninguna fuente capturada con contenido suficiente"
+        )
+    }
+    if (primary == null || secondary == null) {
+        val remaining = primary ?: secondary
+        return NativeMultiSourceVerification(
+            status = "single_source_after_secondary_attempt",
+            confidence = remaining?.confidence ?: "LOW",
+            reason = "solo una fuente quedo disponible despues del intento de contraste"
+        )
+    }
+
+    val overlap = keywordOverlap(primary.text, secondary.text)
+    val bothTrusted = isTrustedTechnicalHost(hostFromDisplayUrl(primary.url)) && isTrustedTechnicalHost(hostFromDisplayUrl(secondary.url))
+    val confidence = when {
+        overlap >= 6 && (primary.confidence == "HIGH" || secondary.confidence == "HIGH") -> "HIGH"
+        overlap >= 4 && bothTrusted -> "HIGH"
+        overlap >= 3 -> "MEDIUM"
+        else -> "LOW"
+    }
+    return NativeMultiSourceVerification(
+        status = if (overlap >= 3) "cross_source_supported" else "cross_source_weak_overlap",
+        confidence = confidence,
+        reason = "overlap_keywords=$overlap primary=${primary.confidence} secondary=${secondary.confidence}"
+    )
+}
+
+private fun multiSourceVerifierText(verifier: NativeMultiSourceVerification): String {
+    return buildString {
+        appendLine("MULTI_SOURCE_VERIFIER")
+        appendLine("status=${verifier.status}")
+        appendLine("confidence=${verifier.confidence}")
+        appendLine("reason=${verifier.reason}")
+    }.take(MAX_MULTI_SOURCE_VERIFIER_CHARS)
+}
+
+private fun keywordOverlap(first: String, second: String): Int {
+    val firstWords = importantWords(first)
+    val secondWords = importantWords(second)
+    return firstWords.intersect(secondWords).size
+}
+
+private fun importantWords(text: String): Set<String> {
+    return text
+        .lowercase()
+        .replace(Regex("[^a-z0-9áéíóúñ_./-]+"), " ")
+        .split(' ')
+        .asSequence()
+        .map { it.trim('.', '/', '-') }
+        .filter { it.length >= 5 }
+        .filterNot { it in COMMON_WEB_WORDS }
+        .take(220)
+        .toSet()
 }
 
 private fun isTrustedTechnicalHost(host: String): Boolean {
@@ -722,11 +911,42 @@ private fun decodeJsString(raw: String?): String {
     return JSONArray("[$value]").getString(0)
 }
 
+private fun NativeMultiSourceDecision.toVerification(): NativeMultiSourceVerification {
+    return NativeMultiSourceVerification(
+        status = status,
+        confidence = confidence,
+        reason = reason
+    )
+}
+
 private data class NativeSelectedWebSource(
     val url: String,
     val title: String,
     val host: String,
     val score: Int,
+    val reason: String
+)
+
+private data class NativeWebCapture(
+    val title: String,
+    val url: String,
+    val text: String,
+    val textChars: Int,
+    val source: NativeSelectedWebSource?,
+    val confidence: String,
+    val evidenceGate: String
+)
+
+private data class NativeMultiSourceDecision(
+    val shouldOpenSecondary: Boolean,
+    val status: String,
+    val confidence: String,
+    val reason: String
+)
+
+private data class NativeMultiSourceVerification(
+    val status: String,
+    val confidence: String,
     val reason: String
 )
 
@@ -741,6 +961,30 @@ private data class NativeNavigationEvent(
     val timestampMillis: Long
 )
 
+private val COMMON_WEB_WORDS = setOf(
+    "about",
+    "after",
+    "android",
+    "before",
+    "click",
+    "cookie",
+    "documentation",
+    "error",
+    "github",
+    "google",
+    "kotlin",
+    "learn",
+    "login",
+    "official",
+    "privacy",
+    "search",
+    "settings",
+    "source",
+    "terms",
+    "using",
+    "video"
+)
+
 private val BraveWindow = Color(0xFF1E1E23)
 private val BraveToolbar = Color(0xFF313138)
 private val BraveBookmarkBar = Color(0xFF39393F)
@@ -752,7 +996,8 @@ private val BraveAccent = Color(0xFFFF5A1F)
 private const val BRAVE_HOME_URL = "about:blank"
 private const val BRAVE_SEARCH_URL = "https://search.brave.com/search?q="
 private const val DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-private const val MAX_CAPTURED_TEXT_CHARS = 10_000
+private const val MAX_PRIMARY_CAPTURED_TEXT_CHARS = 7_000
+private const val MAX_SECONDARY_CAPTURED_TEXT_CHARS = 3_000
 private const val MAX_NAVIGATION_EVENTS = 32
 private const val MAX_NAVIGATION_TRACE_EVENTS = 12
 private const val MAX_NAVIGATION_TRACE_CHARS = 4_000
@@ -762,3 +1007,4 @@ private const val MAX_NAVIGATION_TITLE_CHARS = 180
 private const val MAX_NAVIGATION_HOST_CHARS = 120
 private const val MAX_NAVIGATION_REASON_CHARS = 160
 private const val MAX_EVIDENCE_GATE_CHARS = 1_200
+private const val MAX_MULTI_SOURCE_VERIFIER_CHARS = 800
