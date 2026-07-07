@@ -68,6 +68,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.morimil.app.data.local.MemoryMessageEntity
 import com.morimil.app.reasoning.model.ModelBackendDecision
 import com.morimil.app.reasoning.model.ReasoningBackendStatusStore
+import com.morimil.app.reasoning.model.ReasoningEscalationDecision
 import com.morimil.app.reasoning.model.ReasoningEscalationRequest
 import com.morimil.app.reasoning.model.ReasoningEscalationStore
 import com.morimil.app.web.NativeWebNeedDetector
@@ -221,8 +222,21 @@ private fun ChatOrganismHeader(
         }
         pendingEscalation?.let { request ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatusChip("escalar: pendiente", attention = true)
+                StatusChip(
+                    "escalar: ${request.decision.name.lowercase(Locale.ROOT).take(24)}",
+                    attention = request.decision == ReasoningEscalationDecision.PENDING
+                )
                 StatusChip("motivo: ${request.taskComplexity.name.take(30)}", attention = true)
+            }
+            if (request.decision == ReasoningEscalationDecision.PENDING) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = ReasoningEscalationStore::approveCurrent) {
+                        Text("Autorizar motor superior")
+                    }
+                    Button(onClick = ReasoningEscalationStore::keepLocal) {
+                        Text("Seguir local")
+                    }
+                }
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
