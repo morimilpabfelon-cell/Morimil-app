@@ -239,9 +239,3 @@ data class ReasoningKernelRequest(
     val runtimeLabel: String,
     val fallbackGenesisCoreId: String? = null
 )
-
-data class ReasoningKernelResult(
-    val state: ReasoningState,
-    val reply: String?,
-    val errorMessage: String?
-)
