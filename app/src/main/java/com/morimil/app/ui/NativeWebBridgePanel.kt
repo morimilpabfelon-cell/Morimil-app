@@ -77,7 +77,7 @@ fun NativeWebBridgePanel(
         val request = pendingRequest ?: return@LaunchedEffect
         activeRequest = request
         phase = WebBridgePhase.SEARCH_RESULTS
-        activeWebView?.loadUrl(toSearchUrl(request.query))
+        activeWebView?.loadUrl(toSearchUrl(request.searchQuery))
     }
 
     DisposableEffect(Unit) {
@@ -176,7 +176,7 @@ fun NativeWebBridgePanel(
                     if (request != null && activeRequest?.requestedAtMillis != request.requestedAtMillis) {
                         activeRequest = request
                         phase = WebBridgePhase.SEARCH_RESULTS
-                        webView.loadUrl(toSearchUrl(request.query))
+                        webView.loadUrl(toSearchUrl(request.searchQuery))
                     }
                 }
             )
@@ -405,7 +405,10 @@ private fun capturePageText(
                 val contextText = buildString {
                     appendLine("FUENTE_EXTERNA")
                     appendLine("modo=web_nativa_navegada")
-                    appendLine("query=${request.query}")
+                    appendLine("query_original=${request.query}")
+                    appendLine("query_busqueda=${request.searchQuery}")
+                    appendLine("intent=${request.intent}")
+                    appendLine("strategy=${request.strategy}")
                     appendLine("title=${json.optString("title")}")
                     appendLine("url=${json.optString("url")}")
                     appendLine("content:")
@@ -437,6 +440,7 @@ private fun addressText(url: String): String {
     val clean = displayUrl(url)
     return when {
         clean.isBlank() -> "Buscar en Brave o escribir una URL"
+        clean == "about:blank" -> "Buscar en Brave o escribir una URL"
         clean == "search.brave.com" -> "Buscar en Brave o escribir una URL"
         else -> clean
     }
@@ -446,6 +450,7 @@ private fun tabTitle(url: String): String {
     val clean = displayUrl(url)
     return when {
         clean.isBlank() -> "Nueva pestaña"
+        clean == "about:blank" -> "Nueva pestaña"
         clean.startsWith("search.brave.com") -> "Nueva pestaña"
         else -> clean.substringBefore('/').ifBlank { clean }
     }
@@ -464,7 +469,7 @@ private val BraveAddress = Color(0xFF1D1D23)
 private val BraveToolbarText = Color(0xFFE7E7EA)
 private val BraveToolbarMuted = Color(0xFFA8A8AF)
 private val BraveAccent = Color(0xFFFF5A1F)
-private const val BRAVE_HOME_URL = "https://search.brave.com/"
+private const val BRAVE_HOME_URL = "about:blank"
 private const val BRAVE_SEARCH_URL = "https://search.brave.com/search?q="
 private const val DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 private const val MAX_CAPTURED_TEXT_CHARS = 10_000
