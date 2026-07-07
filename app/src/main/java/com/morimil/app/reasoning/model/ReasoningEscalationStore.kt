@@ -24,17 +24,28 @@ object ReasoningEscalationStore {
     private val _pendingRequest = MutableStateFlow<ReasoningEscalationRequest?>(null)
     val pendingRequest: StateFlow<ReasoningEscalationRequest?> = _pendingRequest.asStateFlow()
 
-    fun publishIfNeeded(decision: ModelBackendDecision, input: String) {
+    fun publishIfNeeded(decision: ModelBackendDecision, input: String): ReasoningEscalationRequest? {
         if (!requiresOwnerDecision(decision)) {
             clear()
-            return
+            return null
         }
-        _pendingRequest.value = ReasoningEscalationRequest(
-            taskComplexity = decision.taskComplexity,
-            routingHint = decision.routingHint,
-            reason = decision.reason,
-            inputPreview = input.trim().replace(Regex("\\s+"), " ").take(MAX_INPUT_PREVIEW_CHARS)
-        )
+        val preview = input.trim().replace(Regex("\\s+"), " ").take(MAX_INPUT_PREVIEW_CHARS)
+        val existing = _pendingRequest.value
+        val next = if (existing != null && existing.inputPreview == preview && existing.taskComplexity == decision.taskComplexity) {
+            existing.copy(
+                routingHint = decision.routingHint,
+                reason = decision.reason
+            )
+        } else {
+            ReasoningEscalationRequest(
+                taskComplexity = decision.taskComplexity,
+                routingHint = decision.routingHint,
+                reason = decision.reason,
+                inputPreview = preview
+            )
+        }
+        _pendingRequest.value = next
+        return next
     }
 
     fun approveCurrent() {
@@ -55,7 +66,7 @@ object ReasoningEscalationStore {
         _pendingRequest.value = null
     }
 
-    private fun requiresOwnerDecision(decision: ModelBackendDecision): Boolean {
+    fun requiresOwnerDecision(decision: ModelBackendDecision): Boolean {
         return decision.routingHint.contains("stronger") ||
             decision.routingHint.contains("approval") ||
             decision.taskComplexity == ReasoningTaskComplexity.CODE_REVIEW ||
