@@ -4,12 +4,20 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+enum class ReasoningEscalationDecision {
+    PENDING,
+    APPROVED,
+    LOCAL_ONLY
+}
+
 data class ReasoningEscalationRequest(
     val taskComplexity: ReasoningTaskComplexity,
     val routingHint: String,
     val reason: String,
     val inputPreview: String,
-    val createdAtMillis: Long = System.currentTimeMillis()
+    val decision: ReasoningEscalationDecision = ReasoningEscalationDecision.PENDING,
+    val createdAtMillis: Long = System.currentTimeMillis(),
+    val decidedAtMillis: Long? = null
 )
 
 object ReasoningEscalationStore {
@@ -26,6 +34,20 @@ object ReasoningEscalationStore {
             routingHint = decision.routingHint,
             reason = decision.reason,
             inputPreview = input.trim().replace(Regex("\\s+"), " ").take(MAX_INPUT_PREVIEW_CHARS)
+        )
+    }
+
+    fun approveCurrent() {
+        _pendingRequest.value = _pendingRequest.value?.copy(
+            decision = ReasoningEscalationDecision.APPROVED,
+            decidedAtMillis = System.currentTimeMillis()
+        )
+    }
+
+    fun keepLocal() {
+        _pendingRequest.value = _pendingRequest.value?.copy(
+            decision = ReasoningEscalationDecision.LOCAL_ONLY,
+            decidedAtMillis = System.currentTimeMillis()
         )
     }
 
