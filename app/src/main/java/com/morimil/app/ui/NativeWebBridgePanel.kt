@@ -62,6 +62,7 @@ fun NativeWebBridgePanel(
     var activeWebView by remember { mutableStateOf<WebView?>(null) }
     var activeRequest by remember { mutableStateOf<NativeWebRequest?>(null) }
     var selectedSource by remember { mutableStateOf<NativeSelectedWebSource?>(null) }
+    var navigationEvents by remember { mutableStateOf(emptyList<NativeNavigationEvent>()) }
     var phase by remember { mutableStateOf(WebBridgePhase.IDLE) }
     var currentUrl by remember { mutableStateOf(BRAVE_HOME_URL) }
     var isLoading by remember { mutableStateOf(false) }
@@ -74,10 +75,53 @@ fun NativeWebBridgePanel(
         canGoForward = webView.canGoForward()
     }
 
+    fun resetNavigationTrace(request: NativeWebRequest) {
+        val searchUrl = toSearchUrl(request.searchQuery)
+        val now = System.currentTimeMillis()
+        navigationEvents = listOf(
+            NativeNavigationEvent(
+                type = "SESSION_STARTED",
+                detail = "inicio de navegacion temporal",
+                timestampMillis = now
+            ),
+            NativeNavigationEvent(
+                type = "SEARCH_OPENED",
+                detail = "busqueda abierta",
+                url = searchUrl,
+                timestampMillis = now
+            )
+        )
+    }
+
+    fun recordNavigationEvent(
+        request: NativeWebRequest,
+        type: String,
+        detail: String,
+        url: String? = null,
+        title: String? = null,
+        host: String? = null,
+        score: Int? = null,
+        reason: String? = null
+    ) {
+        if (activeRequest?.requestedAtMillis != request.requestedAtMillis) return
+        val event = NativeNavigationEvent(
+            type = type,
+            detail = detail.take(MAX_NAVIGATION_DETAIL_CHARS),
+            url = url?.take(MAX_NAVIGATION_URL_CHARS),
+            title = title?.take(MAX_NAVIGATION_TITLE_CHARS),
+            host = host?.take(MAX_NAVIGATION_HOST_CHARS),
+            score = score,
+            reason = reason?.take(MAX_NAVIGATION_REASON_CHARS),
+            timestampMillis = System.currentTimeMillis()
+        )
+        navigationEvents = (navigationEvents + event).takeLast(MAX_NAVIGATION_EVENTS)
+    }
+
     LaunchedEffect(pendingRequest) {
         val request = pendingRequest ?: return@LaunchedEffect
         activeRequest = request
         selectedSource = null
+        resetNavigationTrace(request)
         phase = WebBridgePhase.SEARCH_RESULTS
         activeWebView?.loadUrl(toSearchUrl(request.searchQuery))
     }
@@ -115,6 +159,7 @@ fun NativeWebBridgePanel(
                 onHome = {
                     activeRequest = null
                     selectedSource = null
+                    navigationEvents = emptyList()
                     phase = WebBridgePhase.IDLE
                     activeWebView?.loadUrl(BRAVE_HOME_URL)
                 }
@@ -130,6 +175,14 @@ fun NativeWebBridgePanel(
                             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
                                 isLoading = true
                                 currentUrl = url ?: currentUrl
+                                activeRequest?.let { request ->
+                                    recordNavigationEvent(
+                                        request = request,
+                                        type = "PAGE_STARTED",
+                                        detail = "pagina iniciada",
+                                        url = url.orEmpty()
+                                    )
+                                }
                                 refreshNavigationState(view)
                             }
 
@@ -142,20 +195,47 @@ fun NativeWebBridgePanel(
                                     WebBridgePhase.SEARCH_RESULTS -> {
                                         selectBestUsefulResult(view, request) { selected ->
                                             if (selected == null) {
-                                                capturePageText(view, request, selectedSource) { readyQuery ->
-                                                    finishIfReady(request, readyQuery, onPageReady) { phase = it }
-                                                }
+                                                recordNavigationEvent(
+                                                    request = request,
+                                                    type = "NO_USEFUL_CANDIDATE",
+                                                    detail = "sin candidato util; se captura la pagina actual"
+                                                )
+                                                capturePageText(
+                                                    webView = view,
+                                                    request = request,
+                                                    selectedSource = selectedSource,
+                                                    navigationTrace = navigationTraceText(request, navigationEvents),
+                                                    onDone = { readyQuery ->
+                                                        finishIfReady(request, readyQuery, onPageReady) { phase = it }
+                                                    }
+                                                )
                                             } else {
                                                 selectedSource = selected
+                                                recordNavigationEvent(
+                                                    request = request,
+                                                    type = "SOURCE_SELECTED",
+                                                    detail = "fuente seleccionada",
+                                                    url = selected.url,
+                                                    title = selected.title,
+                                                    host = selected.host,
+                                                    score = selected.score,
+                                                    reason = selected.reason
+                                                )
                                                 phase = WebBridgePhase.SOURCE_PAGE
                                                 view.loadUrl(selected.url)
                                             }
                                         }
                                     }
                                     WebBridgePhase.SOURCE_PAGE -> {
-                                        capturePageText(view, request, selectedSource) { readyQuery ->
-                                            finishIfReady(request, readyQuery, onPageReady) { phase = it }
-                                        }
+                                        capturePageText(
+                                            webView = view,
+                                            request = request,
+                                            selectedSource = selectedSource,
+                                            navigationTrace = navigationTraceText(request, navigationEvents),
+                                            onDone = { readyQuery ->
+                                                finishIfReady(request, readyQuery, onPageReady) { phase = it }
+                                            }
+                                        )
                                     }
                                     WebBridgePhase.IDLE -> Unit
                                 }
@@ -180,6 +260,7 @@ fun NativeWebBridgePanel(
                     if (request != null && activeRequest?.requestedAtMillis != request.requestedAtMillis) {
                         activeRequest = request
                         selectedSource = null
+                        resetNavigationTrace(request)
                         phase = WebBridgePhase.SEARCH_RESULTS
                         webView.loadUrl(toSearchUrl(request.searchQuery))
                     }
@@ -467,6 +548,7 @@ private fun capturePageText(
     webView: WebView,
     request: NativeWebRequest,
     selectedSource: NativeSelectedWebSource?,
+    navigationTrace: String,
     onDone: (String?) -> Unit
 ) {
     val script = """
@@ -492,6 +574,7 @@ private fun capturePageText(
                     appendLine("query_busqueda=${request.searchQuery}")
                     appendLine("intent=${request.intent}")
                     appendLine("strategy=${request.strategy}")
+                    appendLine(navigationTrace)
                     selectedSource?.let { source ->
                         appendLine("selected_source_url=${source.url}")
                         appendLine("selected_source_host=${source.host}")
@@ -516,6 +599,29 @@ private fun capturePageText(
             onDone(null)
         }
     }
+}
+
+private fun navigationTraceText(
+    request: NativeWebRequest,
+    events: List<NativeNavigationEvent>
+): String {
+    return buildString {
+        appendLine("WEB_NAVIGATION_TRACE")
+        appendLine("scope=temporary_session")
+        appendLine("requestedAtMillis=${request.requestedAtMillis}")
+        appendLine("events:")
+        events.takeLast(MAX_NAVIGATION_TRACE_EVENTS).forEach { event ->
+            append("- type=${event.type}")
+            append(" timestamp=${event.timestampMillis}")
+            event.host?.let { append(" host=$it") }
+            event.score?.let { append(" score=$it") }
+            event.reason?.let { append(" reason=$it") }
+            event.url?.let { append(" url=$it") }
+            event.title?.let { append(" title=$it") }
+            append(" detail=${event.detail}")
+            appendLine()
+        }
+    }.take(MAX_NAVIGATION_TRACE_CHARS)
 }
 
 private fun displayUrl(url: String): String {
@@ -558,6 +664,17 @@ private data class NativeSelectedWebSource(
     val reason: String
 )
 
+private data class NativeNavigationEvent(
+    val type: String,
+    val detail: String,
+    val url: String? = null,
+    val title: String? = null,
+    val host: String? = null,
+    val score: Int? = null,
+    val reason: String? = null,
+    val timestampMillis: Long
+)
+
 private val BraveWindow = Color(0xFF1E1E23)
 private val BraveToolbar = Color(0xFF313138)
 private val BraveBookmarkBar = Color(0xFF39393F)
@@ -570,3 +687,11 @@ private const val BRAVE_HOME_URL = "about:blank"
 private const val BRAVE_SEARCH_URL = "https://search.brave.com/search?q="
 private const val DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 private const val MAX_CAPTURED_TEXT_CHARS = 10_000
+private const val MAX_NAVIGATION_EVENTS = 32
+private const val MAX_NAVIGATION_TRACE_EVENTS = 12
+private const val MAX_NAVIGATION_TRACE_CHARS = 4_000
+private const val MAX_NAVIGATION_DETAIL_CHARS = 220
+private const val MAX_NAVIGATION_URL_CHARS = 420
+private const val MAX_NAVIGATION_TITLE_CHARS = 180
+private const val MAX_NAVIGATION_HOST_CHARS = 120
+private const val MAX_NAVIGATION_REASON_CHARS = 160
