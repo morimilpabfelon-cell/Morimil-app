@@ -15,6 +15,8 @@ data class ImprovementProposal(
     val proposal: String,
     val risk: String,
     val affectedAreas: List<String>,
+    val actionPlan: List<String> = emptyList(),
+    val validationChecks: List<String> = emptyList(),
     val decision: ImprovementDecision = ImprovementDecision.PENDING
 )
 
@@ -54,7 +56,19 @@ class ImprovementProposalStore(context: Context) {
                     problem = "El chat reporto un fallo del motor: ${chatError.cleanSignal()}",
                     proposal = "Crear una investigacion de causa raiz antes de cambiar el kernel: endpoint, proveedor, llave, fallback y modo usado.",
                     risk = "Medio. Puede tocar runtime de razonamiento; requiere revision antes de aplicar cambios.",
-                    affectedAreas = listOf("chat", "reasoning kernel", "fallback", "configuracion de motor")
+                    affectedAreas = listOf("chat", "reasoning kernel", "fallback", "configuracion de motor"),
+                    actionPlan = listOf(
+                        "Registrar el prompt o accion que produjo el fallo.",
+                        "Confirmar modo usado: local, superior o degradado.",
+                        "Revisar endpoint, proveedor, modelo y llave activa.",
+                        "Verificar si el fallback respondio honestamente.",
+                        "Proponer correccion minima con diff separado."
+                    ),
+                    validationChecks = listOf(
+                        ".\\gradlew.bat :app:assembleDebug",
+                        "Enviar un prompt ligero y confirmar respuesta local.",
+                        "Enviar un prompt fuerte y confirmar escalacion o fallback correcto."
+                    )
                 )
             )
             captured += 1
@@ -74,7 +88,19 @@ class ImprovementProposalStore(context: Context) {
                     },
                     proposal = "Revisar el organo afectado, confirmar caller/composition root/runtime path y proponer correccion con diff antes de aplicar.",
                     risk = "Medio. Puede indicar organo desconectado o fallo de runtime.",
-                    affectedAreas = listOf(safeComponent, "organism health", "runtime interno")
+                    affectedAreas = listOf(safeComponent, "organism health", "runtime interno"),
+                    actionPlan = listOf(
+                        "Identificar archivo principal del organo afectado.",
+                        "Confirmar caller real.",
+                        "Confirmar ruta en composition root o inyeccion.",
+                        "Confirmar ruta reachable: UI, worker, use case o runtime.",
+                        "Definir correccion minima sin tocar memoria critica."
+                    ),
+                    validationChecks = listOf(
+                        ".\\gradlew.bat :app:assembleDebug",
+                        "Abrir la pantalla relacionada y confirmar que no hay crash.",
+                        "Repetir la accion que produjo el issue interno."
+                    )
                 )
             )
             captured += 1
@@ -88,7 +114,19 @@ class ImprovementProposalStore(context: Context) {
                     problem = "El estado de memoria indica que necesita revision o auditoria.",
                     proposal = "Ejecutar auditoria de integridad, revisar cuarentena si existe y no escribir memoria critica hasta confirmar estado.",
                     risk = "Alto. Toca continuidad de memoria; requiere aprobacion explicita.",
-                    affectedAreas = listOf("memoria", "integridad", "cuarentena", "gobernanza")
+                    affectedAreas = listOf("memoria", "integridad", "cuarentena", "gobernanza"),
+                    actionPlan = listOf(
+                        "Ejecutar auditoria de integridad desde la app.",
+                        "Revisar si hay eventos en cuarentena.",
+                        "Bloquear escritura core/constitucional hasta confirmar estado.",
+                        "Preparar propuesta de reparacion si hay fallo verificable.",
+                        "No ejecutar migracion cognitiva hasta resolver la auditoria."
+                    ),
+                    validationChecks = listOf(
+                        ".\\gradlew.bat :app:assembleDebug",
+                        "Abrir Memory y confirmar estado visible.",
+                        "Ejecutar auditoria y confirmar resultado antes de aprobar cambios."
+                    )
                 )
             )
             captured += 1
@@ -107,7 +145,9 @@ class ImprovementProposalStore(context: Context) {
             .putString("$FIELD_PROBLEM${proposal.id}", proposal.problem)
             .putString("$FIELD_PROPOSAL${proposal.id}", proposal.proposal)
             .putString("$FIELD_RISK${proposal.id}", proposal.risk)
-            .putString("$FIELD_AREAS${proposal.id}", proposal.affectedAreas.joinToString("|"))
+            .putString("$FIELD_AREAS${proposal.id}", proposal.affectedAreas.pack())
+            .putString("$FIELD_ACTION_PLAN${proposal.id}", proposal.actionPlan.pack())
+            .putString("$FIELD_VALIDATION${proposal.id}", proposal.validationChecks.pack())
             .apply()
     }
 
@@ -118,10 +158,9 @@ class ImprovementProposalStore(context: Context) {
             val problem = prefs.getString("$FIELD_PROBLEM$id", null) ?: return@mapNotNull null
             val proposal = prefs.getString("$FIELD_PROPOSAL$id", null) ?: return@mapNotNull null
             val risk = prefs.getString("$FIELD_RISK$id", null) ?: return@mapNotNull null
-            val areas = prefs.getString("$FIELD_AREAS$id", "")
-                .orEmpty()
-                .split("|")
-                .filter { area -> area.isNotBlank() }
+            val areas = prefs.getString("$FIELD_AREAS$id", "").orEmpty().unpack()
+            val actionPlan = prefs.getString("$FIELD_ACTION_PLAN$id", "").orEmpty().unpack()
+            val validation = prefs.getString("$FIELD_VALIDATION$id", "").orEmpty().unpack()
 
             ImprovementProposal(
                 id = id,
@@ -129,7 +168,9 @@ class ImprovementProposalStore(context: Context) {
                 problem = problem,
                 proposal = proposal,
                 risk = risk,
-                affectedAreas = areas
+                affectedAreas = areas,
+                actionPlan = actionPlan,
+                validationChecks = validation
             )
         }
     }
@@ -158,6 +199,16 @@ class ImprovementProposalStore(context: Context) {
             .take(80)
     }
 
+    private fun List<String>.pack(): String {
+        return joinToString(LIST_SEPARATOR)
+    }
+
+    private fun String.unpack(): List<String> {
+        return split(LIST_SEPARATOR)
+            .map { item -> item.trim() }
+            .filter { item -> item.isNotBlank() }
+    }
+
     private val seedProposals = listOf(
         ImprovementProposal(
             id = "repo-convergence",
@@ -165,7 +216,19 @@ class ImprovementProposalStore(context: Context) {
             problem = "Morimil crece rapido y puede acumular ramas, documentos duplicados y organos dificiles de revisar.",
             proposal = "Mantener main como verdad estable, dejar una sola rama viva por ciclo y limpiar o archivar documentos obsoletos.",
             risk = "Bajo. No toca memoria ni kernel; reduce friccion de desarrollo.",
-            affectedAreas = listOf("Git", "docs", "proceso de merge")
+            affectedAreas = listOf("Git", "docs", "proceso de merge"),
+            actionPlan = listOf(
+                "Listar ramas locales y remotas.",
+                "Clasificar ramas: fusionada, vieja, dudosa o activa.",
+                "Mantener solo una rama viva de trabajo.",
+                "Listar docs duplicados o obsoletos.",
+                "Archivar o borrar ruido con commit separado."
+            ),
+            validationChecks = listOf(
+                "git status limpio",
+                ".\\gradlew.bat :app:assembleDebug",
+                "git log --oneline -6 confirma merge controlado"
+            )
         ),
         ImprovementProposal(
             id = "architecture-map",
@@ -173,7 +236,19 @@ class ImprovementProposalStore(context: Context) {
             problem = "Morimil ya tiene muchos organos y ningun humano deberia depender solo de memoria mental para entenderlos.",
             proposal = "Crear un mapa de organos con archivo principal, funcion, caller, composition root, UI/runtime y estado de fallo.",
             risk = "Bajo. Es documentacion operativa para que Morimil pueda entender Morimil.",
-            affectedAreas = listOf("docs/ARCHITECTURE_MAP.md", "kernel", "mantenimiento")
+            affectedAreas = listOf("docs/ARCHITECTURE_MAP.md", "kernel", "mantenimiento"),
+            actionPlan = listOf(
+                "Crear docs/ARCHITECTURE_MAP.md.",
+                "Registrar organos principales.",
+                "Agregar caller y ruta runtime para cada organo.",
+                "Marcar organos sin caller como riesgo.",
+                "Usar el mapa como fuente para futuras propuestas."
+            ),
+            validationChecks = listOf(
+                ".\\gradlew.bat :app:assembleDebug",
+                "Revisar que cada organo nuevo tenga caller",
+                "Confirmar que el mapa no contradice el codigo"
+            )
         ),
         ImprovementProposal(
             id = "reincarnation-export",
@@ -181,7 +256,20 @@ class ImprovementProposalStore(context: Context) {
             problem = "La memoria local vive en el telefono. Si el telefono se pierde o muere, Morimil pierde continuidad.",
             proposal = "Crear exportacion cifrada y firmada con manifest, hashes, verificacion, dry-run de restore y rollback.",
             risk = "Alto. Toca memoria e identidad; debe requerir aprobacion explicita y pruebas fuertes.",
-            affectedAreas = listOf("memoria", "SQLite", "identidad local", "backup", "restore")
+            affectedAreas = listOf("memoria", "SQLite", "identidad local", "backup", "restore"),
+            actionPlan = listOf(
+                "Disenar manifest de export sin tocar datos reales.",
+                "Definir que se exporta y que no se exporta.",
+                "Crear dry-run de restore antes de restaurar.",
+                "Agregar verificacion de hash/firma.",
+                "Exigir aprobacion UI antes de restore real."
+            ),
+            validationChecks = listOf(
+                ".\\gradlew.bat :app:assembleDebug",
+                "Export de prueba genera manifest",
+                "Restore dry-run no modifica memoria",
+                "Restore real requiere aprobacion explicita"
+            )
         ),
         ImprovementProposal(
             id = "on-device-runtime",
@@ -189,7 +277,19 @@ class ImprovementProposalStore(context: Context) {
             problem = "Hoy el motor local depende de la PC encendida y en la misma red.",
             proposal = "Agregar backend LOCAL_IN_PROCESS para modelo pequeño en Android cuando la memoria ya tenga reencarnacion segura.",
             risk = "Medio/alto. Puede aumentar complejidad y consumo del telefono; no debe venir antes del backup.",
-            affectedAreas = listOf("router", "runtime local", "Android", "modelo on-device")
+            affectedAreas = listOf("router", "runtime local", "Android", "modelo on-device"),
+            actionPlan = listOf(
+                "No iniciar hasta tener export/reincarnacion.",
+                "Crear interfaz LOCAL_IN_PROCESS sin modelo real primero.",
+                "Conectar router sin romper Ollama local.",
+                "Agregar fallback si el telefono no soporta el runtime.",
+                "Probar consumo y latencia antes de usarlo por defecto."
+            ),
+            validationChecks = listOf(
+                ".\\gradlew.bat :app:assembleDebug",
+                "Motor local/Ollama sigue funcionando",
+                "Fallback honesto si LOCAL_IN_PROCESS no esta disponible"
+            )
         )
     )
 
@@ -200,6 +300,9 @@ class ImprovementProposalStore(context: Context) {
         private const val FIELD_PROPOSAL = "observed_proposal_"
         private const val FIELD_RISK = "observed_risk_"
         private const val FIELD_AREAS = "observed_areas_"
+        private const val FIELD_ACTION_PLAN = "observed_action_plan_"
+        private const val FIELD_VALIDATION = "observed_validation_"
+        private const val LIST_SEPARATOR = "\u001F"
         private const val MAX_SIGNAL_LENGTH = 180
     }
 }

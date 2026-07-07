@@ -157,8 +157,42 @@ private fun ImprovementProposalCard(
                     Text("Negar")
                 }
             }
+
+            when (proposal.decision) {
+                ImprovementDecision.APPROVED -> ApprovedActionPlan(proposal)
+                ImprovementDecision.PENDING -> Text(
+                    "Si apruebas esta mejora, Morimil solo mostrara un plan de accion verificable. No aplicara cambios automaticos.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                ImprovementDecision.DENIED -> Text(
+                    "Propuesta negada. No se genera plan activo ni se aplica ningun cambio.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
         }
     }
+}
+
+@Composable
+private fun ApprovedActionPlan(proposal: ImprovementProposal) {
+    if (proposal.actionPlan.isNotEmpty()) {
+        Text("Plan de accion verificable", style = MaterialTheme.typography.titleSmall)
+        proposal.actionPlan.forEachIndexed { index, step ->
+            Text("${index + 1}. $step", style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+
+    if (proposal.validationChecks.isNotEmpty()) {
+        Text("Validacion requerida", style = MaterialTheme.typography.titleSmall)
+        proposal.validationChecks.forEachIndexed { index, check ->
+            Text("${index + 1}. $check", style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+
+    Text(
+        "Estado: aprobado para planificacion. No ejecutado automaticamente.",
+        style = MaterialTheme.typography.bodySmall
+    )
 }
 
 private fun ImprovementDecision.toUiLabel(): String {
