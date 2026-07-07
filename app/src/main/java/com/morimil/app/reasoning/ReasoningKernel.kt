@@ -14,6 +14,7 @@ import com.morimil.app.domain.usecase.AppendLivingMemoryUseCase
 import com.morimil.app.domain.usecase.RunRestCycleUseCase
 import com.morimil.app.reasoning.model.ModelBackendRouter
 import com.morimil.app.reasoning.model.ReasoningBackendStatusStore
+import com.morimil.app.reasoning.model.ReasoningEscalationStore
 import com.morimil.app.reasoning.trace.KernelTraceRepository
 import com.morimil.app.web.NativeWebContextStore
 
@@ -38,6 +39,7 @@ class ReasoningKernel(
             intent = intent
         )
         ReasoningBackendStatusStore.update(backend)
+        ReasoningEscalationStore.publishIfNeeded(backend, cleanInput)
         ReasoningRuntimeState.set(request.runtimeConfig)
 
         var state = ReasoningState(
