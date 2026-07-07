@@ -71,6 +71,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.morimil.app.ai.ReasoningConfigStore
+import com.morimil.app.ai.ReasoningProfileRuntimeStore
 import com.morimil.app.ai.ReasoningProviderConfig
 import com.morimil.app.ai.ReasoningPreset
 import com.morimil.app.core.memory.MemoryBacklink
@@ -90,10 +91,14 @@ fun MotorScreen(viewModel: MotorViewModel) {
     val context = LocalContext.current
     val configStore = remember(context) { ReasoningConfigStore(context) }
     val initialConfig = remember(configStore) { configStore.load() }
+    val initialSuperior = remember { ReasoningProfileRuntimeStore.loadSuperior() }
     var endpoint by remember { mutableStateOf(initialConfig.baseUrl) }
     var model by remember { mutableStateOf(initialConfig.model.ifBlank { "llama3.2" }) }
     var pcIp by remember { mutableStateOf("") }
     var saveStatus by remember { mutableStateOf("Config actual cargada.") }
+    var superiorEndpoint by remember { mutableStateOf(initialSuperior.baseUrl) }
+    var superiorModel by remember { mutableStateOf(initialSuperior.model) }
+    var superiorSaveStatus by remember { mutableStateOf("Motor superior runtime sin configurar.") }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -142,6 +147,26 @@ fun MotorScreen(viewModel: MotorViewModel) {
                 saveStatus = result.fold(
                     onSuccess = { "Motor local guardado. El siguiente mensaje del chat usara esta configuracion." },
                     onFailure = { error -> "No se pudo guardar: ${error.message ?: error::class.java.simpleName}" }
+                )
+            }
+        )
+        SuperiorBackendConfigCard(
+            endpoint = superiorEndpoint,
+            model = superiorModel,
+            saveStatus = superiorSaveStatus,
+            onEndpointChange = { superiorEndpoint = it },
+            onModelChange = { superiorModel = it },
+            onSave = {
+                val result = ReasoningProfileRuntimeStore.saveSuperior(
+                    ReasoningProviderConfig(
+                        preset = ReasoningPreset.CUSTOM,
+                        baseUrl = superiorEndpoint,
+                        model = superiorModel
+                    )
+                )
+                superiorSaveStatus = result.fold(
+                    onSuccess = { "Motor superior guardado en runtime. Falta persistencia permanente." },
+                    onFailure = { error -> "No se pudo guardar superior: ${error.message ?: error::class.java.simpleName}" }
                 )
             }
         )
