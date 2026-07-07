@@ -35,17 +35,7 @@ class ImprovementProposalStore(context: Context) {
             .distinctBy { proposal -> proposal.id }
             .map { proposal -> proposal.copy(decision = readDecision(proposal.id)) }
     }
-
-    fun approve(id: String) {
-        setDecision(id, ImprovementDecision.APPROVED)
-    }
-
-    fun deny(id: String) {
-        setDecision(id, ImprovementDecision.DENIED)
-    }
-
-
-    suspend fun loadDecisionHistory(): List<ImprovementDecisionHistoryEntry> {
+suspend fun loadDecisionHistory(): List<ImprovementDecisionHistoryEntry> {
         return memoryDao.loadImprovementDecisionHistory(MAX_HISTORY_ENTRIES)
             .map { entity ->
                 ImprovementDecisionHistoryEntry(
