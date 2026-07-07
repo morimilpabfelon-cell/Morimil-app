@@ -25,7 +25,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -35,7 +34,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -315,11 +313,7 @@ private fun BrowserChromeButton(
         onClick = onClick,
         enabled = enabled,
         contentPadding = PaddingValues(0.dp),
-        modifier = Modifier.width(24.dp).height(22.dp),
-        colors = TextButtonDefaults.textButtonColors(
-            contentColor = BraveToolbarText,
-            disabledContentColor = BraveToolbarDisabled
-        )
+        modifier = Modifier.width(24.dp).height(22.dp)
     ) {
         Text(text = label, fontSize = 10.sp)
     }
@@ -472,7 +466,6 @@ private val BraveTabActive = Color(0xFF3B3B43)
 private val BraveAddress = Color(0xFF1E1E25)
 private val BraveToolbarText = Color(0xFFE8E8EC)
 private val BraveToolbarMuted = Color(0xFFB7B7BE)
-private val BraveToolbarDisabled = Color(0xFF64646C)
 private const val BRAVE_HOME_URL = "https://search.brave.com/"
 private const val BRAVE_SEARCH_URL = "https://search.brave.com/search?q="
 private const val DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
