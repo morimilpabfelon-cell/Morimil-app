@@ -63,20 +63,9 @@ fun NativeWebBridgePanel(
     }
 
     fun resetNavigationTrace(request: NativeWebRequest) {
-        val searchUrl = toSearchUrl(request.searchQuery)
-        val now = System.currentTimeMillis()
-        navigationEvents = listOf(
-            NativeNavigationEvent(
-                type = "SESSION_STARTED",
-                detail = "inicio de navegacion temporal",
-                timestampMillis = now
-            ),
-            NativeNavigationEvent(
-                type = "SEARCH_OPENED",
-                detail = "busqueda abierta",
-                url = searchUrl,
-                timestampMillis = now
-            )
+        navigationEvents = NativeWebNavigationTrace.started(
+            request = request,
+            searchUrl = toSearchUrl(request.searchQuery)
         )
     }
 
@@ -91,17 +80,16 @@ fun NativeWebBridgePanel(
         reason: String? = null
     ) {
         if (activeRequest?.requestedAtMillis != request.requestedAtMillis) return
-        val event = NativeNavigationEvent(
+        navigationEvents = NativeWebNavigationTrace.append(
+            events = navigationEvents,
             type = type,
-            detail = detail.take(MAX_NAVIGATION_DETAIL_CHARS),
-            url = url?.take(MAX_NAVIGATION_URL_CHARS),
-            title = title?.take(MAX_NAVIGATION_TITLE_CHARS),
-            host = host?.take(MAX_NAVIGATION_HOST_CHARS),
+            detail = detail,
+            url = url,
+            title = title,
+            host = host,
             score = score,
-            reason = reason?.take(MAX_NAVIGATION_REASON_CHARS),
-            timestampMillis = System.currentTimeMillis()
+            reason = reason
         )
-        navigationEvents = (navigationEvents + event).takeLast(MAX_NAVIGATION_EVENTS)
     }
 
     fun attemptResearchRetry(
@@ -138,7 +126,7 @@ fun NativeWebBridgePanel(
             request = request,
             primary = primary,
             secondary = secondary,
-            navigationTrace = navigationTraceText(request, navigationEvents),
+            navigationTrace = NativeWebNavigationTrace.text(request, navigationEvents),
             verifier = verifier,
             retryCount = retryCount
         )
@@ -514,29 +502,6 @@ private fun selectBestUsefulResults(
     }
 }
 
-private fun navigationTraceText(
-    request: NativeWebRequest,
-    events: List<NativeNavigationEvent>
-): String {
-    return buildString {
-        appendLine("WEB_NAVIGATION_TRACE")
-        appendLine("scope=temporary_session")
-        appendLine("requestedAtMillis=${request.requestedAtMillis}")
-        appendLine("events:")
-        events.takeLast(MAX_NAVIGATION_TRACE_EVENTS).forEach { event ->
-            append("- type=${event.type}")
-            append(" timestamp=${event.timestampMillis}")
-            event.host?.let { append(" host=$it") }
-            event.score?.let { append(" score=$it") }
-            event.reason?.let { append(" reason=$it") }
-            event.url?.let { append(" url=$it") }
-            event.title?.let { append(" title=$it") }
-            append(" detail=${event.detail}")
-            appendLine()
-        }
-    }.take(MAX_NAVIGATION_TRACE_CHARS)
-}
-
 private fun decodeJsString(raw: String?): String {
     val value = raw?.takeIf { it != "null" } ?: return ""
     return JSONArray("[$value]").getString(0)
@@ -545,13 +510,5 @@ private fun decodeJsString(raw: String?): String {
 private const val BRAVE_HOME_URL = "about:blank"
 private const val BRAVE_SEARCH_URL = "https://search.brave.com/search?q="
 private const val DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-private const val MAX_NAVIGATION_EVENTS = 32
-private const val MAX_NAVIGATION_TRACE_EVENTS = 12
-private const val MAX_NAVIGATION_TRACE_CHARS = 4_000
-private const val MAX_NAVIGATION_DETAIL_CHARS = 220
-private const val MAX_NAVIGATION_URL_CHARS = 420
-private const val MAX_NAVIGATION_TITLE_CHARS = 180
-private const val MAX_NAVIGATION_HOST_CHARS = 120
-private const val MAX_NAVIGATION_REASON_CHARS = 160
 private const val MAX_RESEARCH_RETRIES = 1
 private const val MAX_RETRY_QUERY_CHARS = 240
