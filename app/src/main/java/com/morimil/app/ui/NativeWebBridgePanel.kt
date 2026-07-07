@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -90,7 +89,7 @@ fun NativeWebBridgePanel(
 
     ElevatedCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp)
+        shape = RoundedCornerShape(22.dp)
     ) {
         Column(
             modifier = Modifier
@@ -205,98 +204,96 @@ private fun BrowserChrome(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(28.dp)
-                .padding(horizontal = 5.dp, vertical = 3.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                .height(22.dp)
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
-                modifier = Modifier.height(22.dp).weight(1f),
+                modifier = Modifier.width(126.dp).height(18.dp),
                 color = BraveTabActive,
-                shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)
+                shape = RoundedCornerShape(topStart = 7.dp, topEnd = 7.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 7.dp),
+                    modifier = Modifier.padding(horizontal = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
-                    Text(text = "🛡", fontSize = 9.sp, color = BraveToolbarText)
+                    Text(text = "◈", fontSize = 7.sp, color = BraveAccent)
                     Text(
                         text = tabTitle(currentUrl),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodySmall,
                         color = BraveToolbarText,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 9.sp,
+                        fontSize = 8.sp,
                         modifier = Modifier.weight(1f)
                     )
-                    Text(text = "×", fontSize = 10.sp, color = BraveToolbarText)
+                    Text(text = "×", fontSize = 8.sp, color = BraveToolbarText)
                 }
             }
             BrowserChromeButton(label = "+", enabled = true, onClick = onHome)
-            Spacer(modifier = Modifier.width(18.dp))
-            Text(text = "−", color = BraveToolbarMuted, fontSize = 9.sp)
-            Text(text = "□", color = BraveToolbarMuted, fontSize = 8.sp)
-            Text(text = "×", color = BraveToolbarMuted, fontSize = 9.sp)
+            Spacer(modifier = Modifier.weight(1f))
+            Text(text = "−", color = BraveToolbarMuted, fontSize = 8.sp)
+            Text(text = "□", color = BraveToolbarMuted, fontSize = 7.sp)
+            Text(text = "×", color = BraveToolbarMuted, fontSize = 8.sp)
         }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(30.dp)
+                .height(24.dp)
                 .background(BraveToolbar)
-                .padding(horizontal = 5.dp, vertical = 3.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            BrowserChromeButton(label = "←", enabled = canGoBack, onClick = onBack)
-            BrowserChromeButton(label = "→", enabled = canGoForward, onClick = onForward)
-            BrowserChromeButton(label = if (isLoading) "×" else "↻", enabled = true, onClick = onRefresh)
-            Text(text = "▱", color = BraveToolbarMuted, fontSize = 10.sp)
+            BrowserChromeButton(label = "‹", enabled = canGoBack, onClick = onBack)
+            BrowserChromeButton(label = "›", enabled = canGoForward, onClick = onForward)
+            BrowserChromeButton(label = if (isLoading) "×" else "⟳", enabled = true, onClick = onRefresh)
+            Text(text = "▱", color = BraveToolbarMuted, fontSize = 8.sp)
             Surface(
-                modifier = Modifier.height(22.dp).weight(1f),
+                modifier = Modifier.height(18.dp).weight(1f),
                 color = BraveAddress,
-                shape = RoundedCornerShape(13.dp)
+                shape = RoundedCornerShape(9.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 8.dp),
+                    modifier = Modifier.padding(horizontal = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(text = "🔍", color = BraveToolbarMuted, fontSize = 8.sp)
+                    Text(text = "⌕", color = BraveToolbarMuted, fontSize = 7.sp)
                     Text(
                         text = addressText(currentUrl),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodySmall,
                         color = BraveToolbarText,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 9.sp,
+                        fontSize = 8.sp,
                         modifier = Modifier.weight(1f)
                     )
-                    Text(text = "🛡", color = BraveToolbarMuted, fontSize = 8.sp)
-                    Text(text = "▴", color = BraveToolbarMuted, fontSize = 8.sp)
+                    Text(text = "◈", color = BraveAccent, fontSize = 7.sp)
+                    Text(text = "▴", color = BraveToolbarMuted, fontSize = 7.sp)
                 }
             }
-            Text(text = "☆", color = BraveToolbarMuted, fontSize = 10.sp)
-            Text(text = "☰", color = BraveToolbarMuted, fontSize = 10.sp)
+            Text(text = "☆", color = BraveToolbarMuted, fontSize = 8.sp)
+            Text(text = "≡", color = BraveToolbarMuted, fontSize = 8.sp)
         }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(20.dp)
+                .height(14.dp)
                 .background(BraveBookmarkBar)
-                .padding(horizontal = 6.dp),
+                .padding(horizontal = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(text = "▦", color = BraveToolbarMuted, fontSize = 9.sp)
+            Text(text = "▦", color = BraveToolbarMuted, fontSize = 7.sp)
             Text(
                 text = "Para acceder de forma rápida, coloca marcadores aquí",
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = BraveToolbarText,
-                fontSize = 8.sp,
+                fontSize = 6.sp,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -313,9 +310,9 @@ private fun BrowserChromeButton(
         onClick = onClick,
         enabled = enabled,
         contentPadding = PaddingValues(0.dp),
-        modifier = Modifier.width(24.dp).height(22.dp)
+        modifier = Modifier.width(18.dp).height(18.dp)
     ) {
-        Text(text = label, fontSize = 10.sp)
+        Text(text = label, fontSize = 8.sp)
     }
 }
 
@@ -330,7 +327,7 @@ private fun WebView.configureAsDesktopBrowser() {
     settings.loadWithOverviewMode = true
     settings.builtInZoomControls = false
     settings.displayZoomControls = false
-    settings.textZoom = 100
+    settings.textZoom = 92
     settings.userAgentString = DESKTOP_USER_AGENT
     isVerticalScrollBarEnabled = false
     isHorizontalScrollBarEnabled = false
@@ -459,13 +456,14 @@ private fun decodeJsString(raw: String?): String {
     return JSONArray("[$value]").getString(0)
 }
 
-private val BraveWindow = Color(0xFF1F1F24)
-private val BraveToolbar = Color(0xFF303037)
-private val BraveBookmarkBar = Color(0xFF38383F)
-private val BraveTabActive = Color(0xFF3B3B43)
-private val BraveAddress = Color(0xFF1E1E25)
-private val BraveToolbarText = Color(0xFFE8E8EC)
-private val BraveToolbarMuted = Color(0xFFB7B7BE)
+private val BraveWindow = Color(0xFF1E1E23)
+private val BraveToolbar = Color(0xFF313138)
+private val BraveBookmarkBar = Color(0xFF39393F)
+private val BraveTabActive = Color(0xFF3A3A41)
+private val BraveAddress = Color(0xFF1D1D23)
+private val BraveToolbarText = Color(0xFFE7E7EA)
+private val BraveToolbarMuted = Color(0xFFA8A8AF)
+private val BraveAccent = Color(0xFFFF5A1F)
 private const val BRAVE_HOME_URL = "https://search.brave.com/"
 private const val BRAVE_SEARCH_URL = "https://search.brave.com/search?q="
 private const val DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
