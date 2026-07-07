@@ -156,7 +156,7 @@ private fun DecisionHistoryCard(history: List<ImprovementDecisionHistoryEntry>) 
             } else {
                 history.take(8).forEach { entry ->
                     Text(
-                        "${entry.decision.toUiLabel()} ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ${entry.proposalTitle}",
+                        "${entry.decision.toUiLabel()} - ${entry.proposalTitle}",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
