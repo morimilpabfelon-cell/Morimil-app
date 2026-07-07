@@ -12,8 +12,10 @@ import com.morimil.app.data.repository.MemoryRepository
 import com.morimil.app.data.repository.RecallScheduleRepository
 import com.morimil.app.domain.usecase.AppendLivingMemoryUseCase
 import com.morimil.app.domain.usecase.RunRestCycleUseCase
+import com.morimil.app.reasoning.model.ModelBackendKind
 import com.morimil.app.reasoning.model.ModelBackendRouter
 import com.morimil.app.reasoning.model.ReasoningBackendStatusStore
+import com.morimil.app.reasoning.model.ReasoningEscalationDecision
 import com.morimil.app.reasoning.model.ReasoningEscalationStore
 import com.morimil.app.reasoning.trace.KernelTraceRepository
 import com.morimil.app.web.NativeWebContextStore
@@ -39,7 +41,10 @@ class ReasoningKernel(
             intent = intent
         )
         ReasoningBackendStatusStore.update(backend)
-        ReasoningEscalationStore.publishIfNeeded(backend, cleanInput)
+        val escalationRequest = ReasoningEscalationStore.publishIfNeeded(backend, cleanInput)
+        val remoteBlocked = backend.kind == ModelBackendKind.REMOTE_API &&
+            escalationRequest != null &&
+            escalationRequest.decision != ReasoningEscalationDecision.APPROVED
         ReasoningRuntimeState.set(request.runtimeConfig)
 
         var state = ReasoningState(
@@ -49,12 +54,16 @@ class ReasoningKernel(
             modelBackendLabel = "${backend.label}:${backend.kind}",
             memoryContextSummary = "pending",
             capsuleContextSummary = "pending",
-            policyDecision = if (backend.usable) "model_request_allowed" else "model_unavailable_degraded",
+            policyDecision = when {
+                remoteBlocked -> "remote_model_requires_owner_approval"
+                backend.usable -> "model_request_allowed"
+                else -> "model_unavailable_degraded"
+            },
             criticFindings = emptyList(),
             trace = listOf(
                 ReasoningTraceEvent(
                     "kernel_start",
-                    "mode=${backend.mode} intent=$intent backend=${backend.kind} complexity=${backend.taskComplexity} hint=${backend.routingHint} reason=${backend.reason}"
+                    "mode=${backend.mode} intent=$intent backend=${backend.kind} complexity=${backend.taskComplexity} hint=${backend.routingHint} reason=${backend.reason} escalation=${escalationRequest?.decision ?: "none"}"
                 )
             )
         )
@@ -68,7 +77,7 @@ class ReasoningKernel(
                     backend = backend,
                     reply = null,
                     errorMessage = error,
-                    fallbackUsed = !backend.usable
+                    fallbackUsed = !backend.usable || remoteBlocked
                 )
             }
             return ReasoningKernelResult(
@@ -123,32 +132,37 @@ class ReasoningKernel(
                 "memory_chars=${memoryContext.length} capsule_chars=${capsuleContext.length} web_chars=${nativeWebContext.length}"
             )
 
-            var fallbackUsed = !backend.usable
-            val reply = if (!backend.usable) {
-                degradedReply(cleanInput, intent, memoryContext, capsuleContext, backend.reason)
-            } else {
-                val systemPrompt = SystemPromptBuilder.build(
-                    genesis = request.genesis,
-                    alias = request.alias,
-                    doctrineText = request.doctrineText,
-                    policyText = request.policyText,
-                    livingMemoryContext = memoryContext,
-                    knowledgeCapsuleContext = capsuleContext
-                )
-                val recentHistory = request.priorHistory
-                    .takeLast(ReasoningClient.MAX_HISTORY_MESSAGES - 1) +
-                    ChatTurn(role = "user", content = cleanInput)
+            var fallbackUsed = !backend.usable || remoteBlocked
+            val reply = when {
+                !backend.usable -> degradedReply(cleanInput, intent, memoryContext, capsuleContext, backend.reason)
+                remoteBlocked -> {
+                    state = state.withTrace("remote_blocked", "owner_approval_required:${backend.taskComplexity}:${backend.routingHint}")
+                    degradedReply(cleanInput, intent, memoryContext, capsuleContext, "remote_model_requires_owner_approval")
+                }
+                else -> {
+                    val systemPrompt = SystemPromptBuilder.build(
+                        genesis = request.genesis,
+                        alias = request.alias,
+                        doctrineText = request.doctrineText,
+                        policyText = request.policyText,
+                        livingMemoryContext = memoryContext,
+                        knowledgeCapsuleContext = capsuleContext
+                    )
+                    val recentHistory = request.priorHistory
+                        .takeLast(ReasoningClient.MAX_HISTORY_MESSAGES - 1) +
+                        ChatTurn(role = "user", content = cleanInput)
 
-                state = state.withTrace("model_call", "backend=${backend.kind} endpoint=${backend.endpoint.take(80)} model=${backend.model} complexity=${backend.taskComplexity}")
-                reasoningClient.sendMessage(
-                    request.runtimeConfig,
-                    request.runtimeAccess,
-                    systemPrompt,
-                    recentHistory
-                ).getOrElse { error ->
-                    fallbackUsed = true
-                    state = state.withTrace("model_failed", error.message ?: error::class.java.simpleName)
-                    degradedReply(cleanInput, intent, memoryContext, capsuleContext, error.message ?: error::class.java.simpleName)
+                    state = state.withTrace("model_call", "backend=${backend.kind} endpoint=${backend.endpoint.take(80)} model=${backend.model} complexity=${backend.taskComplexity}")
+                    reasoningClient.sendMessage(
+                        request.runtimeConfig,
+                        request.runtimeAccess,
+                        systemPrompt,
+                        recentHistory
+                    ).getOrElse { error ->
+                        fallbackUsed = true
+                        state = state.withTrace("model_failed", error.message ?: error::class.java.simpleName)
+                        degradedReply(cleanInput, intent, memoryContext, capsuleContext, error.message ?: error::class.java.simpleName)
+                    }
                 }
             }
 
@@ -186,7 +200,7 @@ class ReasoningKernel(
                     backend = backend,
                     reply = null,
                     errorMessage = message,
-                    fallbackUsed = !backend.usable
+                    fallbackUsed = !backend.usable || remoteBlocked
                 )
             }
             ReasoningKernelResult(
