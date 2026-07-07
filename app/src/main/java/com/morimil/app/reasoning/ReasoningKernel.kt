@@ -17,13 +17,6 @@ import com.morimil.app.reasoning.model.ReasoningBackendStatusStore
 import com.morimil.app.reasoning.trace.KernelTraceRepository
 import com.morimil.app.web.NativeWebContextStore
 
-/**
- * First local reasoning kernel foundation.
- *
- * The kernel owns turn state, local memory retrieval, fallback behavior and
- * post-turn maintenance. Model calls are treated as replaceable backends, not
- * as Morimil's identity or final authority.
- */
 class ReasoningKernel(
     private val memoryRepository: MemoryRepository,
     private val memoryOrganRepository: MemoryOrganRepository,
@@ -40,7 +33,9 @@ class ReasoningKernel(
         val backend = ModelBackendRouter.select(
             runtimeLabel = request.runtimeLabel,
             config = request.runtimeConfig,
-            runtimeAccess = request.runtimeAccess
+            runtimeAccess = request.runtimeAccess,
+            input = cleanInput,
+            intent = intent
         )
         ReasoningBackendStatusStore.update(backend)
         ReasoningRuntimeState.set(request.runtimeConfig)
@@ -57,7 +52,7 @@ class ReasoningKernel(
             trace = listOf(
                 ReasoningTraceEvent(
                     "kernel_start",
-                    "mode=${backend.mode} intent=$intent backend=${backend.kind} reason=${backend.reason}"
+                    "mode=${backend.mode} intent=$intent backend=${backend.kind} complexity=${backend.taskComplexity} hint=${backend.routingHint} reason=${backend.reason}"
                 )
             )
         )
@@ -142,7 +137,7 @@ class ReasoningKernel(
                     .takeLast(ReasoningClient.MAX_HISTORY_MESSAGES - 1) +
                     ChatTurn(role = "user", content = cleanInput)
 
-                state = state.withTrace("model_call", "backend=${backend.kind} endpoint=${backend.endpoint.take(80)} model=${backend.model}")
+                state = state.withTrace("model_call", "backend=${backend.kind} endpoint=${backend.endpoint.take(80)} model=${backend.model} complexity=${backend.taskComplexity}")
                 reasoningClient.sendMessage(
                     request.runtimeConfig,
                     request.runtimeAccess,
@@ -166,8 +161,20 @@ class ReasoningKernel(
                     fallbackUsed = fallbackUsed
                 )
             }
-            runPostTurnMaintenance()
-            ReasoningKernelResult(state = state, reply = reply, errorMessage = null)
+
+            runCatching { runRestCycleUseCase.runOnce() }
+                .onSuccess { report -> state = state.withTrace("rest_cycle", report.summary.take(220)) }
+                .onFailure { error -> state = state.withTrace("rest_cycle_failed", error.message ?: error::class.java.simpleName) }
+
+            runCatching { recallScheduleRepository.runDueRecalls(activeGenesisCoreId) }
+                .onSuccess { report -> state = state.withTrace("recall_schedule", report.summary.take(220)) }
+                .onFailure { error -> state = state.withTrace("recall_schedule_failed", error.message ?: error::class.java.simpleName) }
+
+            ReasoningKernelResult(
+                state = state,
+                reply = reply,
+                errorMessage = null
+            )
         }.getOrElse { error ->
             val message = error.message ?: error::class.java.simpleName
             val errorState = state.withError(message)
@@ -188,22 +195,12 @@ class ReasoningKernel(
         }
     }
 
-    suspend fun reasonDegraded(request: ReasoningKernelRequest): ReasoningKernelResult {
-        return reason(
-            request.copy(
-                runtimeLabel = "deterministic_local_fallback",
-                runtimeConfig = ReasoningProviderConfig.default(),
-                runtimeAccess = ""
-            )
-        )
-    }
-
     private fun degradedReply(
         input: String,
         intent: ReasoningIntent,
         memoryContext: String,
         capsuleContext: String,
-        modelError: String?
+        modelError: String? = null
     ): String {
         return DeterministicFallbackReasoner.reply(
             input = input,
@@ -214,17 +211,15 @@ class ReasoningKernel(
         )
     }
 
-    private suspend fun runPostTurnMaintenance() {
-        runCatching { runRestCycleUseCase() }
-        runCatching { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
-    }
-
     private fun summarizeContext(value: String): String {
-        return value
-            .replace(Regex("\\s+"), " ")
-            .trim()
+        val clean = value.trim()
+        if (clean.isBlank()) return "empty"
+        return clean
+            .lines()
+            .filter { it.isNotBlank() }
+            .take(3)
+            .joinToString(" | ") { it.take(120) }
             .take(420)
-            .ifBlank { "empty" }
     }
 
     private companion object {
@@ -234,13 +229,19 @@ class ReasoningKernel(
 
 data class ReasoningKernelRequest(
     val input: String,
-    val genesis: GenesisIdentity,
     val alias: String,
+    val genesis: GenesisIdentity,
     val doctrineText: String?,
     val policyText: String?,
     val priorHistory: List<ChatTurn>,
-    val fallbackGenesisCoreId: String?,
-    val runtimeLabel: String,
     val runtimeConfig: ReasoningProviderConfig,
-    val runtimeAccess: String
+    val runtimeAccess: String,
+    val runtimeLabel: String,
+    val fallbackGenesisCoreId: String? = null
+)
+
+data class ReasoningKernelResult(
+    val state: ReasoningState,
+    val reply: String?,
+    val errorMessage: String?
 )
