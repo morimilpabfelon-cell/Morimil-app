@@ -21,6 +21,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +32,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.morimil.app.web.NativeWebContextStore
 import com.morimil.app.web.NativeWebPageContext
+import com.morimil.app.web.NativeWebRequestStore
 import org.json.JSONArray
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -41,6 +43,17 @@ fun NativeBrowserScreen() {
     var status by remember { mutableStateOf("Navegador nativo listo.") }
     var activeWebView by remember { mutableStateOf<WebView?>(null) }
     val capturedPage by NativeWebContextStore.currentPage.collectAsStateWithLifecycle()
+    val pendingRequest by NativeWebRequestStore.pendingRequest.collectAsStateWithLifecycle()
+
+    LaunchedEffect(pendingRequest) {
+        val request = pendingRequest ?: return@LaunchedEffect
+        val target = normalizeUrlOrSearch(request.query)
+        input = request.query
+        loadTarget = target
+        status = "Morimil pidio buscar: ${request.query.take(120)}"
+        activeWebView?.loadUrl(target)
+        NativeWebRequestStore.markHandled(request)
+    }
 
     DisposableEffect(Unit) {
         onDispose {
