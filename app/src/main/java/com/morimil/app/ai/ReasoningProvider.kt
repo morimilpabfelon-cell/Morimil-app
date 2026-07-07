@@ -51,9 +51,7 @@ data class ReasoningProviderConfig(
         }
 
     val requiresRuntimeKey: Boolean
-        get() = baseUrl.isNotBlank() && !(baseUrl.startsWith("http://127.0.0.1") ||
-            baseUrl.startsWith("http://localhost") ||
-            baseUrl.startsWith("http://10.0.2.2"))
+        get() = baseUrl.isNotBlank() && !ReasoningEndpointPolicy.isLocalTrustedEndpoint(baseUrl)
 
     fun validated(): ReasoningProviderConfig {
         val cleanUrl = baseUrl.trim()
