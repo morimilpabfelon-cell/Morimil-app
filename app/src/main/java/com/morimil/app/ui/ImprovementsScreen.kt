@@ -1,4 +1,4 @@
-﻿package com.morimil.app.ui
+package com.morimil.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,7 +16,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -29,18 +31,24 @@ import com.morimil.app.improvements.ImprovementProposalStore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 @Composable
 fun ImprovementsScreen(viewModel: MorimilViewModel) {
     val context = LocalContext.current
     val store = remember(context) { ImprovementProposalStore(context) }
+    val scope = rememberCoroutineScope()
     val chatError by viewModel.chatError.collectAsStateWithLifecycle()
     val chatStatus by viewModel.chatOrganismStatus.collectAsStateWithLifecycle()
     val internalIssue by viewModel.internalRuntimeIssue.collectAsStateWithLifecycle()
 
     var proposals by remember { mutableStateOf(store.loadProposals()) }
-    var decisionHistory by remember { mutableStateOf(store.loadDecisionHistory()) }
+    var decisionHistory by remember { mutableStateOf<List<ImprovementDecisionHistoryEntry>>(emptyList()) }
     var scanMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(store) {
+        decisionHistory = store.loadDecisionHistory()
+    }
 
     Column(
         modifier = Modifier
@@ -60,7 +68,7 @@ fun ImprovementsScreen(viewModel: MorimilViewModel) {
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Analisis de señales actuales", style = MaterialTheme.typography.titleMedium)
+                Text("Analisis de senales actuales", style = MaterialTheme.typography.titleMedium)
                 Text(
                     "Esto revisa errores de chat, issues internos y estado de memoria. Si encuentra algo util, crea una propuesta para que tu la apruebes o niegues.",
                     style = MaterialTheme.typography.bodyMedium
@@ -92,13 +100,13 @@ fun ImprovementsScreen(viewModel: MorimilViewModel) {
                         )
                         proposals = store.loadProposals()
                         scanMessage = if (captured == 0) {
-                            "Sin señales nuevas. Morimil no encontro un fallo actual que proponer."
+                            "Sin senales nuevas. Morimil no encontro un fallo actual que proponer."
                         } else {
-                            "Se capturaron $captured señal(es) como propuesta(s) revisables."
+                            "Se capturaron $captured senal(es) como propuesta(s) revisables."
                         }
                     }
                 ) {
-                    Text("Analizar señales actuales")
+                    Text("Analizar senales actuales")
                 }
 
                 scanMessage?.let { message ->
@@ -113,14 +121,18 @@ fun ImprovementsScreen(viewModel: MorimilViewModel) {
             ImprovementProposalCard(
                 proposal = proposal,
                 onApprove = {
-                    store.approve(proposal.id)
-                    proposals = store.loadProposals()
-                    decisionHistory = store.loadDecisionHistory()
+                    scope.launch {
+                        store.approveWithAudit(proposal.id)
+                        proposals = store.loadProposals()
+                        decisionHistory = store.loadDecisionHistory()
+                    }
                 },
                 onDeny = {
-                    store.deny(proposal.id)
-                    proposals = store.loadProposals()
-                    decisionHistory = store.loadDecisionHistory()
+                    scope.launch {
+                        store.denyWithAudit(proposal.id)
+                        proposals = store.loadProposals()
+                        decisionHistory = store.loadDecisionHistory()
+                    }
                 }
             )
         }
@@ -144,7 +156,7 @@ private fun DecisionHistoryCard(history: List<ImprovementDecisionHistoryEntry>) 
             } else {
                 history.take(8).forEach { entry ->
                     Text(
-                        "${entry.decision.toUiLabel()} · ${entry.proposalTitle}",
+                        "${entry.decision.toUiLabel()} ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ${entry.proposalTitle}",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
