@@ -21,15 +21,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.morimil.app.improvements.ImprovementDecision
 import com.morimil.app.improvements.ImprovementProposal
 import com.morimil.app.improvements.ImprovementProposalStore
 
 @Composable
-fun ImprovementsScreen() {
+fun ImprovementsScreen(viewModel: MorimilViewModel) {
     val context = LocalContext.current
     val store = remember(context) { ImprovementProposalStore(context) }
+    val chatError by viewModel.chatError.collectAsStateWithLifecycle()
+    val chatStatus by viewModel.chatOrganismStatus.collectAsStateWithLifecycle()
+    val internalIssue by viewModel.internalRuntimeIssue.collectAsStateWithLifecycle()
+
     var proposals by remember { mutableStateOf(store.loadProposals()) }
+    var scanMessage by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
@@ -43,6 +49,58 @@ fun ImprovementsScreen() {
             "Morimil puede proponer mejoras reales, pero no las aplica por cuenta propia. Tu decision queda registrada localmente.",
             style = MaterialTheme.typography.bodyMedium
         )
+
+        ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("Analisis de señales actuales", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Esto revisa errores de chat, issues internos y estado de memoria. Si encuentra algo util, crea una propuesta para que tu la apruebes o niegues.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Text("Memoria: ${chatStatus.memoryIntegrityLabel}", style = MaterialTheme.typography.bodySmall)
+
+                internalIssue?.let { issue ->
+                    Text(
+                        "Issue interno: ${issue.component} / ${issue.message}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                chatError?.let { error ->
+                    Text(
+                        "Error de chat: ${error.take(140)}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        val captured = store.refreshObservedSignals(
+                            chatError = chatError,
+                            internalComponent = internalIssue?.component,
+                            internalMessage = internalIssue?.message,
+                            memoryNeedsAttention = chatStatus.memoryNeedsAttention
+                        )
+                        proposals = store.loadProposals()
+                        scanMessage = if (captured == 0) {
+                            "Sin señales nuevas. Morimil no encontro un fallo actual que proponer."
+                        } else {
+                            "Se capturaron $captured señal(es) como propuesta(s) revisables."
+                        }
+                    }
+                ) {
+                    Text("Analizar señales actuales")
+                }
+
+                scanMessage?.let { message ->
+                    Text(message, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
 
         proposals.forEach { proposal ->
             ImprovementProposalCard(
