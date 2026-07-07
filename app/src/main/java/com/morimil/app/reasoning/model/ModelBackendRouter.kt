@@ -36,6 +36,7 @@ object ModelBackendRouter {
         val mode = ReasoningModeResolver.resolve(config, runtimeAccess)
         val complexity = ReasoningTaskComplexityClassifier.classify(input, intent)
         val hint = ReasoningTaskComplexityClassifier.routingHint(complexity)
+        val routeSignal = "${complexity.name}:$hint"
         if (endpoint.isBlank()) {
             return fallback("missing_endpoint", runtimeLabel, endpoint, model, complexity, hint)
         }
@@ -59,9 +60,9 @@ object ModelBackendRouter {
             model = model,
             usable = usable,
             reason = when (kind) {
-                ModelBackendKind.LOCAL_HTTP -> "local_http_backend_selected:$hint"
-                ModelBackendKind.REMOTE_API -> "remote_api_backend_selected:$hint"
-                ModelBackendKind.DETERMINISTIC_FALLBACK -> "safe_degraded_fallback_selected:$hint"
+                ModelBackendKind.LOCAL_HTTP -> "local_http_backend_selected:$routeSignal"
+                ModelBackendKind.REMOTE_API -> "remote_api_backend_selected:$routeSignal"
+                ModelBackendKind.DETERMINISTIC_FALLBACK -> "safe_degraded_fallback_selected:$routeSignal"
             },
             taskComplexity = complexity,
             routingHint = hint
@@ -83,7 +84,7 @@ object ModelBackendRouter {
             endpoint = endpoint,
             model = model,
             usable = false,
-            reason = "$reason:$routingHint",
+            reason = "$reason:${complexity.name}:$routingHint",
             taskComplexity = complexity,
             routingHint = routingHint
         )
