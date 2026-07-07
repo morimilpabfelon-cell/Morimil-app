@@ -1,4 +1,4 @@
-﻿package com.morimil.app.ui
+package com.morimil.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,7 +16,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -29,18 +31,24 @@ import com.morimil.app.improvements.ImprovementProposalStore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 @Composable
 fun ImprovementsScreen(viewModel: MorimilViewModel) {
     val context = LocalContext.current
     val store = remember(context) { ImprovementProposalStore(context) }
+    val scope = rememberCoroutineScope()
     val chatError by viewModel.chatError.collectAsStateWithLifecycle()
     val chatStatus by viewModel.chatOrganismStatus.collectAsStateWithLifecycle()
     val internalIssue by viewModel.internalRuntimeIssue.collectAsStateWithLifecycle()
 
     var proposals by remember { mutableStateOf(store.loadProposals()) }
-    var decisionHistory by remember { mutableStateOf(store.loadDecisionHistory()) }
+    var decisionHistory by remember { mutableStateOf<List<ImprovementDecisionHistoryEntry>>(emptyList()) }
     var scanMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(store) {
+        decisionHistory = store.loadDecisionHistory()
+    }
 
     Column(
         modifier = Modifier

@@ -1,6 +1,8 @@
 package com.morimil.app.improvements
 
 import android.content.Context
+import com.morimil.app.data.local.ImprovementDecisionHistoryEntity
+import com.morimil.app.data.local.MorimilDatabase
 
 enum class ImprovementDecision {
     PENDING,
@@ -317,7 +319,7 @@ class ImprovementProposalStore(context: Context) {
             id = "on-device-runtime",
             title = "Modelo local dentro del telefono",
             problem = "Hoy el motor local depende de la PC encendida y en la misma red.",
-            proposal = "Agregar backend LOCAL_IN_PROCESS para modelo pequeÃƒÆ’Ã‚Â±o en Android cuando la memoria ya tenga reencarnacion segura.",
+            proposal = "Agregar backend LOCAL_IN_PROCESS para modelo pequeÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â±o en Android cuando la memoria ya tenga reencarnacion segura.",
             risk = "Medio/alto. Puede aumentar complejidad y consumo del telefono; no debe venir antes del backup.",
             affectedAreas = listOf("router", "runtime local", "Android", "modelo on-device"),
             actionPlan = listOf(

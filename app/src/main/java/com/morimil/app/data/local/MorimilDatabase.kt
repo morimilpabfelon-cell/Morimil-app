@@ -16,9 +16,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LocalInstanceIdentityEntity::class,
         GenesisCoreEntity::class,
         MemoryEventEntity::class,
-        MemorySnapshotEntity::class
+        MemorySnapshotEntity::class,
+        ImprovementDecisionHistoryEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = true
 )
 abstract class MorimilDatabase : RoomDatabase() {
@@ -207,6 +208,26 @@ abstract class MorimilDatabase : RoomDatabase() {
             }
         }
 
+
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS improvement_decision_history (
+                        historyId TEXT NOT NULL PRIMARY KEY,
+                        proposalId TEXT NOT NULL,
+                        proposalTitle TEXT NOT NULL,
+                        decision TEXT NOT NULL,
+                        decidedAtMillis INTEGER NOT NULL,
+                        source TEXT NOT NULL,
+                        schemaVersion INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_improvement_decision_history_proposalId ON improvement_decision_history(proposalId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_improvement_decision_history_decidedAtMillis ON improvement_decision_history(decidedAtMillis)")
+            }
+        }
         fun getInstance(context: Context): MorimilDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
