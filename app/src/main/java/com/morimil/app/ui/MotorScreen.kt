@@ -83,6 +83,7 @@ import com.morimil.app.data.local.MemoryLinkEntity
 import com.morimil.app.data.local.MigrationRecordEntity
 import com.morimil.app.data.local.RecallScheduleEntity
 import com.morimil.app.runtime.RestCycleScheduleStatus
+import com.morimil.app.security.SecretVault
 import java.util.Locale
 
 @Composable
@@ -90,6 +91,7 @@ fun MotorScreen(viewModel: MotorViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val configStore = remember(context) { ReasoningConfigStore(context) }
+    val secretVault = remember(context) { SecretVault(context) }
     val initialConfig = remember(configStore) { configStore.load() }
     val initialSuperior = remember(context) { ReasoningProfileRuntimeStore.loadSuperior(context) }
     var endpoint by remember { mutableStateOf(initialConfig.baseUrl) }
@@ -99,6 +101,12 @@ fun MotorScreen(viewModel: MotorViewModel) {
     var superiorEndpoint by remember { mutableStateOf(initialSuperior.baseUrl) }
     var superiorModel by remember { mutableStateOf(initialSuperior.model) }
     var superiorSaveStatus by remember { mutableStateOf("Motor superior runtime sin configurar.") }
+    var superiorRuntimeKey by remember { mutableStateOf("") }
+    var superiorKeyStatus by remember {
+        mutableStateOf(
+            if (secretVault.hasReasoningKey(2)) "Llave superior guardada." else "Llave superior no guardada."
+        )
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -154,8 +162,26 @@ fun MotorScreen(viewModel: MotorViewModel) {
             endpoint = superiorEndpoint,
             model = superiorModel,
             saveStatus = superiorSaveStatus,
+            runtimeKey = superiorRuntimeKey,
+            keyStatus = superiorKeyStatus,
             onEndpointChange = { superiorEndpoint = it },
             onModelChange = { superiorModel = it },
+            onRuntimeKeyChange = { superiorRuntimeKey = it },
+            onSaveRuntimeKey = {
+                val result = secretVault.saveReasoningKey(2, superiorRuntimeKey)
+                superiorKeyStatus = result.fold(
+                    onSuccess = {
+                        superiorRuntimeKey = ""
+                        "Llave superior guardada en SecretVault slot 2."
+                    },
+                    onFailure = { error -> "No se pudo guardar llave superior: ${error.message ?: error::class.java.simpleName}" }
+                )
+            },
+            onClearRuntimeKey = {
+                secretVault.clearReasoningKey(2)
+                superiorRuntimeKey = ""
+                superiorKeyStatus = "Llave superior borrada."
+            },
             onSave = {
                 val result = ReasoningProfileRuntimeStore.saveSuperior(
                     context,
