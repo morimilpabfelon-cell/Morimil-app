@@ -119,7 +119,7 @@ fun MainTabsScaffold(viewModel: MorimilViewModel) {
                 MorimilTab.Projects -> ProjectsScreen(viewModel)
                 MorimilTab.Memory -> MemoryScreen(viewModel.memoryViewModel)
                 MorimilTab.Handoff -> PcHandoffScreen(viewModel.pcHandoffViewModel)
-                MorimilTab.Improvements -> ImprovementsScreen()
+                MorimilTab.Improvements -> ImprovementsScreen(viewModel)
             }
         }
     }
