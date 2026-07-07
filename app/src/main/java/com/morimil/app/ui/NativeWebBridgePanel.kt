@@ -61,6 +61,7 @@ fun NativeWebBridgePanel(
     val pendingRequest by NativeWebRequestStore.pendingRequest.collectAsStateWithLifecycle()
     var activeWebView by remember { mutableStateOf<WebView?>(null) }
     var activeRequest by remember { mutableStateOf<NativeWebRequest?>(null) }
+    var selectedSource by remember { mutableStateOf<NativeSelectedWebSource?>(null) }
     var phase by remember { mutableStateOf(WebBridgePhase.IDLE) }
     var currentUrl by remember { mutableStateOf(BRAVE_HOME_URL) }
     var isLoading by remember { mutableStateOf(false) }
@@ -76,6 +77,7 @@ fun NativeWebBridgePanel(
     LaunchedEffect(pendingRequest) {
         val request = pendingRequest ?: return@LaunchedEffect
         activeRequest = request
+        selectedSource = null
         phase = WebBridgePhase.SEARCH_RESULTS
         activeWebView?.loadUrl(toSearchUrl(request.searchQuery))
     }
@@ -112,6 +114,7 @@ fun NativeWebBridgePanel(
                 },
                 onHome = {
                     activeRequest = null
+                    selectedSource = null
                     phase = WebBridgePhase.IDLE
                     activeWebView?.loadUrl(BRAVE_HOME_URL)
                 }
@@ -137,19 +140,20 @@ fun NativeWebBridgePanel(
                                 val request = activeRequest ?: return
                                 when (phase) {
                                     WebBridgePhase.SEARCH_RESULTS -> {
-                                        selectFirstUsefulResult(view) { selectedUrl ->
-                                            if (selectedUrl.isNullOrBlank()) {
-                                                capturePageText(view, request) { readyQuery ->
+                                        selectBestUsefulResult(view, request) { selected ->
+                                            if (selected == null) {
+                                                capturePageText(view, request, selectedSource) { readyQuery ->
                                                     finishIfReady(request, readyQuery, onPageReady) { phase = it }
                                                 }
                                             } else {
+                                                selectedSource = selected
                                                 phase = WebBridgePhase.SOURCE_PAGE
-                                                view.loadUrl(selectedUrl)
+                                                view.loadUrl(selected.url)
                                             }
                                         }
                                     }
                                     WebBridgePhase.SOURCE_PAGE -> {
-                                        capturePageText(view, request) { readyQuery ->
+                                        capturePageText(view, request, selectedSource) { readyQuery ->
                                             finishIfReady(request, readyQuery, onPageReady) { phase = it }
                                         }
                                     }
@@ -175,6 +179,7 @@ fun NativeWebBridgePanel(
                     val request = pendingRequest
                     if (request != null && activeRequest?.requestedAtMillis != request.requestedAtMillis) {
                         activeRequest = request
+                        selectedSource = null
                         phase = WebBridgePhase.SEARCH_RESULTS
                         webView.loadUrl(toSearchUrl(request.searchQuery))
                     }
@@ -351,39 +356,117 @@ private fun toSearchUrl(query: String): String {
     return "$BRAVE_SEARCH_URL$encoded"
 }
 
-private fun selectFirstUsefulResult(webView: WebView, onSelected: (String?) -> Unit) {
+private fun selectBestUsefulResult(
+    webView: WebView,
+    request: NativeWebRequest,
+    onSelected: (NativeSelectedWebSource?) -> Unit
+) {
+    val intentName = request.intent.name
     val script = """
         (function() {
+            var intent = "$intentName";
             var links = Array.prototype.slice.call(document.querySelectorAll('a'));
-            for (var i = 0; i < links.length; i++) {
-                var href = links[i].href || '';
-                if (!href) continue;
-                if (href.indexOf('javascript:') === 0) continue;
-                if (href.indexOf('search.brave.com/search') >= 0) continue;
-                if (href.indexOf('search.brave.com/images') >= 0) continue;
-                if (href.indexOf('search.brave.com/videos') >= 0) continue;
-                if (href.indexOf('search.brave.com/news') >= 0) continue;
-                if (href.indexOf('search.brave.com/maps') >= 0) continue;
-                var match = href.match(/[?&]q=([^&]+)/) || href.match(/[?&]url=([^&]+)/);
-                if (match && match[1]) {
-                    return decodeURIComponent(match[1]);
-                }
-                if (href.indexOf('http://') === 0 || href.indexOf('https://') === 0) {
-                    return href;
-                }
+            var best = null;
+
+            function cleanUrl(rawHref) {
+                if (!rawHref) return '';
+                var match = rawHref.match(/[?&]q=([^&]+)/) || rawHref.match(/[?&]url=([^&]+)/);
+                if (match && match[1]) return decodeURIComponent(match[1]);
+                return rawHref;
             }
-            return '';
+
+            function hostOf(url) {
+                try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return ''; }
+            }
+
+            function isBlocked(url, host, text) {
+                var lower = (url + ' ' + host + ' ' + text).toLowerCase();
+                if (!url) return true;
+                if (url.indexOf('http://') !== 0 && url.indexOf('https://') !== 0) return true;
+                if (host === 'search.brave.com') return true;
+                if (lower.indexOf('javascript:') === 0) return true;
+                if (lower.indexOf('/images') >= 0 || lower.indexOf('/videos') >= 0 || lower.indexOf('/maps') >= 0) return true;
+                if (lower.indexOf('login') >= 0 || lower.indexOf('signin') >= 0 || lower.indexOf('account') >= 0) return true;
+                return false;
+            }
+
+            function scoreCandidate(url, host, text, index) {
+                var lower = (url + ' ' + host + ' ' + text).toLowerCase();
+                var score = 20 + Math.max(0, 18 - index);
+                var reason = 'resultado visible';
+
+                if (intent === 'ANDROID_CODE') {
+                    if (host === 'developer.android.com') { score += 90; reason = 'documentacion oficial Android'; }
+                    else if (host === 'kotlinlang.org') { score += 70; reason = 'documentacion oficial Kotlin'; }
+                    else if (host === 'github.com') { score += 45; reason = 'repositorio tecnico GitHub'; }
+                    else if (host === 'stackoverflow.com') { score += 35; reason = 'respuesta tecnica comunitaria'; }
+                } else if (intent === 'GRADLE_ERROR') {
+                    if (host === 'docs.gradle.org') { score += 85; reason = 'documentacion oficial Gradle'; }
+                    else if (host === 'developer.android.com') { score += 70; reason = 'documentacion oficial Android'; }
+                    else if (host === 'stackoverflow.com') { score += 50; reason = 'error similar resuelto'; }
+                    else if (host === 'github.com') { score += 40; reason = 'issue o codigo relacionado'; }
+                } else if (intent === 'GITHUB_PROJECT') {
+                    if (host === 'docs.github.com') { score += 90; reason = 'documentacion oficial GitHub'; }
+                    else if (host === 'github.com') { score += 55; reason = 'resultado GitHub directo'; }
+                } else if (intent === 'DOCUMENTATION') {
+                    if (host.indexOf('docs.') === 0 || lower.indexOf('documentation') >= 0 || lower.indexOf('/docs') >= 0) {
+                        score += 60;
+                        reason = 'fuente documental';
+                    }
+                }
+
+                if (lower.indexOf('official') >= 0) score += 15;
+                if (lower.indexOf('docs') >= 0 || lower.indexOf('documentation') >= 0) score += 12;
+                if (host === 'medium.com' || host.indexOf('medium.com') > 0) score -= 18;
+                if (host === 'youtube.com' || host === 'youtu.be') score -= 35;
+                if (host === 'facebook.com' || host === 'instagram.com' || host === 'tiktok.com' || host === 'x.com') score -= 45;
+                if (lower.indexOf('sponsored') >= 0 || lower.indexOf('ad ') >= 0) score -= 30;
+
+                return { score: score, reason: reason };
+            }
+
+            for (var i = 0; i < links.length; i++) {
+                var text = (links[i].innerText || links[i].textContent || '').trim();
+                var url = cleanUrl(links[i].href || '');
+                var host = hostOf(url);
+                if (isBlocked(url, host, text)) continue;
+
+                var scored = scoreCandidate(url, host, text, i);
+                var candidate = {
+                    url: url,
+                    title: text.substring(0, 160),
+                    host: host,
+                    score: scored.score,
+                    reason: scored.reason
+                };
+                if (best === null || candidate.score > best.score) best = candidate;
+            }
+
+            if (best === null) return JSON.stringify({ url: '', title: '', host: '', score: 0, reason: 'sin candidato util' });
+            return JSON.stringify(best);
         })();
     """.trimIndent()
+
     webView.evaluateJavascript(script) { raw ->
-        val selected = decodeJsString(raw).trim()
-        onSelected(selected.ifBlank { null })
+        val selected = runCatching {
+            val jsonText = decodeJsString(raw)
+            val json = org.json.JSONObject(jsonText)
+            NativeSelectedWebSource(
+                url = json.optString("url"),
+                title = json.optString("title"),
+                host = json.optString("host"),
+                score = json.optInt("score"),
+                reason = json.optString("reason")
+            )
+        }.getOrNull()?.takeIf { it.url.isNotBlank() }
+        onSelected(selected)
     }
 }
 
 private fun capturePageText(
     webView: WebView,
     request: NativeWebRequest,
+    selectedSource: NativeSelectedWebSource?,
     onDone: (String?) -> Unit
 ) {
     val script = """
@@ -409,6 +492,12 @@ private fun capturePageText(
                     appendLine("query_busqueda=${request.searchQuery}")
                     appendLine("intent=${request.intent}")
                     appendLine("strategy=${request.strategy}")
+                    selectedSource?.let { source ->
+                        appendLine("selected_source_url=${source.url}")
+                        appendLine("selected_source_host=${source.host}")
+                        appendLine("selected_source_score=${source.score}")
+                        appendLine("selected_source_reason=${source.reason}")
+                    }
                     appendLine("title=${json.optString("title")}")
                     appendLine("url=${json.optString("url")}")
                     appendLine("content:")
@@ -460,6 +549,14 @@ private fun decodeJsString(raw: String?): String {
     val value = raw?.takeIf { it != "null" } ?: return ""
     return JSONArray("[$value]").getString(0)
 }
+
+private data class NativeSelectedWebSource(
+    val url: String,
+    val title: String,
+    val host: String,
+    val score: Int,
+    val reason: String
+)
 
 private val BraveWindow = Color(0xFF1E1E23)
 private val BraveToolbar = Color(0xFF313138)
