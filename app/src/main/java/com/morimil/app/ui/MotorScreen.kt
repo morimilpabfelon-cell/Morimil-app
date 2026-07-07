@@ -115,6 +115,14 @@ fun MotorScreen(viewModel: MotorViewModel) {
         Text(uiState.title, style = MaterialTheme.typography.headlineMedium)
         Text("Aqui configuras el razonamiento temporal. Morimil mantiene identidad y memoria local en el celular.")
         RuntimeNote()
+        ReasoningKernelGatesCard(
+            localConfigured = endpoint.isNotBlank() && model.isNotBlank(),
+            superiorProfileConfigured = superiorEndpoint.isNotBlank() && superiorModel.isNotBlank(),
+            superiorKeyStored = secretVault.hasReasoningKey(2),
+            approvalRequired = true,
+            approvalConsumedAfterUse = true,
+            externalWebIsContextOnly = true
+        )
         ProjectCard(
             "Separacion correcta",
             "Chat conversa y usa voz. Motor/API guarda llave, endpoint, proveedor detectado y modelo.",
@@ -201,6 +209,39 @@ fun MotorScreen(viewModel: MotorViewModel) {
     }
 }
 
+@Composable
+private fun ReasoningKernelGatesCard(
+    localConfigured: Boolean,
+    superiorProfileConfigured: Boolean,
+    superiorKeyStored: Boolean,
+    approvalRequired: Boolean,
+    approvalConsumedAfterUse: Boolean,
+    externalWebIsContextOnly: Boolean
+) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Compuertas del kernel", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Estado visible de las conexiones criticas antes de aceptar cambios de razonamiento.",
+                style = MaterialTheme.typography.bodySmall
+            )
+            GateRow("Motor local configurado", localConfigured)
+            GateRow("Motor superior configurado", superiorProfileConfigured)
+            GateRow("Llave superior en SecretVault slot 2", superiorKeyStored)
+            GateRow("Superior requiere aprobacion", approvalRequired)
+            GateRow("Aprobacion superior se consume", approvalConsumedAfterUse)
+            GateRow("Web externa entra como contexto", externalWebIsContextOnly)
+        }
+    }
+}
+
+@Composable
+private fun GateRow(label: String, ok: Boolean) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(if (ok) "OK" else "PENDIENTE", style = MaterialTheme.typography.bodyMedium)
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+    }
+}
 @Composable
 private fun LocalBackendConfigCard(
     endpoint: String,
