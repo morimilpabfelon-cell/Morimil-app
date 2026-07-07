@@ -43,7 +43,7 @@ fun MainTabsScaffold(viewModel: MorimilViewModel) {
         Column(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.weight(1f)) {
                 when (selectedTab) {
-                    MorimilTab.Chat -> ChatScreen(viewModel.chatViewModel)
+                    MorimilTab.Chat -> ChatScreenPolished(viewModel.chatViewModel)
                     MorimilTab.Memory -> MemoryScreen(viewModel.memoryViewModel)
                     MorimilTab.Motor -> MotorScreen(viewModel.motorViewModel)
                     MorimilTab.System -> SystemHubScreen(viewModel)
