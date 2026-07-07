@@ -16,7 +16,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -62,7 +61,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -83,7 +81,6 @@ fun ChatScreenPolished(viewModel: ChatViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val backendDecision by ReasoningBackendStatusStore.lastDecision.collectAsStateWithLifecycle()
     val pendingEscalation by ReasoningEscalationStore.pendingRequest.collectAsStateWithLifecycle()
-    val pendingWebRequest by NativeWebRequestStore.pendingRequest.collectAsStateWithLifecycle()
     val messages = uiState.messages
     var draft by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -109,19 +106,15 @@ fun ChatScreenPolished(viewModel: ChatViewModel) {
             .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 10.dp)
     ) {
         PolishedHeader(
-            status = uiState.organismStatus,
             health = uiState.organismHealth,
-            backendDecision = backendDecision,
             pendingEscalation = pendingEscalation,
             onRefreshHealth = viewModel::refreshOrganismHealth,
             onRunIntegrityAudit = viewModel::runMemoryIntegrityAudit
         )
         Spacer(Modifier.height(10.dp))
         PolishedVoiceControls(viewModel)
-        if (pendingWebRequest != null) {
-            Spacer(Modifier.height(8.dp))
-            NativeWebBridgePanel(onPageReady = viewModel::sendMessage)
-        }
+        Spacer(Modifier.height(8.dp))
+        NativeWebBridgePanel(onPageReady = viewModel::sendMessage)
         Spacer(Modifier.height(12.dp))
 
         LazyColumn(
@@ -163,15 +156,12 @@ fun ChatScreenPolished(viewModel: ChatViewModel) {
 
 @Composable
 private fun PolishedHeader(
-    status: ChatOrganismStatusUiState,
     health: OrganismHealthUiState,
-    backendDecision: ModelBackendDecision?,
     pendingEscalation: ReasoningEscalationRequest?,
     onRefreshHealth: () -> Unit,
     onRunIntegrityAudit: () -> Unit
 ) {
     var showHealthCard by remember { mutableStateOf(false) }
-    val attention = status.memoryNeedsAttention || health.level != HealthStatusLevel.Stable
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -187,29 +177,6 @@ private fun PolishedHeader(
             }
             Spacer(Modifier.weight(1f))
             PolishedHealthDot(health) { showHealthCard = true }
-        }
-
-        if (attention) {
-            val trace = buildString {
-                append("motor ")
-                append(status.motorLabel.take(18).lowercase(Locale.ROOT))
-                append(" · memoria ")
-                append(status.memoryIntegrityLabel.take(22).lowercase(Locale.ROOT))
-                backendDecision?.routingHint?.takeIf { it.isNotBlank() }?.let { route ->
-                    append(" · ")
-                    append(route.take(22).lowercase(Locale.ROOT))
-                }
-            }
-            Surface(shape = MorimilPillShape, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.58f)) {
-                Text(
-                    trace,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                    color = MorimilAccentWarm,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
         }
 
         if (pendingEscalation?.decision == ReasoningEscalationDecision.PENDING) {
