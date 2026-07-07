@@ -23,8 +23,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.morimil.app.improvements.ImprovementDecision
+import com.morimil.app.improvements.ImprovementDecisionHistoryEntry
 import com.morimil.app.improvements.ImprovementProposal
 import com.morimil.app.improvements.ImprovementProposalStore
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun ImprovementsScreen(viewModel: MorimilViewModel) {
@@ -35,6 +39,7 @@ fun ImprovementsScreen(viewModel: MorimilViewModel) {
     val internalIssue by viewModel.internalRuntimeIssue.collectAsStateWithLifecycle()
 
     var proposals by remember { mutableStateOf(store.loadProposals()) }
+    var decisionHistory by remember { mutableStateOf(store.loadDecisionHistory()) }
     var scanMessage by remember { mutableStateOf<String?>(null) }
 
     Column(
@@ -102,18 +107,52 @@ fun ImprovementsScreen(viewModel: MorimilViewModel) {
             }
         }
 
+        DecisionHistoryCard(decisionHistory)
+
         proposals.forEach { proposal ->
             ImprovementProposalCard(
                 proposal = proposal,
                 onApprove = {
                     store.approve(proposal.id)
                     proposals = store.loadProposals()
+                    decisionHistory = store.loadDecisionHistory()
                 },
                 onDeny = {
                     store.deny(proposal.id)
                     proposals = store.loadProposals()
+                    decisionHistory = store.loadDecisionHistory()
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun DecisionHistoryCard(history: List<ImprovementDecisionHistoryEntry>) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("Historial de decisiones", style = MaterialTheme.typography.titleMedium)
+
+            if (history.isEmpty()) {
+                Text(
+                    "Todavia no hay decisiones registradas.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            } else {
+                history.take(8).forEach { entry ->
+                    Text(
+                        "${entry.decision.toUiLabel()} · ${entry.proposalTitle}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        entry.decidedAtMillis.toDecisionTimeLabel(),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
         }
     }
 }
@@ -193,6 +232,11 @@ private fun ApprovedActionPlan(proposal: ImprovementProposal) {
         "Estado: aprobado para planificacion. No ejecutado automaticamente.",
         style = MaterialTheme.typography.bodySmall
     )
+}
+
+private fun Long.toDecisionTimeLabel(): String {
+    val formatter = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+    return formatter.format(Date(this))
 }
 
 private fun ImprovementDecision.toUiLabel(): String {
