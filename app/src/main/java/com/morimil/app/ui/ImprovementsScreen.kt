@@ -100,9 +100,9 @@ fun ImprovementsScreen(viewModel: MorimilViewModel) {
                         )
                         proposals = store.loadProposals()
                         scanMessage = if (captured == 0) {
-                            "Sin senales nuevas. Morimil no encontro un fallo actual que proponer."
+                            "Sin senales nuevas o repetidas. No se creo ruido duplicado."
                         } else {
-                            "Se capturaron $captured senal(es) como propuesta(s) revisables."
+                            "Se capturaron $captured senal(es) nueva(s) como propuesta(s) revisables."
                         }
                     }
                 ) {

@@ -96,7 +96,7 @@ class ImprovementProposalStore(context: Context) {
         var captured = 0
 
         if (!chatError.isNullOrBlank()) {
-            recordObservedProposal(
+            captured += recordObservedProposal(
                 ImprovementProposal(
                     id = "observed-chat-error",
                     title = "Investigar error del motor de chat",
@@ -118,13 +118,12 @@ class ImprovementProposalStore(context: Context) {
                     )
                 )
             )
-            captured += 1
         }
 
         if (!internalComponent.isNullOrBlank()) {
             val safeComponent = internalComponent.cleanSignal()
             val safeMessage = internalMessage?.cleanSignal().orEmpty()
-            recordObservedProposal(
+            captured += recordObservedProposal(
                 ImprovementProposal(
                     id = "observed-internal-${internalComponent.toStableId()}",
                     title = "Revisar issue interno: $safeComponent",
@@ -150,11 +149,10 @@ class ImprovementProposalStore(context: Context) {
                     )
                 )
             )
-            captured += 1
         }
 
         if (memoryNeedsAttention) {
-            recordObservedProposal(
+            captured += recordObservedProposal(
                 ImprovementProposal(
                     id = "observed-memory-attention",
                     title = "Auditar memoria con atencion pendiente",
@@ -176,18 +174,31 @@ class ImprovementProposalStore(context: Context) {
                     )
                 )
             )
-            captured += 1
         }
 
         return captured
     }
 
-    private fun recordObservedProposal(proposal: ImprovementProposal) {
+    private fun recordObservedProposal(proposal: ImprovementProposal): Int {
         val ids = prefs.getStringSet(OBSERVED_IDS_KEY, emptySet()).orEmpty().toMutableSet()
+        val now = System.currentTimeMillis()
+        val lastCapturedAt = prefs.getLong("$FIELD_OBSERVED_CAPTURED_AT${proposal.id}", 0L)
+        val elapsedMillis = now - lastCapturedAt
+        val cooldownActive = lastCapturedAt > 0L &&
+            elapsedMillis >= 0L &&
+            elapsedMillis < OBSERVED_COOLDOWN_MILLIS
+        val pendingDuplicate = ids.contains(proposal.id) &&
+            readDecision(proposal.id) == ImprovementDecision.PENDING
+
+        if (pendingDuplicate || cooldownActive) {
+            return 0
+        }
+
         ids.add(proposal.id)
 
         prefs.edit()
             .putStringSet(OBSERVED_IDS_KEY, ids)
+            .putLong("$FIELD_OBSERVED_CAPTURED_AT${proposal.id}", now)
             .putString("$FIELD_TITLE${proposal.id}", proposal.title)
             .putString("$FIELD_PROBLEM${proposal.id}", proposal.problem)
             .putString("$FIELD_PROPOSAL${proposal.id}", proposal.proposal)
@@ -196,6 +207,8 @@ class ImprovementProposalStore(context: Context) {
             .putString("$FIELD_ACTION_PLAN${proposal.id}", proposal.actionPlan.pack())
             .putString("$FIELD_VALIDATION${proposal.id}", proposal.validationChecks.pack())
             .apply()
+
+        return 1
     }
 
     private fun loadObservedProposals(): List<ImprovementProposal> {
@@ -330,7 +343,7 @@ class ImprovementProposalStore(context: Context) {
             id = "on-device-runtime",
             title = "Modelo local dentro del telefono",
             problem = "Hoy el motor local depende de la PC encendida y en la misma red.",
-            proposal = "Agregar backend LOCAL_IN_PROCESS para modelo pequeÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±o en Android cuando la memoria ya tenga reencarnacion segura.",
+            proposal = "Agregar backend LOCAL_IN_PROCESS para modelo pequeno en Android cuando la memoria ya tenga reencarnacion segura.",
             risk = "Medio/alto. Puede aumentar complejidad y consumo del telefono; no debe venir antes del backup.",
             affectedAreas = listOf("router", "runtime local", "Android", "modelo on-device"),
             actionPlan = listOf(
@@ -350,6 +363,7 @@ class ImprovementProposalStore(context: Context) {
 
     companion object {
         private const val OBSERVED_IDS_KEY = "observed_ids"
+        private const val FIELD_OBSERVED_CAPTURED_AT = "observed_captured_at_"
         private const val FIELD_TITLE = "observed_title_"
         private const val FIELD_PROBLEM = "observed_problem_"
         private const val FIELD_PROPOSAL = "observed_proposal_"
@@ -365,5 +379,6 @@ class ImprovementProposalStore(context: Context) {
         private const val MAX_HISTORY_ENTRIES = 30
         private const val LIST_SEPARATOR = "\u001F"
         private const val MAX_SIGNAL_LENGTH = 180
+        private const val OBSERVED_COOLDOWN_MILLIS = 30L * 60L * 1000L
     }
 }
