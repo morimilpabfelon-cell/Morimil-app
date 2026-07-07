@@ -123,16 +123,6 @@ fun MotorScreen(viewModel: MotorViewModel) {
             approvalConsumedAfterUse = true,
             externalWebIsContextOnly = true
         )
-        ProjectCard(
-            "Separacion correcta",
-            "Chat conversa y usa voz. Motor/API guarda llave, endpoint, proveedor detectado y modelo.",
-            "configured"
-        )
-        ProjectCard(
-            "Privacidad",
-            "La API razona con el contexto que entrega la app; la memoria viva sigue siendo local.",
-            "private_local"
-        )
         LocalBackendConfigCard(
             endpoint = endpoint,
             model = model,
