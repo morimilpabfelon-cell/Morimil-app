@@ -66,6 +66,13 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.morimil.app.data.local.MemoryMessageEntity
+import com.morimil.app.reasoning.model.ModelBackendDecision
+import com.morimil.app.reasoning.model.ReasoningBackendStatusStore
+import com.morimil.app.reasoning.model.ReasoningEscalationDecision
+import com.morimil.app.reasoning.model.ReasoningEscalationRequest
+import com.morimil.app.reasoning.model.ReasoningEscalationStore
+import com.morimil.app.web.NativeWebNeedDetector
+import com.morimil.app.web.NativeWebRequestStore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -73,6 +80,8 @@ import java.util.Locale
 @Composable
 fun ChatScreen(viewModel: ChatViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val backendDecision by ReasoningBackendStatusStore.lastDecision.collectAsStateWithLifecycle()
+    val pendingEscalation by ReasoningEscalationStore.pendingRequest.collectAsStateWithLifecycle()
     val messages = uiState.messages
     val isSending = uiState.isSending
     val chatError = uiState.error
@@ -97,11 +106,15 @@ fun ChatScreen(viewModel: ChatViewModel) {
         ChatOrganismHeader(
             status = uiState.organismStatus,
             health = uiState.organismHealth,
+            backendDecision = backendDecision,
+            pendingEscalation = pendingEscalation,
             onRefreshHealth = viewModel::refreshOrganismHealth,
             onRunIntegrityAudit = viewModel::runMemoryIntegrityAudit
         )
         Spacer(Modifier.height(16.dp))
         ChatVoiceControls(viewModel)
+        Spacer(Modifier.height(12.dp))
+        NativeWebBridgePanel(onPageReady = viewModel::sendMessage)
         Spacer(Modifier.height(16.dp))
 
         LazyColumn(
@@ -153,7 +166,8 @@ fun ChatScreen(viewModel: ChatViewModel) {
             Button(
                 enabled = !isSending && draft.isNotBlank(),
                 onClick = {
-                    viewModel.sendMessage(draft)
+                    val message = draft
+                    sendOrQueueNativeWeb(message, viewModel)
                     draft = ""
                 }
             ) {
@@ -167,6 +181,8 @@ fun ChatScreen(viewModel: ChatViewModel) {
 private fun ChatOrganismHeader(
     status: ChatOrganismStatusUiState,
     health: OrganismHealthUiState,
+    backendDecision: ModelBackendDecision?,
+    pendingEscalation: ReasoningEscalationRequest?,
     onRefreshHealth: () -> Unit,
     onRunIntegrityAudit: () -> Unit
 ) {
@@ -184,6 +200,44 @@ private fun ChatOrganismHeader(
             StatusChip("motor: ${status.motorLabel}")
             StatusChip(status.modelLabel.take(36))
             StatusChip(status.memoryIntegrityLabel, attention = status.memoryNeedsAttention)
+        }
+        backendDecision?.let { decision ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusChip("modo: ${decision.mode.name}", attention = !decision.usable)
+                StatusChip("backend: ${decision.kind.name}", attention = !decision.usable)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusChip("tarea: ${decision.taskComplexity.name.take(36)}")
+                StatusChip(
+                    "ruta: ${decision.routingHint.take(36)}",
+                    attention = decision.routingHint.contains("stronger") || decision.routingHint.contains("approval")
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusChip("razon: ${decision.reason.take(36)}", attention = !decision.usable)
+                if (decision.model.isNotBlank()) {
+                    StatusChip("modelo: ${decision.model.take(36)}")
+                }
+            }
+        }
+        pendingEscalation?.let { request ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusChip(
+                    "escalar: ${request.decision.name.lowercase(Locale.ROOT).take(24)}",
+                    attention = request.decision == ReasoningEscalationDecision.PENDING
+                )
+                StatusChip("motivo: ${request.taskComplexity.name.take(30)}", attention = true)
+            }
+            if (request.decision == ReasoningEscalationDecision.PENDING) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = ReasoningEscalationStore::approveCurrent) {
+                        Text("Autorizar motor superior")
+                    }
+                    Button(onClick = ReasoningEscalationStore::keepLocal) {
+                        Text("Seguir local")
+                    }
+                }
+            }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatusChip(health.level.label, attention = health.level != HealthStatusLevel.Stable)
@@ -394,7 +448,7 @@ private fun ChatVoiceControls(viewModel: ChatViewModel) {
                         voiceStatus = "No se recibio texto."
                     } else {
                         voiceStatus = "Texto reconocido y enviado."
-                        viewModel.sendMessage(bestMatch)
+                        sendOrQueueNativeWeb(bestMatch, viewModel)
                     }
                 }
             }
@@ -451,6 +505,13 @@ private fun ChatVoiceControls(viewModel: ChatViewModel) {
     }
 }
 
+private fun sendOrQueueNativeWeb(message: String, viewModel: ChatViewModel) {
+    if (NativeWebNeedDetector.shouldOpen(message)) {
+        NativeWebRequestStore.requestSearch(message)
+    } else {
+        viewModel.sendMessage(message)
+    }
+}
 private fun shouldShowDaySeparator(messages: List<MemoryMessageEntity>, index: Int): Boolean {
     if (index == 0) return true
     return dayLabel(messages[index].createdAtMillis) != dayLabel(messages[index - 1].createdAtMillis)
@@ -465,10 +526,9 @@ private fun timeLabel(createdAtMillis: Long): String {
 }
 
 private fun healthStatusColor(level: HealthStatusLevel): Color {
-    return when (level) {
-        HealthStatusLevel.Stable -> Color(0xFF16A34A)
-        HealthStatusLevel.Watch -> Color(0xFFEAB308)
-        HealthStatusLevel.Attention -> Color(0xFFD97706)
-        HealthStatusLevel.Critical -> Color(0xFFDC2626)
+    return if (level == HealthStatusLevel.Stable) {
+        Color(0xFF2E7D32)
+    } else {
+        Color(0xFFC62828)
     }
 }
