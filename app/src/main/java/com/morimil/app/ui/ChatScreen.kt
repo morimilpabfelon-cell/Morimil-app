@@ -68,6 +68,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.morimil.app.data.local.MemoryMessageEntity
 import com.morimil.app.reasoning.model.ModelBackendDecision
 import com.morimil.app.reasoning.model.ReasoningBackendStatusStore
+import com.morimil.app.web.NativeWebNeedDetector
+import com.morimil.app.web.NativeWebRequestStore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -157,7 +159,9 @@ fun ChatScreen(viewModel: ChatViewModel) {
             Button(
                 enabled = !isSending && draft.isNotBlank(),
                 onClick = {
-                    viewModel.sendMessage(draft)
+                    val message = draft
+                    queueNativeWebIfNeeded(message)
+                    viewModel.sendMessage(message)
                     draft = ""
                 }
             ) {
@@ -411,6 +415,7 @@ private fun ChatVoiceControls(viewModel: ChatViewModel) {
                         voiceStatus = "No se recibio texto."
                     } else {
                         voiceStatus = "Texto reconocido y enviado."
+                        queueNativeWebIfNeeded(bestMatch)
                         viewModel.sendMessage(bestMatch)
                     }
                 }
@@ -465,6 +470,12 @@ private fun ChatVoiceControls(viewModel: ChatViewModel) {
                 }
             }
         }
+    }
+}
+
+private fun queueNativeWebIfNeeded(message: String) {
+    if (NativeWebNeedDetector.shouldOpen(message)) {
+        NativeWebRequestStore.requestSearch(message)
     }
 }
 
