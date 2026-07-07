@@ -23,10 +23,12 @@ data class ImprovementProposal(
 )
 
 class ImprovementProposalStore(context: Context) {
-    private val prefs = context.applicationContext.getSharedPreferences(
+    private val appContext = context.applicationContext
+    private val prefs = appContext.getSharedPreferences(
         "morimil_improvement_proposals",
         Context.MODE_PRIVATE
     )
+    private val memoryDao = MorimilDatabase.getInstance(appContext).memoryDao()
 
     fun loadProposals(): List<ImprovementProposal> {
         return (seedProposals + loadObservedProposals())
@@ -43,29 +45,46 @@ class ImprovementProposalStore(context: Context) {
     }
 
 
-    fun loadDecisionHistory(): List<ImprovementDecisionHistoryEntry> {
-        val historyIds = prefs.getStringSet(HISTORY_IDS_KEY, emptySet()).orEmpty()
-        return historyIds.mapNotNull { historyId ->
-            val proposalId = prefs.getString("$FIELD_HISTORY_PROPOSAL_ID$historyId", null) ?: return@mapNotNull null
-            val title = prefs.getString("$FIELD_HISTORY_TITLE$historyId", null) ?: proposalId
-            val rawDecision = prefs.getString("$FIELD_HISTORY_DECISION$historyId", null) ?: return@mapNotNull null
-            val decision = runCatching { ImprovementDecision.valueOf(rawDecision) }
-                .getOrNull()
-                ?: return@mapNotNull null
-            val decidedAtMillis = prefs.getLong("$FIELD_HISTORY_AT$historyId", 0L)
-            if (decidedAtMillis <= 0L) return@mapNotNull null
-
-            ImprovementDecisionHistoryEntry(
-                historyId = historyId,
-                proposalId = proposalId,
-                proposalTitle = title,
-                decision = decision,
-                decidedAtMillis = decidedAtMillis
-            )
-        }
-            .sortedByDescending { entry -> entry.decidedAtMillis }
-            .take(MAX_HISTORY_ENTRIES)
+    suspend fun loadDecisionHistory(): List<ImprovementDecisionHistoryEntry> {
+        return memoryDao.loadImprovementDecisionHistory(MAX_HISTORY_ENTRIES)
+            .map { entity ->
+                ImprovementDecisionHistoryEntry(
+                    historyId = entity.historyId,
+                    proposalId = entity.proposalId,
+                    proposalTitle = entity.proposalTitle,
+                    decision = runCatching { ImprovementDecision.valueOf(entity.decision) }
+                        .getOrDefault(ImprovementDecision.PENDING),
+                    decidedAtMillis = entity.decidedAtMillis
+                )
+            }
     }
+
+    suspend fun approveWithAudit(id: String) {
+        setDecision(id, ImprovementDecision.APPROVED)
+        recordDecisionAudit(id, ImprovementDecision.APPROVED)
+    }
+
+    suspend fun denyWithAudit(id: String) {
+        setDecision(id, ImprovementDecision.DENIED)
+        recordDecisionAudit(id, ImprovementDecision.DENIED)
+    }
+
+    private suspend fun recordDecisionAudit(id: String, decision: ImprovementDecision) {
+        val now = System.currentTimeMillis()
+        val historyId = "${now}_${decision.name}_${id.toStableId()}"
+        memoryDao.insertImprovementDecisionHistory(
+            ImprovementDecisionHistoryEntity(
+                historyId = historyId,
+                proposalId = id,
+                proposalTitle = findProposalTitle(id),
+                decision = decision.name,
+                decidedAtMillis = now,
+                source = "improvements_screen",
+                schemaVersion = 1
+            )
+        )
+    }
+
     fun refreshObservedSignals(
         chatError: String?,
         internalComponent: String?,
@@ -202,19 +221,9 @@ class ImprovementProposalStore(context: Context) {
     }
 
     private fun setDecision(id: String, decision: ImprovementDecision) {
-        val now = System.currentTimeMillis()
-        val historyId = "${now}_${decision.name}_${id.toStableId()}"
-        val historyIds = prefs.getStringSet(HISTORY_IDS_KEY, emptySet()).orEmpty().toMutableSet()
-        historyIds.add(historyId)
-
         prefs.edit()
             .putString("decision_$id", decision.name)
-            .putLong("decision_at_$id", now)
-            .putStringSet(HISTORY_IDS_KEY, historyIds)
-            .putString("$FIELD_HISTORY_PROPOSAL_ID$historyId", id)
-            .putString("$FIELD_HISTORY_TITLE$historyId", findProposalTitle(id))
-            .putString("$FIELD_HISTORY_DECISION$historyId", decision.name)
-            .putLong("$FIELD_HISTORY_AT$historyId", now)
+            .putLong("decision_at_$id", System.currentTimeMillis())
             .apply()
     }
 
@@ -319,7 +328,7 @@ class ImprovementProposalStore(context: Context) {
             id = "on-device-runtime",
             title = "Modelo local dentro del telefono",
             problem = "Hoy el motor local depende de la PC encendida y en la misma red.",
-            proposal = "Agregar backend LOCAL_IN_PROCESS para modelo pequeÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â±o en Android cuando la memoria ya tenga reencarnacion segura.",
+            proposal = "Agregar backend LOCAL_IN_PROCESS para modelo pequeÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±o en Android cuando la memoria ya tenga reencarnacion segura.",
             risk = "Medio/alto. Puede aumentar complejidad y consumo del telefono; no debe venir antes del backup.",
             affectedAreas = listOf("router", "runtime local", "Android", "modelo on-device"),
             actionPlan = listOf(

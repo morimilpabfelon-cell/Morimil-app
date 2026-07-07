@@ -68,7 +68,7 @@ fun ImprovementsScreen(viewModel: MorimilViewModel) {
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Analisis de señales actuales", style = MaterialTheme.typography.titleMedium)
+                Text("Analisis de seÃƒÂ±ales actuales", style = MaterialTheme.typography.titleMedium)
                 Text(
                     "Esto revisa errores de chat, issues internos y estado de memoria. Si encuentra algo util, crea una propuesta para que tu la apruebes o niegues.",
                     style = MaterialTheme.typography.bodyMedium
@@ -100,13 +100,13 @@ fun ImprovementsScreen(viewModel: MorimilViewModel) {
                         )
                         proposals = store.loadProposals()
                         scanMessage = if (captured == 0) {
-                            "Sin señales nuevas. Morimil no encontro un fallo actual que proponer."
+                            "Sin seÃƒÂ±ales nuevas. Morimil no encontro un fallo actual que proponer."
                         } else {
-                            "Se capturaron $captured señal(es) como propuesta(s) revisables."
+                            "Se capturaron $captured seÃƒÂ±al(es) como propuesta(s) revisables."
                         }
                     }
                 ) {
-                    Text("Analizar señales actuales")
+                    Text("Analizar seÃƒÂ±ales actuales")
                 }
 
                 scanMessage?.let { message ->
@@ -121,14 +121,18 @@ fun ImprovementsScreen(viewModel: MorimilViewModel) {
             ImprovementProposalCard(
                 proposal = proposal,
                 onApprove = {
-                    store.approve(proposal.id)
-                    proposals = store.loadProposals()
-                    decisionHistory = store.loadDecisionHistory()
+                    scope.launch {
+                        store.approveWithAudit(proposal.id)
+                        proposals = store.loadProposals()
+                        decisionHistory = store.loadDecisionHistory()
+                    }
                 },
                 onDeny = {
-                    store.deny(proposal.id)
-                    proposals = store.loadProposals()
-                    decisionHistory = store.loadDecisionHistory()
+                    scope.launch {
+                        store.denyWithAudit(proposal.id)
+                        proposals = store.loadProposals()
+                        decisionHistory = store.loadDecisionHistory()
+                    }
                 }
             )
         }
@@ -152,7 +156,7 @@ private fun DecisionHistoryCard(history: List<ImprovementDecisionHistoryEntry>) 
             } else {
                 history.take(8).forEach { entry ->
                     Text(
-                        "${entry.decision.toUiLabel()} · ${entry.proposalTitle}",
+                        "${entry.decision.toUiLabel()} Ã‚Â· ${entry.proposalTitle}",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
