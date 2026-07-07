@@ -2,8 +2,10 @@ package com.morimil.app.ai
 
 import android.content.Context
 
+private const val DEFAULT_LOCAL_MODEL = "llama3.2"
+
 private fun localChatUrl(): String {
-    return "http://" + "127.0.0.1" + ":11434" + "/v1/" + "chat/" + "completions"
+    return "http://" + "10.0.2.2" + ":11434" + "/v1/" + "chat/" + "completions"
 }
 
 enum class ReasoningWireFormat {
@@ -21,12 +23,12 @@ enum class ReasoningPreset(
     MESSAGES_COMPATIBLE("Messages-compatible", ReasoningWireFormat.MESSAGES, "", ""),
     CHAT_COMPATIBLE("Chat-compatible", ReasoningWireFormat.CHAT, "", ""),
     RESPONSES_COMPATIBLE("Responses-compatible", ReasoningWireFormat.RESPONSES, "", ""),
-    LOCAL_COMPATIBLE("Local-compatible", ReasoningWireFormat.CHAT, localChatUrl(), ""),
+    LOCAL_COMPATIBLE("Local-compatible", ReasoningWireFormat.CHAT, localChatUrl(), DEFAULT_LOCAL_MODEL),
     CUSTOM("Custom-compatible", ReasoningWireFormat.CHAT, "", "");
 
     companion object {
         fun fromName(name: String?): ReasoningPreset {
-            return entries.firstOrNull { it.name == name } ?: CUSTOM
+            return entries.firstOrNull { it.name == name } ?: LOCAL_COMPATIBLE
         }
     }
 }
@@ -69,7 +71,7 @@ data class ReasoningProviderConfig(
         const val DEFAULT_MAX_TOKENS = 2048
         const val MAX_ALLOWED_TOKENS = 32768
 
-        fun default(): ReasoningProviderConfig = fromPreset(ReasoningPreset.CUSTOM)
+        fun default(): ReasoningProviderConfig = fromPreset(ReasoningPreset.LOCAL_COMPATIBLE)
 
         fun fromPreset(preset: ReasoningPreset): ReasoningProviderConfig {
             return ReasoningProviderConfig(
