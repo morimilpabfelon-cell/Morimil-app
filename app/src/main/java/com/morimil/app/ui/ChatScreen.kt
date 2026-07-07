@@ -10,15 +10,15 @@ import android.speech.tts.TextToSpeech
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,12 +42,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -62,6 +62,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -102,7 +103,12 @@ fun ChatScreen(viewModel: ChatViewModel) {
         target?.let { listState.animateScrollToItem(it) }
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(morimilBackgroundBrush())
+            .padding(16.dp)
+    ) {
         ChatOrganismHeader(
             status = uiState.organismStatus,
             health = uiState.organismHealth,
@@ -111,16 +117,16 @@ fun ChatScreen(viewModel: ChatViewModel) {
             onRefreshHealth = viewModel::refreshOrganismHealth,
             onRunIntegrityAudit = viewModel::runMemoryIntegrityAudit
         )
-        Spacer(Modifier.height(16.dp))
-        ChatVoiceControls(viewModel)
         Spacer(Modifier.height(12.dp))
+        ChatVoiceControls(viewModel)
+        Spacer(Modifier.height(10.dp))
         NativeWebBridgePanel(onPageReady = viewModel::sendMessage)
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(14.dp))
 
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             if (messages.isEmpty() && !isSending) {
                 item { ChatEmptyState() }
@@ -151,29 +157,20 @@ fun ChatScreen(viewModel: ChatViewModel) {
 
         chatError?.let { error ->
             Spacer(Modifier.height(8.dp))
-            Text(error, style = MaterialTheme.typography.bodySmall)
+            Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
 
-        Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextField(
-                value = draft,
-                onValueChange = { draft = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Escribe a Morimil...") },
-                enabled = !isSending
-            )
-            Button(
-                enabled = !isSending && draft.isNotBlank(),
-                onClick = {
-                    val message = draft
-                    sendOrQueueNativeWeb(message, viewModel)
-                    draft = ""
-                }
-            ) {
-                Text("Enviar")
+        Spacer(Modifier.height(10.dp))
+        ChatComposer(
+            draft = draft,
+            isSending = isSending,
+            onDraftChange = { draft = it },
+            onSend = {
+                val message = draft
+                sendOrQueueNativeWeb(message, viewModel)
+                draft = ""
             }
-        }
+        )
     }
 }
 
@@ -188,67 +185,55 @@ private fun ChatOrganismHeader(
 ) {
     var showHealthCard by remember { mutableStateOf(false) }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Morimil", style = MaterialTheme.typography.headlineMedium)
-                Text("Conversacion real, con memoria local como contexto", style = MaterialTheme.typography.bodyMedium)
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Surface(shape = MorimilPillShape, color = MaterialTheme.colorScheme.surface) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("○", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                    Text("Morimil", style = MaterialTheme.typography.titleMedium)
+                }
             }
+            Spacer(Modifier.weight(1f))
             HealthStatusDot(health = health, onClick = { showHealthCard = true })
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatusChip("motor: ${status.motorLabel}")
-            StatusChip(status.modelLabel.take(36))
-            StatusChip(status.memoryIntegrityLabel, attention = status.memoryNeedsAttention)
-        }
-        backendDecision?.let { decision ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatusChip("modo: ${decision.mode.name}", attention = !decision.usable)
-                StatusChip("backend: ${decision.kind.name}", attention = !decision.usable)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatusChip("tarea: ${decision.taskComplexity.name.take(36)}")
-                StatusChip(
-                    "ruta: ${decision.routingHint.take(36)}",
-                    attention = decision.routingHint.contains("stronger") || decision.routingHint.contains("approval")
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatusChip("razon: ${decision.reason.take(36)}", attention = !decision.usable)
-                if (decision.model.isNotBlank()) {
-                    StatusChip("modelo: ${decision.model.take(36)}")
-                }
-            }
-        }
-        pendingEscalation?.let { request ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatusChip(
-                    "escalar: ${request.decision.name.lowercase(Locale.ROOT).take(24)}",
-                    attention = request.decision == ReasoningEscalationDecision.PENDING
-                )
-                StatusChip("motivo: ${request.taskComplexity.name.take(30)}", attention = true)
-            }
-            if (request.decision == ReasoningEscalationDecision.PENDING) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = ReasoningEscalationStore::approveCurrent) {
-                        Text("Autorizar motor superior")
-                    }
-                    Button(onClick = ReasoningEscalationStore::keepLocal) {
-                        Text("Seguir local")
+
+        val attention = status.memoryNeedsAttention || health.level != HealthStatusLevel.Stable
+        Text(
+            buildString {
+                append("MOTOR: "); append(status.motorLabel.uppercase(Locale.ROOT)); append("\n")
+                append("MODELO: "); append(status.modelLabel.take(28).uppercase(Locale.ROOT)); append("\n")
+                append("MEMORIA: "); append(status.memoryIntegrityLabel.uppercase(Locale.ROOT)); append("\n")
+                append("RUTA: "); append((backendDecision?.routingHint ?: "local").take(28).uppercase(Locale.ROOT))
+            },
+            style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+            color = if (attention) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        if (pendingEscalation?.decision == ReasoningEscalationDecision.PENDING) {
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.tertiaryContainer
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "Escalada pendiente: motor superior",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = ReasoningEscalationStore::approveCurrent) { Text("Autorizar") }
+                        Button(onClick = ReasoningEscalationStore::keepLocal) { Text("Seguir local") }
                     }
                 }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatusChip(health.level.label, attention = health.level != HealthStatusLevel.Stable)
-            StatusChip(health.overallLabel, attention = health.level != HealthStatusLevel.Stable)
-            StatusChip(health.eventCountLabel)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatusChip(health.auditAgeLabel, attention = health.memoryNeedsAttention || health.auditNeedsAttention)
-            StatusChip(health.recallLabel, attention = health.recallNeedsAttention)
-        }
-        Text(health.healthSentence, style = MaterialTheme.typography.bodySmall)
     }
 
     if (showHealthCard) {
@@ -273,20 +258,23 @@ private fun ChatOrganismHeader(
 private fun HealthStatusDot(health: OrganismHealthUiState, onClick: () -> Unit) {
     val dotColor = healthStatusColor(health.level)
     val description = "Estado de Morimil: ${health.level.label}. Tocar para abrir salud del organismo."
-    Box(
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
         modifier = Modifier
-            .size(48.dp)
+            .size(44.dp)
             .semantics { contentDescription = description }
-            .clip(CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
+            .clickable(onClick = onClick)
     ) {
-        Box(
-            modifier = Modifier
-                .size(18.dp)
-                .clip(CircleShape)
-                .background(dotColor)
-        )
+        Box(contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier
+                    .size(14.dp)
+                    .clip(CircleShape)
+                    .background(dotColor)
+            )
+        }
     }
 }
 
@@ -297,36 +285,58 @@ private fun ChatMessageBubble(message: MemoryMessageEntity) {
     var showTime by remember(message.id, message.createdAtMillis) { mutableStateOf(false) }
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val maxBubbleWidth = maxWidth * 0.85f
-        Surface(
-            modifier = Modifier
-                .align(if (isUser) Alignment.CenterEnd else Alignment.CenterStart)
-                .widthIn(max = maxBubbleWidth)
-                .combinedClickable(
-                    onClick = {},
-                    onLongClick = { showTime = !showTime }
-                ),
-            shape = if (isUser) {
-                RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 4.dp)
-            } else {
-                RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 4.dp, bottomEnd = 20.dp)
-            },
-            color = if (isUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-        ) {
-            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    if (isUser) "Tu" else "Morimil",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        if (isUser) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .widthIn(max = maxBubbleWidth)
+                    .combinedClickable(
+                        onClick = {},
+                        onLongClick = { showTime = !showTime }
+                    ),
+                shape = MorimilBubbleUserShape,
+                color = MaterialTheme.colorScheme.primary
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 15.dp, vertical = 11.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        message.body,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    AnimatedVisibility(visible = showTime) {
+                        Text(
+                            timeLabel(message.createdAtMillis),
+                            style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f)
+                        )
+                    }
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .widthIn(max = maxBubbleWidth)
+                    .combinedClickable(
+                        onClick = {},
+                        onLongClick = { showTime = !showTime }
+                    )
+                    .padding(vertical = 2.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 Text(
                     message.body,
-                    color = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onBackground,
+                    style = MaterialTheme.typography.bodyMedium
                 )
                 AnimatedVisibility(visible = showTime) {
                     Text(
                         timeLabel(message.createdAtMillis),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                        style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -339,13 +349,13 @@ private fun DaySeparator(label: String) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
         Surface(
             shape = RoundedCornerShape(999.dp),
-            color = MaterialTheme.colorScheme.secondaryContainer
+            color = MaterialTheme.colorScheme.surface
         ) {
             Text(
                 label,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSecondaryContainer
+                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -353,11 +363,20 @@ private fun DaySeparator(label: String) {
 
 @Composable
 private fun ChatEmptyState() {
-    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("La semilla aun no tiene recuerdos aqui", style = MaterialTheme.typography.titleMedium)
-            Text("Cuando converses con Morimil, los recuerdos locales empezaran a aparecer en este cuerpo.")
-        }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text("○", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
+        Text("La semilla aun no tiene recuerdos aqui", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Cuando converses con Morimil, los recuerdos locales apareceran en este cuerpo.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -366,8 +385,8 @@ private fun ThinkingBubble() {
     Box(modifier = Modifier.fillMaxWidth()) {
         Surface(
             modifier = Modifier.align(Alignment.CenterStart),
-            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 4.dp, bottomEnd = 20.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant
+            shape = MorimilBubbleAiShape,
+            color = MaterialTheme.colorScheme.surface
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -402,6 +421,55 @@ private fun ThinkingDots() {
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = alpha))
             )
+        }
+    }
+}
+
+@Composable
+private fun ChatComposer(
+    draft: String,
+    isSending: Boolean,
+    onDraftChange: (String) -> Unit,
+    onSend: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.weight(1f)
+        ) {
+            TextField(
+                value = draft,
+                onValueChange = onDraftChange,
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Escribe a Morimil") },
+                enabled = !isSending,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    disabledContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent
+                )
+            )
+        }
+        Surface(
+            shape = CircleShape,
+            color = if (!isSending && draft.isNotBlank()) MorimilAccentWarm else MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier
+                .size(48.dp)
+                .clickable(enabled = !isSending && draft.isNotBlank()) { onSend() }
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text("↑", style = MaterialTheme.typography.titleLarge, color = Color.White)
+            }
         }
     }
 }
@@ -469,38 +537,53 @@ private fun ChatVoiceControls(viewModel: ChatViewModel) {
         if (granted) startListening() else voiceStatus = "Permiso de microfono denegado."
     }
 
-    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Voz integrada", style = MaterialTheme.typography.titleMedium)
-            Text(voiceStatus, style = MaterialTheme.typography.bodySmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = {
-                        val granted = ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.RECORD_AUDIO
-                        ) == PackageManager.PERMISSION_GRANTED
-                        if (granted) startListening() else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    }
-                ) {
-                    Text("Hablar")
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            shape = MorimilPillShape,
+            color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier
+                .weight(1f)
+                .clickable {
+                    val granted = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.RECORD_AUDIO
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (granted) startListening() else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                 }
-                Button(
-                    enabled = ttsReady && messages.isNotEmpty(),
-                    onClick = {
-                        val lastMessage = messages.lastOrNull { it.author != "user" }?.body
-                            ?: messages.lastOrNull()?.body.orEmpty()
-                        textToSpeech.speak(
-                            lastMessage,
-                            TextToSpeech.QUEUE_FLUSH,
-                            null,
-                            "morimil-chat-last-message"
-                        )
-                    }
-                ) {
-                    Text("Leer ultimo")
-                }
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("mic", style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace), color = MorimilAccentWarm)
+                Text(voiceStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+        }
+        Surface(
+            shape = MorimilPillShape,
+            color = if (ttsReady && messages.isNotEmpty()) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.clickable(enabled = ttsReady && messages.isNotEmpty()) {
+                val lastMessage = messages.lastOrNull { it.author != "user" }?.body
+                    ?: messages.lastOrNull()?.body.orEmpty()
+                textToSpeech.speak(
+                    lastMessage,
+                    TextToSpeech.QUEUE_FLUSH,
+                    null,
+                    "morimil-chat-last-message"
+                )
+            }
+        ) {
+            Text(
+                "leer",
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -512,6 +595,7 @@ private fun sendOrQueueNativeWeb(message: String, viewModel: ChatViewModel) {
         viewModel.sendMessage(message)
     }
 }
+
 private fun shouldShowDaySeparator(messages: List<MemoryMessageEntity>, index: Int): Boolean {
     if (index == 0) return true
     return dayLabel(messages[index].createdAtMillis) != dayLabel(messages[index - 1].createdAtMillis)
