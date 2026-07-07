@@ -15,6 +15,7 @@ import com.morimil.app.domain.usecase.RunRestCycleUseCase
 import com.morimil.app.reasoning.model.ModelBackendRouter
 import com.morimil.app.reasoning.model.ReasoningBackendStatusStore
 import com.morimil.app.reasoning.trace.KernelTraceRepository
+import com.morimil.app.web.NativeWebContextStore
 
 /**
  * First local reasoning kernel foundation.
@@ -108,12 +109,22 @@ class ReasoningKernel(
                 state = state.withTrace("capsule_capture", "capsule=${capturedCapsule.capsuleId}")
             }
 
-            val memoryContext = memoryRepository.buildLivingMemoryContext(cleanInput)
+            val localMemoryContext = memoryRepository.buildLivingMemoryContext(cleanInput)
+            val nativeWebContext = NativeWebContextStore.promptContext()
+            val memoryContext = buildString {
+                appendLine(localMemoryContext)
+                appendLine()
+                appendLine("EXTERNAL TEMPORARY CONTEXT:")
+                appendLine(nativeWebContext)
+            }.take(MAX_COMBINED_MEMORY_CONTEXT_CHARS)
             val capsuleContext = memoryOrganRepository.buildKnowledgeCapsuleContext()
             state = state.copy(
                 memoryContextSummary = summarizeContext(memoryContext),
                 capsuleContextSummary = summarizeContext(capsuleContext)
-            ).withTrace("context_built", "memory_chars=${memoryContext.length} capsule_chars=${capsuleContext.length}")
+            ).withTrace(
+                "context_built",
+                "memory_chars=${memoryContext.length} capsule_chars=${capsuleContext.length} web_chars=${nativeWebContext.length}"
+            )
 
             var fallbackUsed = !backend.usable
             val reply = if (!backend.usable) {
@@ -214,6 +225,10 @@ class ReasoningKernel(
             .trim()
             .take(420)
             .ifBlank { "empty" }
+    }
+
+    private companion object {
+        const val MAX_COMBINED_MEMORY_CONTEXT_CHARS = 24_000
     }
 }
 
