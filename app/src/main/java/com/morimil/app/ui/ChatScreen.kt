@@ -68,6 +68,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.morimil.app.data.local.MemoryMessageEntity
 import com.morimil.app.reasoning.model.ModelBackendDecision
 import com.morimil.app.reasoning.model.ReasoningBackendStatusStore
+import com.morimil.app.reasoning.model.ReasoningEscalationRequest
+import com.morimil.app.reasoning.model.ReasoningEscalationStore
 import com.morimil.app.web.NativeWebNeedDetector
 import com.morimil.app.web.NativeWebRequestStore
 import java.text.SimpleDateFormat
@@ -78,6 +80,7 @@ import java.util.Locale
 fun ChatScreen(viewModel: ChatViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val backendDecision by ReasoningBackendStatusStore.lastDecision.collectAsStateWithLifecycle()
+    val pendingEscalation by ReasoningEscalationStore.pendingRequest.collectAsStateWithLifecycle()
     val messages = uiState.messages
     val isSending = uiState.isSending
     val chatError = uiState.error
@@ -103,6 +106,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
             status = uiState.organismStatus,
             health = uiState.organismHealth,
             backendDecision = backendDecision,
+            pendingEscalation = pendingEscalation,
             onRefreshHealth = viewModel::refreshOrganismHealth,
             onRunIntegrityAudit = viewModel::runMemoryIntegrityAudit
         )
@@ -177,6 +181,7 @@ private fun ChatOrganismHeader(
     status: ChatOrganismStatusUiState,
     health: OrganismHealthUiState,
     backendDecision: ModelBackendDecision?,
+    pendingEscalation: ReasoningEscalationRequest?,
     onRefreshHealth: () -> Unit,
     onRunIntegrityAudit: () -> Unit
 ) {
@@ -212,6 +217,12 @@ private fun ChatOrganismHeader(
                 if (decision.model.isNotBlank()) {
                     StatusChip("modelo: ${decision.model.take(36)}")
                 }
+            }
+        }
+        pendingEscalation?.let { request ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusChip("escalar: pendiente", attention = true)
+                StatusChip("motivo: ${request.taskComplexity.name.take(30)}", attention = true)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
