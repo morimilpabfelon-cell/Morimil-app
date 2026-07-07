@@ -201,6 +201,13 @@ private fun ChatOrganismHeader(
                 StatusChip("backend: ${decision.kind.name}", attention = !decision.usable)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusChip("tarea: ${decision.taskComplexity.name.take(36)}")
+                StatusChip(
+                    "ruta: ${decision.routingHint.take(36)}",
+                    attention = decision.routingHint.contains("stronger") || decision.routingHint.contains("approval")
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 StatusChip("razon: ${decision.reason.take(36)}", attention = !decision.usable)
                 if (decision.model.isNotBlank()) {
                     StatusChip("modelo: ${decision.model.take(36)}")
@@ -500,4 +507,3 @@ private fun healthStatusColor(level: HealthStatusLevel): Color {
         Color(0xFFC62828)
     }
 }
-
