@@ -749,6 +749,9 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                     _chatError.value = result.errorMessage ?: "Error con el motor de razonamiento."
                 }
             } finally {
+                if (useSuperiorRuntime) {
+                    ReasoningEscalationStore.clear()
+                }
                 _isSending.value = false
             }
         }
