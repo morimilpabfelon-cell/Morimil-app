@@ -88,7 +88,8 @@ private enum class MorimilTab(val label: String, val icon: String) {
     Workspace("Workspace", "W"),
     Projects("Projects", "P"),
     Memory("Memory", "R"),
-    Handoff("PC", "PC")
+    Handoff("PC", "PC"),
+    Improvements("Mejoras", "+")
 }
 
 @Composable
@@ -118,6 +119,7 @@ fun MainTabsScaffold(viewModel: MorimilViewModel) {
                 MorimilTab.Projects -> ProjectsScreen(viewModel)
                 MorimilTab.Memory -> MemoryScreen(viewModel.memoryViewModel)
                 MorimilTab.Handoff -> PcHandoffScreen(viewModel.pcHandoffViewModel)
+                MorimilTab.Improvements -> ImprovementsScreen()
             }
         }
     }
