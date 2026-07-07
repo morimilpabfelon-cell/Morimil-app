@@ -3,13 +3,14 @@ package com.morimil.app.improvements
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 
 class ImprovementProposalStoreGovernanceTest {
     @Test
     fun approvalDecisionsCannotBypassAudit() {
-        val source = Files.readString(locateSourceFile())
+        val source = String(Files.readAllBytes(locateSourceFile()), StandardCharsets.UTF_8)
 
         assertTrue(
             "Improvement approvals must keep the audited approval entrypoint.",
