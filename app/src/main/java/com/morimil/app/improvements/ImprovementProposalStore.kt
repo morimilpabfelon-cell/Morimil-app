@@ -1,4 +1,4 @@
-﻿package com.morimil.app.improvements
+package com.morimil.app.improvements
 
 import android.content.Context
 
@@ -40,6 +40,30 @@ class ImprovementProposalStore(context: Context) {
         setDecision(id, ImprovementDecision.DENIED)
     }
 
+
+    fun loadDecisionHistory(): List<ImprovementDecisionHistoryEntry> {
+        val historyIds = prefs.getStringSet(HISTORY_IDS_KEY, emptySet()).orEmpty()
+        return historyIds.mapNotNull { historyId ->
+            val proposalId = prefs.getString("$FIELD_HISTORY_PROPOSAL_ID$historyId", null) ?: return@mapNotNull null
+            val title = prefs.getString("$FIELD_HISTORY_TITLE$historyId", null) ?: proposalId
+            val rawDecision = prefs.getString("$FIELD_HISTORY_DECISION$historyId", null) ?: return@mapNotNull null
+            val decision = runCatching { ImprovementDecision.valueOf(rawDecision) }
+                .getOrNull()
+                ?: return@mapNotNull null
+            val decidedAtMillis = prefs.getLong("$FIELD_HISTORY_AT$historyId", 0L)
+            if (decidedAtMillis <= 0L) return@mapNotNull null
+
+            ImprovementDecisionHistoryEntry(
+                historyId = historyId,
+                proposalId = proposalId,
+                proposalTitle = title,
+                decision = decision,
+                decidedAtMillis = decidedAtMillis
+            )
+        }
+            .sortedByDescending { entry -> entry.decidedAtMillis }
+            .take(MAX_HISTORY_ENTRIES)
+    }
     fun refreshObservedSignals(
         chatError: String?,
         internalComponent: String?,
@@ -176,9 +200,27 @@ class ImprovementProposalStore(context: Context) {
     }
 
     private fun setDecision(id: String, decision: ImprovementDecision) {
+        val now = System.currentTimeMillis()
+        val historyId = "${now}_${decision.name}_${id.toStableId()}"
+        val historyIds = prefs.getStringSet(HISTORY_IDS_KEY, emptySet()).orEmpty().toMutableSet()
+        historyIds.add(historyId)
+
         prefs.edit()
             .putString("decision_$id", decision.name)
+            .putLong("decision_at_$id", now)
+            .putStringSet(HISTORY_IDS_KEY, historyIds)
+            .putString("$FIELD_HISTORY_PROPOSAL_ID$historyId", id)
+            .putString("$FIELD_HISTORY_TITLE$historyId", findProposalTitle(id))
+            .putString("$FIELD_HISTORY_DECISION$historyId", decision.name)
+            .putLong("$FIELD_HISTORY_AT$historyId", now)
             .apply()
+    }
+
+    private fun findProposalTitle(id: String): String {
+        return (seedProposals + loadObservedProposals())
+            .firstOrNull { proposal -> proposal.id == id }
+            ?.title
+            ?: id
     }
 
     private fun readDecision(id: String): ImprovementDecision {
@@ -275,7 +317,7 @@ class ImprovementProposalStore(context: Context) {
             id = "on-device-runtime",
             title = "Modelo local dentro del telefono",
             problem = "Hoy el motor local depende de la PC encendida y en la misma red.",
-            proposal = "Agregar backend LOCAL_IN_PROCESS para modelo pequeño en Android cuando la memoria ya tenga reencarnacion segura.",
+            proposal = "Agregar backend LOCAL_IN_PROCESS para modelo pequeÃƒÆ’Ã‚Â±o en Android cuando la memoria ya tenga reencarnacion segura.",
             risk = "Medio/alto. Puede aumentar complejidad y consumo del telefono; no debe venir antes del backup.",
             affectedAreas = listOf("router", "runtime local", "Android", "modelo on-device"),
             actionPlan = listOf(
@@ -302,6 +344,12 @@ class ImprovementProposalStore(context: Context) {
         private const val FIELD_AREAS = "observed_areas_"
         private const val FIELD_ACTION_PLAN = "observed_action_plan_"
         private const val FIELD_VALIDATION = "observed_validation_"
+        private const val HISTORY_IDS_KEY = "decision_history_ids"
+        private const val FIELD_HISTORY_PROPOSAL_ID = "history_proposal_id_"
+        private const val FIELD_HISTORY_TITLE = "history_title_"
+        private const val FIELD_HISTORY_DECISION = "history_decision_"
+        private const val FIELD_HISTORY_AT = "history_at_"
+        private const val MAX_HISTORY_ENTRIES = 30
         private const val LIST_SEPARATOR = "\u001F"
         private const val MAX_SIGNAL_LENGTH = 180
     }
