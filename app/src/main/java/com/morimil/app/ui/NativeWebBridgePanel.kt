@@ -44,6 +44,7 @@ import com.morimil.app.web.NativeWebContextStore
 import com.morimil.app.web.NativeWebPageContext
 import com.morimil.app.web.NativeWebRequest
 import com.morimil.app.web.NativeWebRequestStore
+import com.morimil.app.web.WebSearchIntent
 import org.json.JSONArray
 
 private enum class WebBridgePhase {
@@ -65,6 +66,7 @@ fun NativeWebBridgePanel(
     var selectedSource by remember { mutableStateOf<NativeSelectedWebSource?>(null) }
     var candidateSources by remember { mutableStateOf(emptyList<NativeSelectedWebSource>()) }
     var primaryCapture by remember { mutableStateOf<NativeWebCapture?>(null) }
+    var retryCount by remember { mutableStateOf(0) }
     var navigationEvents by remember { mutableStateOf(emptyList<NativeNavigationEvent>()) }
     var phase by remember { mutableStateOf(WebBridgePhase.IDLE) }
     var currentUrl by remember { mutableStateOf(BRAVE_HOME_URL) }
@@ -120,6 +122,30 @@ fun NativeWebBridgePanel(
         navigationEvents = (navigationEvents + event).takeLast(MAX_NAVIGATION_EVENTS)
     }
 
+    fun attemptResearchRetry(
+        webView: WebView,
+        request: NativeWebRequest,
+        reason: String
+    ): Boolean {
+        if (retryCount >= MAX_RESEARCH_RETRIES) return false
+        retryCount += 1
+        val retryQuery = retrySearchQuery(request = request, retryCount = retryCount)
+        val retryUrl = toSearchUrl(retryQuery)
+        selectedSource = null
+        candidateSources = emptyList()
+        primaryCapture = null
+        phase = WebBridgePhase.SEARCH_RESULTS
+        recordNavigationEvent(
+            request = request,
+            type = "RESEARCH_RETRY",
+            detail = "reintento de investigacion $retryCount",
+            url = retryUrl,
+            reason = reason
+        )
+        webView.loadUrl(retryUrl)
+        return true
+    }
+
     fun finishWithContext(
         request: NativeWebRequest,
         primary: NativeWebCapture?,
@@ -131,7 +157,8 @@ fun NativeWebBridgePanel(
             primary = primary,
             secondary = secondary,
             navigationTrace = navigationTraceText(request, navigationEvents),
-            verifier = verifier
+            verifier = verifier,
+            retryCount = retryCount
         )
         NativeWebRequestStore.markHandled(request)
         phase = WebBridgePhase.IDLE
@@ -144,6 +171,7 @@ fun NativeWebBridgePanel(
         selectedSource = null
         candidateSources = emptyList()
         primaryCapture = null
+        retryCount = 0
         resetNavigationTrace(request)
         phase = WebBridgePhase.SEARCH_RESULTS
         activeWebView?.loadUrl(toSearchUrl(request.searchQuery))
@@ -184,6 +212,7 @@ fun NativeWebBridgePanel(
                     selectedSource = null
                     candidateSources = emptyList()
                     primaryCapture = null
+                    retryCount = 0
                     navigationEvents = emptyList()
                     phase = WebBridgePhase.IDLE
                     activeWebView?.loadUrl(BRAVE_HOME_URL)
@@ -224,13 +253,16 @@ fun NativeWebBridgePanel(
                                                 recordNavigationEvent(
                                                     request = request,
                                                     type = "NO_USEFUL_CANDIDATE",
-                                                    detail = "sin candidato util; se captura la pagina actual"
+                                                    detail = "sin candidato util; se evalua reintento"
                                                 )
+                                                if (attemptResearchRetry(view, request, "sin candidato util")) {
+                                                    return@selectBestUsefulResults
+                                                }
                                                 capturePage(view, request, selectedSource) { capture ->
                                                     val verifier = NativeMultiSourceVerification(
                                                         status = "single_source_fallback",
                                                         confidence = capture?.confidence ?: "LOW",
-                                                        reason = "sin segunda fuente seleccionable"
+                                                        reason = "sin segunda fuente seleccionable despues de reintento"
                                                     )
                                                     finishWithContext(request, capture, null, verifier)
                                                 }
@@ -255,10 +287,18 @@ fun NativeWebBridgePanel(
                                     WebBridgePhase.PRIMARY_SOURCE_PAGE -> {
                                         capturePage(view, request, selectedSource) { capture ->
                                             if (capture == null) {
+                                                recordNavigationEvent(
+                                                    request = request,
+                                                    type = "CAPTURE_REJECTED",
+                                                    detail = "captura primaria insuficiente"
+                                                )
+                                                if (attemptResearchRetry(view, request, "captura primaria insuficiente")) {
+                                                    return@capturePage
+                                                }
                                                 val verifier = NativeMultiSourceVerification(
                                                     status = "primary_capture_failed",
                                                     confidence = "LOW",
-                                                    reason = "captura primaria insuficiente"
+                                                    reason = "captura primaria insuficiente despues de reintento"
                                                 )
                                                 finishWithContext(request, null, null, verifier)
                                                 return@capturePage
@@ -293,6 +333,9 @@ fun NativeWebBridgePanel(
                                         capturePage(view, request, selectedSource) { secondaryCapture ->
                                             val primary = primaryCapture
                                             val verifier = verifySources(primary, secondaryCapture)
+                                            if (verifier.confidence == "LOW" && attemptResearchRetry(view, request, "verificacion multisource debil")) {
+                                                return@capturePage
+                                            }
                                             finishWithContext(request, primary, secondaryCapture, verifier)
                                         }
                                     }
@@ -321,6 +364,7 @@ fun NativeWebBridgePanel(
                         selectedSource = null
                         candidateSources = emptyList()
                         primaryCapture = null
+                        retryCount = 0
                         resetNavigationTrace(request)
                         phase = WebBridgePhase.SEARCH_RESULTS
                         webView.loadUrl(toSearchUrl(request.searchQuery))
@@ -483,6 +527,20 @@ private fun WebView.configureAsDesktopBrowser() {
 private fun toSearchUrl(query: String): String {
     val encoded = java.net.URLEncoder.encode(query.trim(), Charsets.UTF_8.name())
     return "$BRAVE_SEARCH_URL$encoded"
+}
+
+private fun retrySearchQuery(request: NativeWebRequest, retryCount: Int): String {
+    val suffix = when (request.intent) {
+        WebSearchIntent.GRADLE_ERROR -> " exact error official documentation solution"
+        WebSearchIntent.ANDROID_CODE -> " official Android Kotlin Compose documentation"
+        WebSearchIntent.GITHUB_PROJECT -> " official GitHub documentation troubleshooting"
+        WebSearchIntent.DOCUMENTATION -> " official docs reference"
+        WebSearchIntent.GENERAL -> " reliable source explanation"
+    }
+    return "${request.searchQuery} $suffix retry $retryCount"
+        .replace(Regex("\\s+"), " ")
+        .trim()
+        .take(MAX_RETRY_QUERY_CHARS)
 }
 
 private fun selectBestUsefulResults(
@@ -651,7 +709,8 @@ private fun publishWebContext(
     primary: NativeWebCapture?,
     secondary: NativeWebCapture?,
     navigationTrace: String,
-    verifier: NativeMultiSourceVerification
+    verifier: NativeMultiSourceVerification,
+    retryCount: Int
 ) {
     val title = primary?.title ?: secondary?.title ?: "Sin captura suficiente"
     val url = primary?.url ?: secondary?.url ?: "about:blank"
@@ -662,6 +721,7 @@ private fun publishWebContext(
         appendLine("query_busqueda=${request.searchQuery}")
         appendLine("intent=${request.intent}")
         appendLine("strategy=${request.strategy}")
+        appendLine("research_retry_count=$retryCount")
         appendLine(multiSourceVerifierText(verifier))
         appendLine(navigationTrace)
         primary?.let { capture ->
@@ -1008,3 +1068,5 @@ private const val MAX_NAVIGATION_HOST_CHARS = 120
 private const val MAX_NAVIGATION_REASON_CHARS = 160
 private const val MAX_EVIDENCE_GATE_CHARS = 1_200
 private const val MAX_MULTI_SOURCE_VERIFIER_CHARS = 800
+private const val MAX_RESEARCH_RETRIES = 1
+private const val MAX_RETRY_QUERY_CHARS = 240
