@@ -162,12 +162,12 @@ class ReasoningKernel(
                 )
             }
 
-            runCatching { runRestCycleUseCase.runOnce() }
-                .onSuccess { report -> state = state.withTrace("rest_cycle", report.summary.take(220)) }
+            runCatching { runRestCycleUseCase() }
+                .onSuccess { ran -> state = state.withTrace("rest_cycle", "ran=$ran") }
                 .onFailure { error -> state = state.withTrace("rest_cycle_failed", error.message ?: error::class.java.simpleName) }
 
-            runCatching { recallScheduleRepository.runDueRecalls(activeGenesisCoreId) }
-                .onSuccess { report -> state = state.withTrace("recall_schedule", report.summary.take(220)) }
+            runCatching { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
+                .onSuccess { created -> state = state.withTrace("recall_schedule", "created=$created") }
                 .onFailure { error -> state = state.withTrace("recall_schedule_failed", error.message ?: error::class.java.simpleName) }
 
             ReasoningKernelResult(
