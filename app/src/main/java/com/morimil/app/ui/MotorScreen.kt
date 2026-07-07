@@ -195,7 +195,6 @@ fun MotorScreen(viewModel: MotorViewModel) {
                 )
             }
         )
-        NativeBrowserScreen()
     }
 }
 
