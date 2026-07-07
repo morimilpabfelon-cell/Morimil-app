@@ -68,7 +68,7 @@ fun ImprovementsScreen(viewModel: MorimilViewModel) {
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Analisis de seÃƒÂ±ales actuales", style = MaterialTheme.typography.titleMedium)
+                Text("Analisis de seÃƒÆ’Ã‚Â±ales actuales", style = MaterialTheme.typography.titleMedium)
                 Text(
                     "Esto revisa errores de chat, issues internos y estado de memoria. Si encuentra algo util, crea una propuesta para que tu la apruebes o niegues.",
                     style = MaterialTheme.typography.bodyMedium
@@ -100,13 +100,13 @@ fun ImprovementsScreen(viewModel: MorimilViewModel) {
                         )
                         proposals = store.loadProposals()
                         scanMessage = if (captured == 0) {
-                            "Sin seÃƒÂ±ales nuevas. Morimil no encontro un fallo actual que proponer."
+                            "Sin seÃƒÆ’Ã‚Â±ales nuevas. Morimil no encontro un fallo actual que proponer."
                         } else {
-                            "Se capturaron $captured seÃƒÂ±al(es) como propuesta(s) revisables."
+                            "Se capturaron $captured seÃƒÆ’Ã‚Â±al(es) como propuesta(s) revisables."
                         }
                     }
                 ) {
-                    Text("Analizar seÃƒÂ±ales actuales")
+                    Text("Analizar seÃƒÆ’Ã‚Â±ales actuales")
                 }
 
                 scanMessage?.let { message ->
@@ -156,7 +156,7 @@ private fun DecisionHistoryCard(history: List<ImprovementDecisionHistoryEntry>) 
             } else {
                 history.take(8).forEach { entry ->
                     Text(
-                        "${entry.decision.toUiLabel()} Ã‚Â· ${entry.proposalTitle}",
+                        "${entry.decision.toUiLabel()} Ãƒâ€šÃ‚Â· ${entry.proposalTitle}",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
