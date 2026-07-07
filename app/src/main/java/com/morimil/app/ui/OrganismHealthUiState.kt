@@ -27,7 +27,8 @@ data class OrganismHealthUiState(
     val internalIssueDetailLabel: String = "",
     val internalIssueNeedsAttention: Boolean = false,
     val recommendedActionLabel: String = "accion: auditar memoria",
-    val checkedAtMillis: Long? = null
+    val checkedAtMillis: Long? = null,
+    val organHealthSnapshot: OrganHealthSnapshot = OrganHealthSnapshot.empty()
 )
 
 data class InternalRuntimeIssueUiState(
@@ -137,6 +138,18 @@ object OrganismHealthUiStateBuilder {
             motorLabel,
             internalIssue?.label ?: "sin fallos internos"
         ).joinToString(", ")
+        val organHealthSnapshot = OrganHealthSnapshotBuilder.build(
+            motorConfigured = motorIsConfigured,
+            hasQuarantine = hasQuarantine,
+            auditErrorMessage = audit.errorMessage,
+            memoryChainVerified = effectiveMemoryVerified,
+            capsuleChainVerified = effectiveCapsulesVerified,
+            auditNeedsAttention = auditNeedsAttention,
+            restCycleScheduleStatus = restCycleScheduleStatus,
+            recallOverdueCount = safeRecallOverdueCount,
+            internalIssue = internalIssue,
+            nowMillis = nowMillis
+        )
 
         return OrganismHealthUiState(
             level = level,
@@ -166,7 +179,8 @@ object OrganismHealthUiStateBuilder {
             }.orEmpty(),
             internalIssueNeedsAttention = internalIssue != null,
             recommendedActionLabel = recommendedActionLabel,
-            checkedAtMillis = nowMillis
+            checkedAtMillis = nowMillis,
+            organHealthSnapshot = organHealthSnapshot
         )
     }
 
@@ -206,3 +220,255 @@ data class RestCycleAuditSignal(
     val capsuleChainVerified: Boolean?,
     val checkedAtMillis: Long?
 )
+
+enum class OrganHealthLevel(val label: String) {
+    Green("verde"),
+    Yellow("amarillo"),
+    Red("rojo")
+}
+
+data class OrganHealthStatus(
+    val organId: String,
+    val displayName: String,
+    val level: OrganHealthLevel,
+    val reason: String,
+    val nextControl: String
+) {
+    val isCritical: Boolean
+        get() = level == OrganHealthLevel.Red
+}
+
+data class OrganHealthSnapshot(
+    val organs: List<OrganHealthStatus>,
+    val checkedAtMillis: Long
+) {
+    val greenCount: Int
+        get() = organs.count { organ -> organ.level == OrganHealthLevel.Green }
+    val yellowCount: Int
+        get() = organs.count { organ -> organ.level == OrganHealthLevel.Yellow }
+    val redCount: Int
+        get() = organs.count { organ -> organ.level == OrganHealthLevel.Red }
+    val overallLevel: OrganHealthLevel
+        get() = when {
+            redCount > 0 -> OrganHealthLevel.Red
+            yellowCount > 0 -> OrganHealthLevel.Yellow
+            else -> OrganHealthLevel.Green
+        }
+    val overallLabel: String
+        get() = "organos: $greenCount verdes / $yellowCount amarillos / $redCount rojos"
+
+    companion object {
+        fun empty(): OrganHealthSnapshot {
+            return OrganHealthSnapshot(
+                organs = emptyList(),
+                checkedAtMillis = 0L
+            )
+        }
+    }
+}
+
+object OrganHealthSnapshotBuilder {
+    fun build(
+        motorConfigured: Boolean,
+        hasQuarantine: Boolean,
+        auditErrorMessage: String?,
+        memoryChainVerified: Boolean?,
+        capsuleChainVerified: Boolean?,
+        auditNeedsAttention: Boolean,
+        restCycleScheduleStatus: RestCycleScheduleStatus,
+        recallOverdueCount: Int,
+        internalIssue: InternalRuntimeIssueUiState?,
+        nowMillis: Long
+    ): OrganHealthSnapshot {
+        val signingIssue = internalIssue?.component.orEmpty().contains("sign", ignoreCase = true) ||
+            internalIssue?.component.orEmpty().contains("keystore", ignoreCase = true)
+        return OrganHealthSnapshot(
+            checkedAtMillis = nowMillis,
+            organs = listOf(
+                healthy(
+                    organId = "android_root_ui",
+                    displayName = "Android root UI",
+                    reason = "Main UI runtime reached health builder.",
+                    nextControl = "Keep navigation changes mapped before merge."
+                ),
+                memoryStatus(
+                    organId = "living_memory_chain",
+                    displayName = "Living Memory Chain",
+                    hasQuarantine = hasQuarantine,
+                    auditErrorMessage = auditErrorMessage,
+                    chainVerified = memoryChainVerified,
+                    auditNeedsAttention = auditNeedsAttention
+                ),
+                capsuleStatus(
+                    organId = "knowledge_capsules",
+                    displayName = "Knowledge Capsules",
+                    auditErrorMessage = auditErrorMessage,
+                    capsuleChainVerified = capsuleChainVerified,
+                    auditNeedsAttention = auditNeedsAttention
+                ),
+                status(
+                    organId = "memory_signer",
+                    displayName = "Memory Signer / Epoch",
+                    level = if (signingIssue) OrganHealthLevel.Yellow else OrganHealthLevel.Green,
+                    reason = if (signingIssue) "Signing or keystore issue observed in runtime." else "Signer is injected and no signing issue is active.",
+                    nextControl = "Audit key fallback and epoch trust boundary before stronger threat model."
+                ),
+                status(
+                    organId = "reasoning_kernel",
+                    displayName = "Reasoning Kernel",
+                    level = if (motorConfigured) OrganHealthLevel.Green else OrganHealthLevel.Yellow,
+                    reason = if (motorConfigured) "Runtime has configured endpoint and model." else "Runtime model or endpoint is pending.",
+                    nextControl = "Keep fallback honest and remote escalation approval-gated."
+                ),
+                restCycleStatus(restCycleScheduleStatus),
+                status(
+                    organId = "recall_schedule",
+                    displayName = "Recall Schedule",
+                    level = if (recallOverdueCount > 0) OrganHealthLevel.Yellow else OrganHealthLevel.Green,
+                    reason = if (recallOverdueCount > 0) "$recallOverdueCount recall(s) overdue." else "No overdue recall signal.",
+                    nextControl = "Expose overdue badge and review actions in UI."
+                ),
+                healthy(
+                    organId = "cognitive_migration",
+                    displayName = "Cognitive Migration",
+                    reason = "Plan, approve, execute and rollback path exists through migration records.",
+                    nextControl = "Add pending-count and cooldown enforcement tests."
+                ),
+                healthy(
+                    organId = "improvements_governance",
+                    displayName = "Improvements Governance",
+                    reason = "Approval records decisions but does not execute code automatically.",
+                    nextControl = "Link approved plans to exact validation checks."
+                ),
+                healthy(
+                    organId = "secret_vault",
+                    displayName = "Secret Vault",
+                    reason = "Reasoning access is read from vault path, not memory context.",
+                    nextControl = "Audit traces and logs for secret leakage."
+                ),
+                review(
+                    organId = "project_vault",
+                    displayName = "Project Vault",
+                    reason = "Registered and routed, but not fully audited in organ map.",
+                    nextControl = "Audit create, complete and archive transitions."
+                ),
+                review(
+                    organId = "agent_orchestration",
+                    displayName = "Agent Orchestration",
+                    reason = "Seeded and routed, but external action boundary needs deeper proof.",
+                    nextControl = "Verify no irreversible action without owner approval."
+                ),
+                critical(
+                    organId = "encrypted_export_restore",
+                    displayName = "Encrypted Signed Export / Restore",
+                    reason = "Continuity can fail if the phone or local DB is lost.",
+                    nextControl = "Implement manifest, hashes, signature verification, dry-run restore and explicit restore approval."
+                ),
+                critical(
+                    organId = "pc_executor_boundary",
+                    displayName = "PC Executor Boundary",
+                    reason = "PC executor automation is not implemented and would have high blast radius if rushed.",
+                    nextControl = "Design read-only-by-default executor with explicit owner approval."
+                ),
+                review(
+                    organId = "on_device_runtime",
+                    displayName = "On-device Runtime",
+                    reason = "Strategic target, but should wait until reincarnation/export exists.",
+                    nextControl = "Do not start before continuity protection."
+                )
+            )
+        )
+    }
+
+    private fun memoryStatus(
+        organId: String,
+        displayName: String,
+        hasQuarantine: Boolean,
+        auditErrorMessage: String?,
+        chainVerified: Boolean?,
+        auditNeedsAttention: Boolean
+    ): OrganHealthStatus {
+        return when {
+            hasQuarantine -> critical(organId, displayName, "Memory quarantine is present.", "Review quarantine before new core writes.")
+            auditErrorMessage != null -> critical(organId, displayName, "Audit error: ${auditErrorMessage.take(120)}", "Repeat audit and isolate broken tail if needed.")
+            chainVerified == false -> critical(organId, displayName, "Memory chain verification failed.", "Block core changes and investigate chain.")
+            chainVerified == null || auditNeedsAttention -> review(organId, displayName, "Memory audit is missing or stale.", "Run local memory audit.")
+            else -> healthy(organId, displayName, "Memory chain verified.", "Keep append-only writes.")
+        }
+    }
+
+    private fun capsuleStatus(
+        organId: String,
+        displayName: String,
+        auditErrorMessage: String?,
+        capsuleChainVerified: Boolean?,
+        auditNeedsAttention: Boolean
+    ): OrganHealthStatus {
+        return when {
+            auditErrorMessage != null -> critical(organId, displayName, "Audit error: ${auditErrorMessage.take(120)}", "Repeat capsule audit.")
+            capsuleChainVerified == false -> critical(organId, displayName, "Capsule chain verification failed.", "Refuse capsule writes until repaired.")
+            capsuleChainVerified == null || auditNeedsAttention -> review(organId, displayName, "Capsule audit is missing or stale.", "Run capsule chain audit.")
+            else -> healthy(organId, displayName, "Capsule chain verified.", "Keep explicit capsule intake only.")
+        }
+    }
+
+    private fun restCycleStatus(restCycleScheduleStatus: RestCycleScheduleStatus): OrganHealthStatus {
+        return when {
+            restCycleScheduleStatus.errorMessage != null -> critical(
+                organId = "rest_cycle_runtime",
+                displayName = "Rest Cycle Runtime",
+                reason = "Scheduler error: ${restCycleScheduleStatus.errorMessage.take(120)}",
+                nextControl = "Refresh or re-enable rest cycle scheduler."
+            )
+            restCycleScheduleStatus.needsAttention -> review(
+                organId = "rest_cycle_runtime",
+                displayName = "Rest Cycle Runtime",
+                reason = "Rest cycle scheduler state: ${restCycleScheduleStatus.stateLabel}.",
+                nextControl = "Confirm WorkManager state on real device."
+            )
+            else -> healthy(
+                organId = "rest_cycle_runtime",
+                displayName = "Rest Cycle Runtime",
+                reason = "Rest cycle scheduler is active.",
+                nextControl = "Keep consolidation approval-gated when policy requires it."
+            )
+        }
+    }
+
+    private fun healthy(
+        organId: String,
+        displayName: String,
+        reason: String,
+        nextControl: String
+    ): OrganHealthStatus = status(organId, displayName, OrganHealthLevel.Green, reason, nextControl)
+
+    private fun review(
+        organId: String,
+        displayName: String,
+        reason: String,
+        nextControl: String
+    ): OrganHealthStatus = status(organId, displayName, OrganHealthLevel.Yellow, reason, nextControl)
+
+    private fun critical(
+        organId: String,
+        displayName: String,
+        reason: String,
+        nextControl: String
+    ): OrganHealthStatus = status(organId, displayName, OrganHealthLevel.Red, reason, nextControl)
+
+    private fun status(
+        organId: String,
+        displayName: String,
+        level: OrganHealthLevel,
+        reason: String,
+        nextControl: String
+    ): OrganHealthStatus {
+        return OrganHealthStatus(
+            organId = organId,
+            displayName = displayName,
+            level = level,
+            reason = reason,
+            nextControl = nextControl
+        )
+    }
+}
