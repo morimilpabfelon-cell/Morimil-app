@@ -9,10 +9,12 @@ object NativeWebRequestStore {
     val pendingRequest: StateFlow<NativeWebRequest?> = _pendingRequest.asStateFlow()
 
     fun requestSearch(query: String) {
-        val clean = query.trim().take(MAX_QUERY_CHARS)
-        if (clean.isBlank()) return
+        val plan = WebSearchPlanner.create(query) ?: return
         _pendingRequest.value = NativeWebRequest(
-            query = clean,
+            query = plan.originalQuery,
+            searchQuery = plan.searchQuery,
+            intent = plan.intent,
+            strategy = plan.strategy,
             requestedAtMillis = System.currentTimeMillis()
         )
     }
@@ -22,11 +24,12 @@ object NativeWebRequestStore {
             _pendingRequest.value = null
         }
     }
-
-    private const val MAX_QUERY_CHARS = 240
 }
 
 data class NativeWebRequest(
     val query: String,
+    val searchQuery: String = query,
+    val intent: WebSearchIntent = WebSearchIntent.GENERAL,
+    val strategy: String = "buscar fuentes claras, comparar resultados y abrir la pagina mas util.",
     val requestedAtMillis: Long
 )
