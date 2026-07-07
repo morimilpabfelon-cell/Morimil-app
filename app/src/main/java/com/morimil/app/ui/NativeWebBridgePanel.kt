@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
@@ -83,7 +84,10 @@ fun NativeWebBridgePanel(
         }
     }
 
-    ElevatedCard(modifier = modifier.fillMaxWidth()) {
+    ElevatedCard(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp)
+    ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             BrowserChrome(
                 currentUrl = currentUrl,
@@ -106,7 +110,7 @@ fun NativeWebBridgePanel(
                 }
             )
             AndroidView(
-                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 10f),
+                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
                 factory = { context ->
                     WebView(context).apply {
                         activeWebView = this
@@ -185,26 +189,26 @@ private fun BrowserChrome(
     onHome: () -> Unit
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
-                modifier = Modifier.height(28.dp).weight(1f),
+                modifier = Modifier.height(22.dp).weight(1f),
                 shape = RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp),
                 tonalElevation = 1.dp
             ) {
-                Box(modifier = Modifier.padding(horizontal = 10.dp), contentAlignment = Alignment.CenterStart) {
+                Box(modifier = Modifier.padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
                     Text(
                         text = tabTitle(currentUrl),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.bodySmall,
-                        fontSize = 11.sp
+                        fontSize = 10.sp
                     )
                 }
             }
@@ -213,24 +217,24 @@ private fun BrowserChrome(
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             BrowserChromeButton(label = "←", enabled = canGoBack, onClick = onBack)
             BrowserChromeButton(label = "→", enabled = canGoForward, onClick = onForward)
             BrowserChromeButton(label = if (isLoading) "×" else "↻", enabled = true, onClick = onRefresh)
             Surface(
-                modifier = Modifier.height(32.dp).weight(1f),
-                shape = RoundedCornerShape(18.dp),
+                modifier = Modifier.height(26.dp).weight(1f),
+                shape = RoundedCornerShape(16.dp),
                 tonalElevation = 1.dp
             ) {
-                Box(modifier = Modifier.padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
+                Box(modifier = Modifier.padding(horizontal = 10.dp), contentAlignment = Alignment.CenterStart) {
                     Text(
                         text = displayUrl(currentUrl),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.bodySmall,
-                        fontSize = 11.sp
+                        fontSize = 10.sp
                     )
                 }
             }
@@ -247,10 +251,10 @@ private fun BrowserChromeButton(
     TextButton(
         onClick = onClick,
         enabled = enabled,
-        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-        modifier = Modifier.height(28.dp)
+        contentPadding = PaddingValues(0.dp),
+        modifier = Modifier.width(28.dp).height(24.dp)
     ) {
-        Text(text = label, fontSize = 13.sp)
+        Text(text = label, fontSize = 11.sp)
     }
 }
 
@@ -265,7 +269,7 @@ private fun WebView.configureAsDesktopBrowser() {
     settings.loadWithOverviewMode = true
     settings.builtInZoomControls = false
     settings.displayZoomControls = false
-    settings.textZoom = 90
+    settings.textZoom = 100
     settings.userAgentString = DESKTOP_USER_AGENT
     isVerticalScrollBarEnabled = false
     isHorizontalScrollBarEnabled = false
