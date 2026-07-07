@@ -574,6 +574,14 @@ private fun capturePageText(
                     appendLine("query_busqueda=${request.searchQuery}")
                     appendLine("intent=${request.intent}")
                     appendLine("strategy=${request.strategy}")
+                    appendLine(
+                        webEvidenceGateText(
+                            request = request,
+                            selectedSource = selectedSource,
+                            url = json.optString("url"),
+                            textChars = text.length
+                        )
+                    )
                     appendLine(navigationTrace)
                     selectedSource?.let { source ->
                         appendLine("selected_source_url=${source.url}")
@@ -599,6 +607,64 @@ private fun capturePageText(
             onDone(null)
         }
     }
+}
+
+private fun webEvidenceGateText(
+    request: NativeWebRequest,
+    selectedSource: NativeSelectedWebSource?,
+    url: String,
+    textChars: Int
+): String {
+    val host = selectedSource?.host?.ifBlank { hostFromDisplayUrl(url) } ?: hostFromDisplayUrl(url)
+    val score = selectedSource?.score ?: 0
+    val confidence = evidenceConfidence(host = host, score = score, textChars = textChars)
+    return buildString {
+        appendLine("WEB_EVIDENCE_GATE")
+        appendLine("classification=external_web_evidence")
+        appendLine("scope=temporary_context")
+        appendLine("direct_long_term_ingest=blocked")
+        appendLine("approval_required_for_long_term_ingest=true")
+        appendLine("confidence=$confidence")
+        appendLine("confidence_reason=${evidenceConfidenceReason(host = host, score = score, textChars = textChars)}")
+        appendLine("source_host=$host")
+        appendLine("source_score=$score")
+        appendLine("captured_chars=$textChars")
+        appendLine("intent=${request.intent}")
+    }.take(MAX_EVIDENCE_GATE_CHARS)
+}
+
+private fun evidenceConfidence(host: String, score: Int, textChars: Int): String {
+    val trusted = isTrustedTechnicalHost(host)
+    return when {
+        textChars < 400 -> "LOW"
+        trusted && score >= 85 && textChars >= 900 -> "HIGH"
+        trusted && score >= 65 && textChars >= 700 -> "MEDIUM"
+        score >= 80 && textChars >= 1_200 -> "MEDIUM"
+        else -> "LOW"
+    }
+}
+
+private fun evidenceConfidenceReason(host: String, score: Int, textChars: Int): String {
+    return when {
+        textChars < 400 -> "captura demasiado pequena"
+        isTrustedTechnicalHost(host) && score >= 85 -> "fuente tecnica prioritaria con score alto"
+        isTrustedTechnicalHost(host) -> "fuente tecnica prioritaria"
+        score >= 80 -> "score alto pero fuente no primaria"
+        else -> "evidencia util solo como contexto temporal"
+    }
+}
+
+private fun isTrustedTechnicalHost(host: String): Boolean {
+    return host == "developer.android.com" ||
+        host == "kotlinlang.org" ||
+        host == "docs.gradle.org" ||
+        host == "docs.github.com" ||
+        host == "github.com" ||
+        host == "stackoverflow.com"
+}
+
+private fun hostFromDisplayUrl(url: String): String {
+    return displayUrl(url).substringBefore('/').removePrefix("www.")
 }
 
 private fun navigationTraceText(
@@ -695,3 +761,4 @@ private const val MAX_NAVIGATION_URL_CHARS = 420
 private const val MAX_NAVIGATION_TITLE_CHARS = 180
 private const val MAX_NAVIGATION_HOST_CHARS = 120
 private const val MAX_NAVIGATION_REASON_CHARS = 160
+private const val MAX_EVIDENCE_GATE_CHARS = 1_200
