@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.morimil.app.MorimilAppContainer
 import com.morimil.app.ai.ChatTurn
 import com.morimil.app.ai.ReasoningClient
+import com.morimil.app.ai.ReasoningProfileRuntimeStore
 import com.morimil.app.data.genesis.GenesisIdentitySource
 import com.morimil.app.data.local.AutobiographicalSnapshotEntity
 import com.morimil.app.data.local.DecisionLogEntity
@@ -24,6 +25,8 @@ import com.morimil.app.data.local.UserWorkspaceEntity
 import com.morimil.app.data.repository.MemoryLinkRepository
 import com.morimil.app.data.repository.RestCycleRepository
 import com.morimil.app.reasoning.ReasoningKernelRequest
+import com.morimil.app.reasoning.model.ReasoningEscalationDecision
+import com.morimil.app.reasoning.model.ReasoningEscalationStore
 import com.morimil.app.runtime.RestCycleScheduler
 import com.morimil.app.runtime.RestCycleScheduleStatus
 import com.morimil.app.security.MemorySigningRuntimeIssues
@@ -700,11 +703,23 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                 return@launch
             }
 
-            val runtimeSlot = reasoningConfigStore.loadActiveSlot()
-            val runtimeConfig = runtimeSlot.config
+            val localRuntimeSlot = reasoningConfigStore.loadActiveSlot()
+            val superiorConfig = ReasoningProfileRuntimeStore.loadSuperior()
+            val approvedEscalation = ReasoningEscalationStore.pendingRequest.value
+            val currentPreview = cleanBody.replace(Regex("\\s+"), " ").take(240)
+            val useSuperiorRuntime =
+                approvedEscalation?.decision == ReasoningEscalationDecision.APPROVED &&
+                    approvedEscalation.inputPreview == currentPreview &&
+                    superiorConfig.baseUrl.isNotBlank() &&
+                    superiorConfig.model.isNotBlank()
+
+            val runtimeConfig = if (useSuperiorRuntime) superiorConfig else localRuntimeSlot.config
+            val runtimeSlotId = if (useSuperiorRuntime) 2 else localRuntimeSlot.id
+            val runtimeLabel = if (useSuperiorRuntime) "Motor superior" else localRuntimeSlot.displayName
+
             refreshChatOrganismStatus()
             refreshOrganismHealth()
-            val runtimeAccess = secretVault.readReasoningKey(runtimeSlot.id).getOrNull().orEmpty()
+            val runtimeAccess = secretVault.readReasoningKey(runtimeSlotId).getOrNull().orEmpty()
             val alias = localIdentity.value?.alias ?: genesis.alias
 
             _isSending.value = true
@@ -723,7 +738,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                             policyText = cachedPolicyText,
                             priorHistory = priorHistory,
                             fallbackGenesisCoreId = genesisCore.value?.coreId,
-                            runtimeLabel = runtimeSlot.displayName,
+                            runtimeLabel = runtimeLabel,
                             runtimeConfig = runtimeConfig,
                             runtimeAccess = runtimeAccess
                         )
