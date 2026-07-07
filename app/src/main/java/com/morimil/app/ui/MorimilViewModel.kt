@@ -704,7 +704,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
             }
 
             val localRuntimeSlot = reasoningConfigStore.loadActiveSlot()
-            val superiorConfig = ReasoningProfileRuntimeStore.loadSuperior()
+            val superiorConfig = ReasoningProfileRuntimeStore.loadSuperior(getApplication<Application>())
             val approvedEscalation = ReasoningEscalationStore.pendingRequest.value
             val currentPreview = cleanBody.replace(Regex("\\s+"), " ").take(240)
             val useSuperiorRuntime =

@@ -91,7 +91,7 @@ fun MotorScreen(viewModel: MotorViewModel) {
     val context = LocalContext.current
     val configStore = remember(context) { ReasoningConfigStore(context) }
     val initialConfig = remember(configStore) { configStore.load() }
-    val initialSuperior = remember { ReasoningProfileRuntimeStore.loadSuperior() }
+    val initialSuperior = remember(context) { ReasoningProfileRuntimeStore.loadSuperior(context) }
     var endpoint by remember { mutableStateOf(initialConfig.baseUrl) }
     var model by remember { mutableStateOf(initialConfig.model.ifBlank { "llama3.2" }) }
     var pcIp by remember { mutableStateOf("") }
@@ -158,6 +158,7 @@ fun MotorScreen(viewModel: MotorViewModel) {
             onModelChange = { superiorModel = it },
             onSave = {
                 val result = ReasoningProfileRuntimeStore.saveSuperior(
+                    context,
                     ReasoningProviderConfig(
                         preset = ReasoningPreset.CUSTOM,
                         baseUrl = superiorEndpoint,
@@ -165,7 +166,7 @@ fun MotorScreen(viewModel: MotorViewModel) {
                     )
                 )
                 superiorSaveStatus = result.fold(
-                    onSuccess = { "Motor superior guardado en runtime. Falta persistencia permanente." },
+                    onSuccess = { "Motor superior guardado de forma persistente." },
                     onFailure = { error -> "No se pudo guardar superior: ${error.message ?: error::class.java.simpleName}" }
                 )
             }
