@@ -100,7 +100,7 @@ fun MotorScreen(viewModel: MotorViewModel) {
     var saveStatus by remember { mutableStateOf("Config actual cargada.") }
     var superiorEndpoint by remember { mutableStateOf(initialSuperior.baseUrl) }
     var superiorModel by remember { mutableStateOf(initialSuperior.model) }
-    var superiorSaveStatus by remember { mutableStateOf("Motor auxiliar local API sin configurar.") }
+    var superiorSaveStatus by remember { mutableStateOf("Motor auxiliar remoto API sin configurar.") }
     var superiorRuntimeKey by remember { mutableStateOf("") }
     var superiorKeyStatus by remember {
         mutableStateOf(
@@ -113,8 +113,9 @@ fun MotorScreen(viewModel: MotorViewModel) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(uiState.title, style = MaterialTheme.typography.headlineMedium)
-        Text("Aqui configuras tres motores: Morimil, auxiliar local Ollama y auxiliar local API. Morimil mantiene identidad, memoria y nucleo local en el celular.")
+        Text("Orden real: 1 Morimil nucleo, 2 auxiliar local Ollama, 3 auxiliar remoto API. Morimil mantiene identidad, memoria y nucleo local en el celular.")
         RuntimeNote()
+        MorimilCoreMotorCard()
         ReasoningKernelGatesCard(
             localConfigured = endpoint.isNotBlank() && model.isNotBlank(),
             remoteProfileConfigured = superiorEndpoint.isNotBlank() && superiorModel.isNotBlank(),
@@ -149,7 +150,7 @@ fun MotorScreen(viewModel: MotorViewModel) {
                     )
                 )
                 saveStatus = result.fold(
-                    onSuccess = { "Motor auxiliar local Ollama guardado. El siguiente mensaje del chat usara esta configuracion." },
+                    onSuccess = { "Motor 2 auxiliar local Ollama guardado. El siguiente mensaje del chat usara esta configuracion." },
                     onFailure = { error -> "No se pudo guardar: ${error.message ?: error::class.java.simpleName}" }
                 )
             }
@@ -188,11 +189,28 @@ fun MotorScreen(viewModel: MotorViewModel) {
                     )
                 )
                 superiorSaveStatus = result.fold(
-                    onSuccess = { "Motor auxiliar local API guardado de forma persistente." },
-                    onFailure = { error -> "No se pudo guardar motor auxiliar local API: ${error.message ?: error::class.java.simpleName}" }
+                    onSuccess = { "Motor 3 auxiliar remoto API guardado de forma persistente." },
+                    onFailure = { error -> "No se pudo guardar motor 3 API: ${error.message ?: error::class.java.simpleName}" }
                 )
             }
         )
+    }
+}
+
+@Composable
+private fun MorimilCoreMotorCard() {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Motor 1 — Morimil nucleo", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Este motor no se configura como API. Es el kernel local que arma contexto, usa memoria viva, aplica identidad y decide que motor auxiliar consultar.",
+                style = MaterialTheme.typography.bodySmall
+            )
+            GateRow("Identidad local activa", true)
+            GateRow("Memoria viva local activa", true)
+            GateRow("Gobernanza local activa", true)
+            GateRow("Requiere endpoint externo", false)
+        }
     }
 }
 
@@ -205,14 +223,14 @@ private fun ReasoningKernelGatesCard(
 ) {
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Topologia de motores", style = MaterialTheme.typography.titleMedium)
+            Text("Estado general de motores", style = MaterialTheme.typography.titleMedium)
             Text(
                 "Morimil conserva el nucleo. Ollama y API son motores auxiliares de computo.",
                 style = MaterialTheme.typography.bodySmall
             )
-            GateRow("Motor de razonamiento de Morimil activo", true)
-            GateRow("Motor auxiliar local Ollama configurado", localConfigured)
-            GateRow("Motor auxiliar local API configurado", remoteProfileConfigured)
+            GateRow("Motor 1 Morimil nucleo activo", true)
+            GateRow("Motor 2 auxiliar local Ollama configurado", localConfigured)
+            GateRow("Motor 3 auxiliar remoto API configurado", remoteProfileConfigured)
             GateRow("Llave API en SecretVault slot 2", remoteKeyStored)
             GateRow("Web externa entra como contexto", externalWebIsContextOnly)
         }
@@ -241,7 +259,7 @@ private fun LocalBackendConfigCard(
 ) {
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Motor auxiliar local Ollama", style = MaterialTheme.typography.titleMedium)
+            Text("Motor 2 — auxiliar local Ollama", style = MaterialTheme.typography.titleMedium)
             Text(
                 "USB usa 127.0.0.1 con ADB reverse. LAN usa la IP local de tu PC, por ejemplo 192.168.1.28.",
                 style = MaterialTheme.typography.bodySmall
@@ -265,16 +283,16 @@ private fun LocalBackendConfigCard(
                 value = endpoint,
                 onValueChange = onEndpointChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Endpoint") }
+                label = { Text("Endpoint local") }
             )
             TextField(
                 value = model,
                 onValueChange = onModelChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Modelo") }
+                label = { Text("Modelo local") }
             )
             Button(onClick = onSave, enabled = endpoint.isNotBlank() && model.isNotBlank()) {
-                Text("Guardar motor auxiliar local Ollama")
+                Text("Guardar motor 2 auxiliar local")
             }
             Text(saveStatus, style = MaterialTheme.typography.bodySmall)
         }
