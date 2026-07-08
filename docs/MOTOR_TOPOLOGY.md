@@ -37,6 +37,10 @@ Examples:
 - Responses-compatible endpoints
 - Any future compatible provider
 
+This layer must start clean. It must not preload Ollama, USB, LAN, localhost, or private IP endpoints.
+
+When the user enters a remote provider endpoint and key, model discovery may list compatible reasoning models from that provider catalog. Local Ollama models belong only to Motor 2.
+
 This layer is remote assistance. It is not superior to Morimil and must not be named as the main motor.
 
 ## Structural rule
