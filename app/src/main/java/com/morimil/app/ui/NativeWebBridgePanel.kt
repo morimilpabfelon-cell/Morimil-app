@@ -491,11 +491,36 @@ private fun selectBestUsefulResults(
     onSelected: (List<NativeSelectedWebSource>) -> Unit
 ) {
     val intentName = request.intent.name
+    val queryText = org.json.JSONObject.quote(request.searchQuery.lowercase())
     val script = """
         (function() {
             var intent = "$intentName";
+            var searchQuery = $queryText;
             var links = Array.prototype.slice.call(document.querySelectorAll('a'));
             var candidates = [];
+            var seenHosts = {};
+            var blockedHosts = {
+                'youtube.com': true,
+                'youtu.be': true,
+                'facebook.com': true,
+                'instagram.com': true,
+                'tiktok.com': true,
+                'x.com': true,
+                'twitter.com': true,
+                'pinterest.com': true
+            };
+            var softBadHosts = {
+                'medium.com': true,
+                'dev.to': true,
+                'hashnode.dev': true,
+                'quora.com': true,
+                'reddit.com': true
+            };
+            var stopWords = {
+                'the': true, 'and': true, 'for': true, 'con': true, 'que': true, 'una': true,
+                'para': true, 'como': true, 'documentation': true, 'official': true,
+                'documentacion': true, 'documentación': true, 'busca': true, 'buscar': true
+            };
 
             function cleanUrl(rawHref) {
                 if (!rawHref) return '';
@@ -508,50 +533,110 @@ private fun selectBestUsefulResults(
                 try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return ''; }
             }
 
+            function pathOf(url) {
+                try { return new URL(url).pathname.toLowerCase(); } catch (e) { return ''; }
+            }
+
+            function tokenize(value) {
+                return value
+                    .toLowerCase()
+                    .replace(/[^a-z0-9áéíóúñ_.-]+/g, ' ')
+                    .split(' ')
+                    .filter(function(term) { return term.length >= 3 && !stopWords[term]; });
+            }
+
+            function keywordOverlap(lower) {
+                var terms = tokenize(searchQuery);
+                var count = 0;
+                var used = {};
+                for (var i = 0; i < terms.length; i++) {
+                    var term = terms[i];
+                    if (!used[term] && lower.indexOf(term) >= 0) {
+                        used[term] = true;
+                        count += 1;
+                    }
+                }
+                return count;
+            }
+
             function isBlocked(url, host, text) {
                 var lower = (url + ' ' + host + ' ' + text).toLowerCase();
-                if (!url) return true;
+                var path = pathOf(url);
+                if (!url || !host) return true;
                 if (url.indexOf('http://') !== 0 && url.indexOf('https://') !== 0) return true;
                 if (host === 'search.brave.com') return true;
+                if (blockedHosts[host]) return true;
                 if (lower.indexOf('javascript:') === 0) return true;
-                if (lower.indexOf('/images') >= 0 || lower.indexOf('/videos') >= 0 || lower.indexOf('/maps') >= 0) return true;
-                if (lower.indexOf('login') >= 0 || lower.indexOf('signin') >= 0 || lower.indexOf('account') >= 0) return true;
+                if (path.indexOf('/images') >= 0 || path.indexOf('/videos') >= 0 || path.indexOf('/maps') >= 0) return true;
+                if (path.indexOf('/shopping') >= 0 || path.indexOf('/news') === 0) return true;
+                if (lower.indexOf('login') >= 0 || lower.indexOf('signin') >= 0 || lower.indexOf('sign-in') >= 0) return true;
+                if (lower.indexOf('signup') >= 0 || lower.indexOf('account') >= 0 || lower.indexOf('oauth') >= 0) return true;
+                if (lower.indexOf('captcha') >= 0 || lower.indexOf('subscribe') >= 0) return true;
                 return false;
+            }
+
+            function addReason(reasons, reason) {
+                if (reasons.indexOf(reason) < 0) reasons.push(reason);
             }
 
             function scoreCandidate(url, host, text, index) {
                 var lower = (url + ' ' + host + ' ' + text).toLowerCase();
-                var score = 20 + Math.max(0, 18 - index);
-                var reason = 'resultado visible';
+                var path = pathOf(url);
+                var overlap = keywordOverlap(lower);
+                var score = 18 + Math.max(0, 20 - index);
+                var reasons = ['resultado visible'];
+
+                if (overlap > 0) {
+                    score += Math.min(35, overlap * 7);
+                    addReason(reasons, 'coincide con la consulta');
+                }
 
                 if (intent === 'ANDROID_CODE') {
-                    if (host === 'developer.android.com') { score += 90; reason = 'documentacion oficial Android'; }
-                    else if (host === 'kotlinlang.org') { score += 70; reason = 'documentacion oficial Kotlin'; }
-                    else if (host === 'github.com') { score += 45; reason = 'repositorio tecnico GitHub'; }
-                    else if (host === 'stackoverflow.com') { score += 35; reason = 'respuesta tecnica comunitaria'; }
+                    if (host === 'developer.android.com') { score += 100; reasons = ['documentacion oficial Android']; }
+                    else if (host === 'kotlinlang.org') { score += 75; reasons = ['documentacion oficial Kotlin']; }
+                    else if (host === 'github.com') { score += 40; addReason(reasons, 'referencia tecnica GitHub'); }
+                    else if (host === 'stackoverflow.com') { score += 25; addReason(reasons, 'respuesta tecnica comunitaria'); }
                 } else if (intent === 'GRADLE_ERROR') {
-                    if (host === 'docs.gradle.org') { score += 85; reason = 'documentacion oficial Gradle'; }
-                    else if (host === 'developer.android.com') { score += 70; reason = 'documentacion oficial Android'; }
-                    else if (host === 'stackoverflow.com') { score += 50; reason = 'error similar resuelto'; }
-                    else if (host === 'github.com') { score += 40; reason = 'issue o codigo relacionado'; }
+                    if (host === 'docs.gradle.org') { score += 95; reasons = ['documentacion oficial Gradle']; }
+                    else if (host === 'developer.android.com') { score += 70; reasons = ['documentacion oficial Android']; }
+                    else if (host === 'stackoverflow.com') { score += 35; addReason(reasons, 'error similar resuelto'); }
+                    else if (host === 'github.com') { score += 30; addReason(reasons, 'issue o codigo relacionado'); }
                 } else if (intent === 'GITHUB_PROJECT') {
-                    if (host === 'docs.github.com') { score += 90; reason = 'documentacion oficial GitHub'; }
-                    else if (host === 'github.com') { score += 55; reason = 'resultado GitHub directo'; }
+                    if (host === 'docs.github.com') { score += 100; reasons = ['documentacion oficial GitHub']; }
+                    else if (host === 'github.com') { score += 45; addReason(reasons, 'resultado GitHub directo'); }
                 } else if (intent === 'DOCUMENTATION') {
-                    if (host.indexOf('docs.') === 0 || lower.indexOf('documentation') >= 0 || lower.indexOf('/docs') >= 0) {
-                        score += 60;
-                        reason = 'fuente documental';
+                    if (host.indexOf('docs.') === 0 || path.indexOf('/docs') >= 0 || lower.indexOf('documentation') >= 0) {
+                        score += 70;
+                        addReason(reasons, 'fuente documental');
                     }
                 }
 
-                if (lower.indexOf('official') >= 0) score += 15;
-                if (lower.indexOf('docs') >= 0 || lower.indexOf('documentation') >= 0) score += 12;
-                if (host === 'medium.com' || host.indexOf('medium.com') > 0) score -= 18;
-                if (host === 'youtube.com' || host === 'youtu.be') score -= 35;
-                if (host === 'facebook.com' || host === 'instagram.com' || host === 'tiktok.com' || host === 'x.com') score -= 45;
-                if (lower.indexOf('sponsored') >= 0 || lower.indexOf('ad ') >= 0) score -= 30;
+                if (host.indexOf('docs.') === 0 || path.indexOf('/docs') >= 0) {
+                    score += 20;
+                    addReason(reasons, 'ruta de documentacion');
+                }
+                if (lower.indexOf('official') >= 0 || lower.indexOf('oficial') >= 0) {
+                    score += 12;
+                    addReason(reasons, 'marcada como oficial');
+                }
+                if (text.length < 12 && host !== 'developer.android.com' && host !== 'docs.github.com' && host !== 'docs.gradle.org') {
+                    score -= 18;
+                    addReason(reasons, 'texto visible corto');
+                }
+                if (softBadHosts[host] || host.indexOf('medium.com') > 0) {
+                    score -= 25;
+                    addReason(reasons, 'fuente secundaria no oficial');
+                }
+                if (host === 'stackoverflow.com') {
+                    score -= 8;
+                    addReason(reasons, 'comunidad, no fuente primaria');
+                }
+                if (lower.indexOf('sponsored') >= 0 || lower.indexOf(' ad ') >= 0 || lower.indexOf('anuncio') >= 0) {
+                    score -= 45;
+                    addReason(reasons, 'posible anuncio');
+                }
 
-                return { score: score, reason: reason };
+                return { score: score, reason: reasons.join('; ') };
             }
 
             for (var i = 0; i < links.length; i++) {
@@ -561,6 +646,12 @@ private fun selectBestUsefulResults(
                 if (isBlocked(url, host, text)) continue;
 
                 var scored = scoreCandidate(url, host, text, i);
+                if (scored.score < 28) continue;
+
+                var hostKey = host;
+                if (seenHosts[hostKey] && seenHosts[hostKey] >= scored.score) continue;
+                seenHosts[hostKey] = scored.score;
+
                 var candidate = {
                     url: url,
                     title: text.substring(0, 160),
@@ -568,14 +659,19 @@ private fun selectBestUsefulResults(
                     score: scored.score,
                     reason: scored.reason
                 };
-                var duplicate = candidates.some(function(existing) {
-                    return existing.url === candidate.url || existing.host === candidate.host;
-                });
-                if (!duplicate) candidates.push(candidate);
+                var duplicateIndex = -1;
+                for (var j = 0; j < candidates.length; j++) {
+                    if (candidates[j].host === candidate.host) duplicateIndex = j;
+                }
+                if (duplicateIndex >= 0) {
+                    if (candidate.score > candidates[duplicateIndex].score) candidates[duplicateIndex] = candidate;
+                } else {
+                    candidates.push(candidate);
+                }
             }
 
             candidates.sort(function(a, b) { return b.score - a.score; });
-            return JSON.stringify({ candidates: candidates.slice(0, 3) });
+            return JSON.stringify({ candidates: candidates.slice(0, 5) });
         })();
     """.trimIndent()
 
