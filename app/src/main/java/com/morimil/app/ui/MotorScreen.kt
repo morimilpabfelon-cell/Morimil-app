@@ -100,11 +100,11 @@ fun MotorScreen(viewModel: MotorViewModel) {
     var saveStatus by remember { mutableStateOf("Config actual cargada.") }
     var superiorEndpoint by remember { mutableStateOf(initialSuperior.baseUrl) }
     var superiorModel by remember { mutableStateOf(initialSuperior.model) }
-    var superiorSaveStatus by remember { mutableStateOf("Motor auxiliar remoto sin configurar.") }
+    var superiorSaveStatus by remember { mutableStateOf("Motor auxiliar local API sin configurar.") }
     var superiorRuntimeKey by remember { mutableStateOf("") }
     var superiorKeyStatus by remember {
         mutableStateOf(
-            if (secretVault.hasReasoningKey(2)) "Llave remota guardada." else "Llave remota no guardada."
+            if (secretVault.hasReasoningKey(2)) "Llave API guardada." else "Llave API no guardada."
         )
     }
 
@@ -113,7 +113,7 @@ fun MotorScreen(viewModel: MotorViewModel) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(uiState.title, style = MaterialTheme.typography.headlineMedium)
-        Text("Aqui configuras motores auxiliares. Morimil mantiene identidad, memoria y nucleo local en el celular.")
+        Text("Aqui configuras tres motores: Morimil, auxiliar local Ollama y auxiliar local API. Morimil mantiene identidad, memoria y nucleo local en el celular.")
         RuntimeNote()
         ReasoningKernelGatesCard(
             localConfigured = endpoint.isNotBlank() && model.isNotBlank(),
@@ -149,7 +149,7 @@ fun MotorScreen(viewModel: MotorViewModel) {
                     )
                 )
                 saveStatus = result.fold(
-                    onSuccess = { "Motor auxiliar local guardado. El siguiente mensaje del chat usara esta configuracion." },
+                    onSuccess = { "Motor auxiliar local Ollama guardado. El siguiente mensaje del chat usara esta configuracion." },
                     onFailure = { error -> "No se pudo guardar: ${error.message ?: error::class.java.simpleName}" }
                 )
             }
@@ -168,15 +168,15 @@ fun MotorScreen(viewModel: MotorViewModel) {
                 superiorKeyStatus = result.fold(
                     onSuccess = {
                         superiorRuntimeKey = ""
-                        "Llave remota guardada en SecretVault slot 2."
+                        "Llave API guardada en SecretVault slot 2."
                     },
-                    onFailure = { error -> "No se pudo guardar llave remota: ${error.message ?: error::class.java.simpleName}" }
+                    onFailure = { error -> "No se pudo guardar llave API: ${error.message ?: error::class.java.simpleName}" }
                 )
             },
             onClearRuntimeKey = {
                 secretVault.clearReasoningKey(2)
                 superiorRuntimeKey = ""
-                superiorKeyStatus = "Llave remota borrada."
+                superiorKeyStatus = "Llave API borrada."
             },
             onSave = {
                 val result = ReasoningProfileRuntimeStore.saveSuperior(
@@ -188,8 +188,8 @@ fun MotorScreen(viewModel: MotorViewModel) {
                     )
                 )
                 superiorSaveStatus = result.fold(
-                    onSuccess = { "Motor auxiliar remoto guardado de forma persistente." },
-                    onFailure = { error -> "No se pudo guardar remoto: ${error.message ?: error::class.java.simpleName}" }
+                    onSuccess = { "Motor auxiliar local API guardado de forma persistente." },
+                    onFailure = { error -> "No se pudo guardar motor auxiliar local API: ${error.message ?: error::class.java.simpleName}" }
                 )
             }
         )
@@ -207,13 +207,13 @@ private fun ReasoningKernelGatesCard(
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Topologia de motores", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Morimil conserva el nucleo. Los modelos local/remoto son motores auxiliares de computo.",
+                "Morimil conserva el nucleo. Ollama y API son motores auxiliares de computo.",
                 style = MaterialTheme.typography.bodySmall
             )
-            GateRow("Motor nucleo de Morimil activo", true)
-            GateRow("Motor auxiliar local configurado", localConfigured)
-            GateRow("Motor auxiliar remoto configurado", remoteProfileConfigured)
-            GateRow("Llave remota en SecretVault slot 2", remoteKeyStored)
+            GateRow("Motor de razonamiento de Morimil activo", true)
+            GateRow("Motor auxiliar local Ollama configurado", localConfigured)
+            GateRow("Motor auxiliar local API configurado", remoteProfileConfigured)
+            GateRow("Llave API en SecretVault slot 2", remoteKeyStored)
             GateRow("Web externa entra como contexto", externalWebIsContextOnly)
         }
     }
@@ -274,7 +274,7 @@ private fun LocalBackendConfigCard(
                 label = { Text("Modelo") }
             )
             Button(onClick = onSave, enabled = endpoint.isNotBlank() && model.isNotBlank()) {
-                Text("Guardar motor auxiliar local")
+                Text("Guardar motor auxiliar local Ollama")
             }
             Text(saveStatus, style = MaterialTheme.typography.bodySmall)
         }
