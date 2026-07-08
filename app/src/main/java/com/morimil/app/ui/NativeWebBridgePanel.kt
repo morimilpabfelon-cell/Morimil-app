@@ -64,6 +64,7 @@ fun NativeWebBridgePanel(
     var activeRequest by remember { mutableStateOf<NativeWebRequest?>(null) }
     var selectedSource by remember { mutableStateOf<NativeSelectedWebSource?>(null) }
     var candidateSources by remember { mutableStateOf(emptyList<NativeSelectedWebSource>()) }
+    var rejectedSourceUrls by remember { mutableStateOf(emptySet<String>()) }
     var primaryCapture by remember { mutableStateOf<NativeWebCapture?>(null) }
     var retryCount by remember { mutableStateOf(0) }
     var navigationEvents by remember { mutableStateOf(emptyList<NativeNavigationEvent>()) }
@@ -111,6 +112,35 @@ fun NativeWebBridgePanel(
         )
     }
 
+    fun openFallbackCandidate(
+        webView: WebView,
+        request: NativeWebRequest,
+        failedSource: NativeSelectedWebSource?,
+        reason: String
+    ): Boolean {
+        val failedUrl = failedSource?.url
+        val blockedUrls = if (failedUrl != null) rejectedSourceUrls + failedUrl else rejectedSourceUrls
+        rejectedSourceUrls = blockedUrls
+        val fallback = candidateSources.firstOrNull { candidate ->
+            candidate.url !in blockedUrls && candidate.url != failedUrl
+        } ?: return false
+        selectedSource = fallback
+        phase = WebBridgePhase.PRIMARY_SOURCE_PAGE
+        webStatus = "Probando fuente alternativa: ${fallback.host}."
+        recordNavigationEvent(
+            request = request,
+            type = "SOURCE_FALLBACK",
+            detail = "fuente alternativa por $reason",
+            url = fallback.url,
+            title = fallback.title,
+            host = fallback.host,
+            score = fallback.score,
+            reason = "${fallback.reason}; fallback_reason=$reason"
+        )
+        webView.loadUrl(fallback.url)
+        return true
+    }
+
     fun attemptResearchRetry(
         webView: WebView,
         request: NativeWebRequest,
@@ -122,6 +152,7 @@ fun NativeWebBridgePanel(
         val retryUrl = toSearchUrl(retryQuery)
         selectedSource = null
         candidateSources = emptyList()
+        rejectedSourceUrls = emptySet()
         primaryCapture = null
         phase = WebBridgePhase.SEARCH_RESULTS
         webStatus = "Reintentando busqueda ($retryCount): $reason"
@@ -162,6 +193,7 @@ fun NativeWebBridgePanel(
         activeRequest = request
         selectedSource = null
         candidateSources = emptyList()
+        rejectedSourceUrls = emptySet()
         primaryCapture = null
         retryCount = 0
         resetNavigationTrace(request)
@@ -207,6 +239,7 @@ fun NativeWebBridgePanel(
                     activeRequest = null
                     selectedSource = null
                     candidateSources = emptyList()
+                    rejectedSourceUrls = emptySet()
                     primaryCapture = null
                     retryCount = 0
                     navigationEvents = emptyList()
@@ -290,6 +323,7 @@ fun NativeWebBridgePanel(
                                                 }
                                             } else {
                                                 candidateSources = selected
+                                                rejectedSourceUrls = emptySet()
                                                 selectedSource = primary
                                                 webStatus = "Fuente primaria seleccionada: ${primary.host}."
                                                 recordNavigationEvent(
@@ -311,19 +345,28 @@ fun NativeWebBridgePanel(
                                         webStatus = "Capturando fuente primaria${selectedSource?.host?.let { ": $it" } ?: ""}."
                                         NativeWebContextPublisher.capturePage(view, request, selectedSource) { capture ->
                                             if (capture == null) {
+                                                val failedSource = selectedSource
                                                 webStatus = "Captura primaria insuficiente."
                                                 recordNavigationEvent(
                                                     request = request,
                                                     type = "CAPTURE_REJECTED",
-                                                    detail = "captura primaria insuficiente"
+                                                    detail = "captura primaria insuficiente",
+                                                    url = failedSource?.url,
+                                                    title = failedSource?.title,
+                                                    host = failedSource?.host,
+                                                    score = failedSource?.score,
+                                                    reason = failedSource?.reason
                                                 )
+                                                if (openFallbackCandidate(view, request, failedSource, "captura primaria insuficiente")) {
+                                                    return@capturePage
+                                                }
                                                 if (attemptResearchRetry(view, request, "captura primaria insuficiente")) {
                                                     return@capturePage
                                                 }
                                                 val verifier = NativeMultiSourceVerification(
                                                     status = "primary_capture_failed",
                                                     confidence = "LOW",
-                                                    reason = "captura primaria insuficiente despues de reintento"
+                                                    reason = "captura primaria insuficiente despues de probar fuentes alternativas y reintento"
                                                 )
                                                 finishWithContext(request, null, null, verifier)
                                                 return@capturePage
@@ -381,6 +424,23 @@ fun NativeWebBridgePanel(
                                 error: WebResourceError
                             ) {
                                 if (request.isForMainFrame) {
+                                    val nativeRequest = activeRequest
+                                    if (nativeRequest != null && phase == WebBridgePhase.PRIMARY_SOURCE_PAGE) {
+                                        val failedSource = selectedSource
+                                        recordNavigationEvent(
+                                            request = nativeRequest,
+                                            type = "SOURCE_NAVIGATION_ERROR",
+                                            detail = "error de navegacion en fuente primaria",
+                                            url = failedSource?.url ?: request.url?.toString().orEmpty(),
+                                            title = failedSource?.title,
+                                            host = failedSource?.host,
+                                            score = failedSource?.score,
+                                            reason = failedSource?.reason
+                                        )
+                                        if (openFallbackCandidate(view, nativeRequest, failedSource, "error de navegacion")) {
+                                            return
+                                        }
+                                    }
                                     isLoading = false
                                     webStatus = "Error de navegacion. Puedes refrescar o buscar otra vez."
                                     refreshNavigationState(view)
@@ -396,6 +456,7 @@ fun NativeWebBridgePanel(
                         activeRequest = request
                         selectedSource = null
                         candidateSources = emptyList()
+                        rejectedSourceUrls = emptySet()
                         primaryCapture = null
                         retryCount = 0
                         resetNavigationTrace(request)
