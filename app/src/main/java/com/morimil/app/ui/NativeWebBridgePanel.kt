@@ -10,6 +10,7 @@ import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.morimil.app.web.NativeWebRequest
@@ -415,7 +418,7 @@ private fun NativeWebStatusStrip(
     onToggleMinimized: () -> Unit
 ) {
     val visibleStatus = if (isKeyboardVisible && !isMinimized) {
-        "$statusText Altura compacta por teclado."
+        "$statusText Teclado: compacto."
     } else {
         statusText
     }
@@ -423,19 +426,25 @@ private fun NativeWebStatusStrip(
         modifier = Modifier
             .fillMaxWidth()
             .background(NativeWebWindowColor)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Text(
             text = "WEB: $visibleStatus",
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2
+            maxLines = 1
         )
-        TextButton(onClick = onToggleMinimized) {
-            Text(if (isMinimized) "Restaurar" else "Minimizar")
+        TextButton(
+            onClick = onToggleMinimized,
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier
+                .width(34.dp)
+                .height(24.dp)
+        ) {
+            Text(text = if (isMinimized) "▴" else "▾", fontSize = 13.sp)
         }
     }
 }
