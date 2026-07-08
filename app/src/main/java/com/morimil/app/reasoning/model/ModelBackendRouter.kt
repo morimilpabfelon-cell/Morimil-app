@@ -20,7 +20,7 @@ data class ModelBackendDecision(
     val usable: Boolean,
     val reason: String,
     val taskComplexity: ReasoningTaskComplexity = ReasoningTaskComplexity.UNKNOWN,
-    val routingHint: String = "prefer_safe_default"
+    val routingHint: String = "prefer_configured_backend"
 )
 
 object ModelBackendRouter {
@@ -47,9 +47,9 @@ object ModelBackendRouter {
             return fallback("missing_remote_runtime_access", runtimeLabel, endpoint, model, complexity, hint)
         }
         val kind = when (mode) {
-            ReasoningMode.LOCAL_OPERATIVE -> ModelBackendKind.LOCAL_HTTP
-            ReasoningMode.ONLINE_SUPERIOR -> ModelBackendKind.REMOTE_API
-            ReasoningMode.SAFE_DEGRADED -> ModelBackendKind.DETERMINISTIC_FALLBACK
+            ReasoningMode.LOCAL_HELPER_MODEL -> ModelBackendKind.LOCAL_HTTP
+            ReasoningMode.REMOTE_API_HELPER -> ModelBackendKind.REMOTE_API
+            ReasoningMode.MORIMIL_CORE_FALLBACK -> ModelBackendKind.DETERMINISTIC_FALLBACK
         }
         val usable = kind != ModelBackendKind.DETERMINISTIC_FALLBACK
         return ModelBackendDecision(
@@ -60,9 +60,9 @@ object ModelBackendRouter {
             model = model,
             usable = usable,
             reason = when (kind) {
-                ModelBackendKind.LOCAL_HTTP -> "local_http_backend_selected:$routeSignal"
-                ModelBackendKind.REMOTE_API -> "remote_api_backend_selected:$routeSignal"
-                ModelBackendKind.DETERMINISTIC_FALLBACK -> "safe_degraded_fallback_selected:$routeSignal"
+                ModelBackendKind.LOCAL_HTTP -> "local_helper_model_selected:$routeSignal"
+                ModelBackendKind.REMOTE_API -> "remote_api_helper_selected:$routeSignal"
+                ModelBackendKind.DETERMINISTIC_FALLBACK -> "morimil_core_fallback_selected:$routeSignal"
             },
             taskComplexity = complexity,
             routingHint = hint
@@ -79,8 +79,8 @@ object ModelBackendRouter {
     ): ModelBackendDecision {
         return ModelBackendDecision(
             kind = ModelBackendKind.DETERMINISTIC_FALLBACK,
-            mode = ReasoningMode.SAFE_DEGRADED,
-            label = runtimeLabel.ifBlank { "deterministic_local_fallback" },
+            mode = ReasoningMode.MORIMIL_CORE_FALLBACK,
+            label = runtimeLabel.ifBlank { "morimil_core_fallback" },
             endpoint = endpoint,
             model = model,
             usable = false,
