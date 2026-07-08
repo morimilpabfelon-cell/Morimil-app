@@ -17,6 +17,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -56,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
@@ -83,6 +86,7 @@ fun ChatScreenPolished(viewModel: ChatViewModel) {
     val pendingEscalation by ReasoningEscalationStore.pendingRequest.collectAsStateWithLifecycle()
     val messages = uiState.messages
     var draft by remember { mutableStateOf("") }
+    var composerFocused by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     LaunchedEffect(Unit) {
@@ -103,6 +107,7 @@ fun ChatScreenPolished(viewModel: ChatViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .background(morimilBackgroundBrush())
+            .imePadding()
             .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 10.dp)
     ) {
         PolishedHeader(
@@ -114,8 +119,16 @@ fun ChatScreenPolished(viewModel: ChatViewModel) {
         Spacer(Modifier.height(10.dp))
         PolishedVoiceControls(viewModel)
         Spacer(Modifier.height(8.dp))
-        NativeWebBridgePanel(onPageReady = viewModel::sendMessage)
-        Spacer(Modifier.height(12.dp))
+        AnimatedVisibility(
+            visible = !composerFocused,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            NativeWebBridgePanel(onPageReady = viewModel::sendMessage)
+        }
+        if (!composerFocused) {
+            Spacer(Modifier.height(12.dp))
+        }
 
         LazyColumn(
             state = listState,
@@ -143,11 +156,13 @@ fun ChatScreenPolished(viewModel: ChatViewModel) {
             draft = draft,
             isSending = uiState.isSending,
             onDraftChange = { draft = it },
+            onFocusChange = { composerFocused = it },
             onSend = {
                 val text = draft.trim()
                 if (text.isNotBlank()) {
                     sendPolishedMessage(text, viewModel)
                     draft = ""
+                    composerFocused = false
                 }
             }
         )
@@ -309,6 +324,7 @@ private fun PolishedComposer(
     draft: String,
     isSending: Boolean,
     onDraftChange: (String) -> Unit,
+    onFocusChange: (Boolean) -> Unit,
     onSend: () -> Unit
 ) {
     Row(
@@ -320,7 +336,9 @@ private fun PolishedComposer(
             TextField(
                 value = draft,
                 onValueChange = onDraftChange,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { focusState -> onFocusChange(focusState.isFocused) },
                 placeholder = { Text("Escribe a Morimil") },
                 enabled = !isSending,
                 colors = TextFieldDefaults.colors(
