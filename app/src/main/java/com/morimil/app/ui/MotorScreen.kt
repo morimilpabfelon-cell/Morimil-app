@@ -93,18 +93,18 @@ fun MotorScreen(viewModel: MotorViewModel) {
     val configStore = remember(context) { ReasoningConfigStore(context) }
     val secretVault = remember(context) { SecretVault(context) }
     val initialConfig = remember(configStore) { configStore.load() }
-    val initialSuperior = remember(context) { ReasoningProfileRuntimeStore.loadSuperior(context) }
+    val initialThirdMotor = remember(context) { ReasoningProfileRuntimeStore.loadSuperior(context) }
     var endpoint by remember { mutableStateOf(initialConfig.baseUrl) }
     var model by remember { mutableStateOf(initialConfig.model.ifBlank { "llama3.2" }) }
     var pcIp by remember { mutableStateOf("") }
     var saveStatus by remember { mutableStateOf("Config actual cargada.") }
-    var superiorEndpoint by remember { mutableStateOf(initialSuperior.baseUrl) }
-    var superiorModel by remember { mutableStateOf(initialSuperior.model) }
-    var superiorSaveStatus by remember { mutableStateOf("Motor auxiliar remoto sin configurar.") }
-    var superiorRuntimeKey by remember { mutableStateOf("") }
-    var superiorKeyStatus by remember {
+    var thirdMotorEndpoint by remember { mutableStateOf(initialThirdMotor.baseUrl) }
+    var thirdMotorModel by remember { mutableStateOf(initialThirdMotor.model) }
+    var thirdMotorSaveStatus by remember { mutableStateOf("Motor auxiliar remoto API sin configurar.") }
+    var thirdMotorRuntimeKey by remember { mutableStateOf("") }
+    var thirdMotorKeyStatus by remember {
         mutableStateOf(
-            if (secretVault.hasReasoningKey(2)) "Llave remota guardada." else "Llave remota no guardada."
+            if (secretVault.hasReasoningKey(2)) "Llave API guardada." else "Llave API no guardada."
         )
     }
 
@@ -117,7 +117,7 @@ fun MotorScreen(viewModel: MotorViewModel) {
         RuntimeNote()
         ReasoningKernelGatesCard(
             localConfigured = endpoint.isNotBlank() && model.isNotBlank(),
-            remoteProfileConfigured = superiorEndpoint.isNotBlank() && superiorModel.isNotBlank(),
+            remoteProfileConfigured = thirdMotorEndpoint.isNotBlank() && thirdMotorModel.isNotBlank(),
             remoteKeyStored = secretVault.hasReasoningKey(2),
             externalWebIsContextOnly = true
         )
@@ -154,42 +154,42 @@ fun MotorScreen(viewModel: MotorViewModel) {
                 )
             }
         )
-        SuperiorBackendConfigCard(
-            endpoint = superiorEndpoint,
-            model = superiorModel,
-            saveStatus = superiorSaveStatus,
-            runtimeKey = superiorRuntimeKey,
-            keyStatus = superiorKeyStatus,
-            onEndpointChange = { superiorEndpoint = it },
-            onModelChange = { superiorModel = it },
-            onRuntimeKeyChange = { superiorRuntimeKey = it },
+        RemoteApiBackendConfigCard(
+            endpoint = thirdMotorEndpoint,
+            model = thirdMotorModel,
+            saveStatus = thirdMotorSaveStatus,
+            runtimeKey = thirdMotorRuntimeKey,
+            keyStatus = thirdMotorKeyStatus,
+            onEndpointChange = { thirdMotorEndpoint = it },
+            onModelChange = { thirdMotorModel = it },
+            onRuntimeKeyChange = { thirdMotorRuntimeKey = it },
             onSaveRuntimeKey = {
-                val result = secretVault.saveReasoningKey(2, superiorRuntimeKey)
-                superiorKeyStatus = result.fold(
+                val result = secretVault.saveReasoningKey(2, thirdMotorRuntimeKey)
+                thirdMotorKeyStatus = result.fold(
                     onSuccess = {
-                        superiorRuntimeKey = ""
-                        "Llave remota guardada en SecretVault slot 2."
+                        thirdMotorRuntimeKey = ""
+                        "Llave API guardada en SecretVault slot 2."
                     },
-                    onFailure = { error -> "No se pudo guardar llave remota: ${error.message ?: error::class.java.simpleName}" }
+                    onFailure = { error -> "No se pudo guardar llave API: ${error.message ?: error::class.java.simpleName}" }
                 )
             },
             onClearRuntimeKey = {
                 secretVault.clearReasoningKey(2)
-                superiorRuntimeKey = ""
-                superiorKeyStatus = "Llave remota borrada."
+                thirdMotorRuntimeKey = ""
+                thirdMotorKeyStatus = "Llave API borrada."
             },
             onSave = {
                 val result = ReasoningProfileRuntimeStore.saveSuperior(
                     context,
                     ReasoningProviderConfig(
                         preset = ReasoningPreset.CUSTOM,
-                        baseUrl = superiorEndpoint,
-                        model = superiorModel
+                        baseUrl = thirdMotorEndpoint,
+                        model = thirdMotorModel
                     )
                 )
-                superiorSaveStatus = result.fold(
-                    onSuccess = { "Motor auxiliar remoto guardado de forma persistente." },
-                    onFailure = { error -> "No se pudo guardar remoto: ${error.message ?: error::class.java.simpleName}" }
+                thirdMotorSaveStatus = result.fold(
+                    onSuccess = { "Motor auxiliar remoto API guardado de forma persistente." },
+                    onFailure = { error -> "No se pudo guardar API remota: ${error.message ?: error::class.java.simpleName}" }
                 )
             }
         )
@@ -212,8 +212,8 @@ private fun ReasoningKernelGatesCard(
             )
             GateRow("Motor nucleo de Morimil activo", true)
             GateRow("Motor auxiliar local configurado", localConfigured)
-            GateRow("Motor auxiliar remoto configurado", remoteProfileConfigured)
-            GateRow("Llave remota en SecretVault slot 2", remoteKeyStored)
+            GateRow("Motor auxiliar remoto API configurado", remoteProfileConfigured)
+            GateRow("Llave API en SecretVault slot 2", remoteKeyStored)
             GateRow("Web externa entra como contexto", externalWebIsContextOnly)
         }
     }
@@ -226,6 +226,7 @@ private fun GateRow(label: String, ok: Boolean) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
     }
 }
+
 @Composable
 private fun LocalBackendConfigCard(
     endpoint: String,
@@ -265,16 +266,74 @@ private fun LocalBackendConfigCard(
                 value = endpoint,
                 onValueChange = onEndpointChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Endpoint") }
+                label = { Text("Endpoint local") }
             )
             TextField(
                 value = model,
                 onValueChange = onModelChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Modelo") }
+                label = { Text("Modelo local") }
             )
             Button(onClick = onSave, enabled = endpoint.isNotBlank() && model.isNotBlank()) {
                 Text("Guardar motor auxiliar local")
+            }
+            Text(saveStatus, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun RemoteApiBackendConfigCard(
+    endpoint: String,
+    model: String,
+    saveStatus: String,
+    runtimeKey: String,
+    keyStatus: String,
+    onEndpointChange: (String) -> Unit,
+    onModelChange: (String) -> Unit,
+    onRuntimeKeyChange: (String) -> Unit,
+    onSaveRuntimeKey: () -> Unit,
+    onClearRuntimeKey: () -> Unit,
+    onSave: () -> Unit
+) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Motor auxiliar remoto API", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Panel limpio para OpenAI, Claude/Messages, Responses-compatible u otro proveedor remoto. No uses Ollama aqui.",
+                style = MaterialTheme.typography.bodySmall
+            )
+            TextField(
+                value = endpoint,
+                onValueChange = onEndpointChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Endpoint API remoto") },
+                placeholder = { Text("https://api.openai.com/v1/responses") }
+            )
+            TextField(
+                value = model,
+                onValueChange = onModelChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Modelo remoto") },
+                placeholder = { Text("modelo de razonamiento del proveedor") }
+            )
+            TextField(
+                value = runtimeKey,
+                onValueChange = onRuntimeKeyChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Llave API remota") }
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onSaveRuntimeKey, enabled = runtimeKey.isNotBlank()) {
+                    Text("Guardar llave API")
+                }
+                Button(onClick = onClearRuntimeKey) {
+                    Text("Borrar llave API")
+                }
+            }
+            Text(keyStatus, style = MaterialTheme.typography.bodySmall)
+            Button(onClick = onSave, enabled = endpoint.isNotBlank() && model.isNotBlank()) {
+                Text("Guardar motor auxiliar remoto API")
             }
             Text(saveStatus, style = MaterialTheme.typography.bodySmall)
         }
