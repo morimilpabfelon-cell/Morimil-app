@@ -24,56 +24,28 @@ object ReasoningEscalationStore {
     private val _pendingRequest = MutableStateFlow<ReasoningEscalationRequest?>(null)
     val pendingRequest: StateFlow<ReasoningEscalationRequest?> = _pendingRequest.asStateFlow()
 
+    /**
+     * Morimil's configured reasoning motor is part of Morimil, not an external
+     * action that needs a conversation-level approval gate. This store is kept as
+     * a no-op compatibility surface so old UI/state wiring cannot recreate the
+     * "Autorizar / Seguir local" prompt.
+     */
     fun publishIfNeeded(decision: ModelBackendDecision, input: String): ReasoningEscalationRequest? {
-        if (!requiresOwnerDecision(decision)) {
-            clear()
-            return null
-        }
-        val preview = input.trim().replace(Regex("\\s+"), " ").take(MAX_INPUT_PREVIEW_CHARS)
-        val existing = _pendingRequest.value
-        val next = if (existing != null && existing.inputPreview == preview && existing.taskComplexity == decision.taskComplexity) {
-            existing.copy(
-                routingHint = decision.routingHint,
-                reason = decision.reason
-            )
-        } else {
-            ReasoningEscalationRequest(
-                taskComplexity = decision.taskComplexity,
-                routingHint = decision.routingHint,
-                reason = decision.reason,
-                inputPreview = preview
-            )
-        }
-        _pendingRequest.value = next
-        return next
+        clear()
+        return null
     }
 
     fun approveCurrent() {
-        _pendingRequest.value = _pendingRequest.value?.copy(
-            decision = ReasoningEscalationDecision.APPROVED,
-            decidedAtMillis = System.currentTimeMillis()
-        )
+        clear()
     }
 
     fun keepLocal() {
-        _pendingRequest.value = _pendingRequest.value?.copy(
-            decision = ReasoningEscalationDecision.LOCAL_ONLY,
-            decidedAtMillis = System.currentTimeMillis()
-        )
+        clear()
     }
 
     fun clear() {
         _pendingRequest.value = null
     }
 
-    fun requiresOwnerDecision(decision: ModelBackendDecision): Boolean {
-        return decision.routingHint.contains("stronger") ||
-            decision.routingHint.contains("approval") ||
-            decision.taskComplexity == ReasoningTaskComplexity.CODE_REVIEW ||
-            decision.taskComplexity == ReasoningTaskComplexity.ARCHITECTURE_CRITICAL ||
-            decision.taskComplexity == ReasoningTaskComplexity.DEEP_ANALYSIS ||
-            decision.taskComplexity == ReasoningTaskComplexity.TOOL_OR_AGENT
-    }
-
-    private const val MAX_INPUT_PREVIEW_CHARS = 240
+    fun requiresOwnerDecision(decision: ModelBackendDecision): Boolean = false
 }
