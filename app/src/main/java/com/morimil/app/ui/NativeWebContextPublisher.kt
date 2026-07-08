@@ -64,7 +64,7 @@ internal object NativeWebContextPublisher {
         val url = primary?.url ?: secondary?.url ?: "about:blank"
         val contextText = buildString {
             appendLine("FUENTE_EXTERNA")
-            appendLine("modo=web_nativa_multisource")
+            appendLine("modo=web_nativa_multisource_compact")
             appendLine("query_original=${request.query}")
             appendLine("query_busqueda=${request.searchQuery}")
             appendLine("intent=${request.intent}")
@@ -83,7 +83,7 @@ internal object NativeWebContextPublisher {
                 }
                 appendLine("title=${capture.title}")
                 appendLine("url=${capture.url}")
-                appendLine("content:")
+                appendLine("content_excerpt:")
                 appendLine(capture.text.take(MAX_PRIMARY_CAPTURED_TEXT_CHARS))
             }
             secondary?.let { capture ->
@@ -97,7 +97,7 @@ internal object NativeWebContextPublisher {
                 }
                 appendLine("title=${capture.title}")
                 appendLine("url=${capture.url}")
-                appendLine("content:")
+                appendLine("content_excerpt:")
                 appendLine(capture.text.take(MAX_SECONDARY_CAPTURED_TEXT_CHARS))
             }
             if (primary == null && secondary == null) {
@@ -164,8 +164,8 @@ internal object NativeWebContextPublisher {
         return JSONArray("[$value]").getString(0)
     }
 
-    private const val MAX_PRIMARY_CAPTURED_TEXT_CHARS = 7_000
-    private const val MAX_SECONDARY_CAPTURED_TEXT_CHARS = 3_000
-    private const val MAX_EVIDENCE_GATE_CHARS = 1_200
-    private const val MAX_MULTI_SOURCE_VERIFIER_CHARS = 800
+    private const val MAX_PRIMARY_CAPTURED_TEXT_CHARS = 2_800
+    private const val MAX_SECONDARY_CAPTURED_TEXT_CHARS = 1_200
+    private const val MAX_EVIDENCE_GATE_CHARS = 900
+    private const val MAX_MULTI_SOURCE_VERIFIER_CHARS = 500
 }
