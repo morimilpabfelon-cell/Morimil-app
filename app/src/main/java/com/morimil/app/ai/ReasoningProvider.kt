@@ -4,7 +4,11 @@ import android.content.Context
 
 private const val DEFAULT_LOCAL_MODEL = "llama3.2"
 
-private fun localChatUrl(): String {
+private fun localUsbChatUrl(): String {
+    return "http://" + "127.0.0.1" + ":11434" + "/v1/" + "chat/" + "completions"
+}
+
+private fun localEmulatorChatUrl(): String {
     return "http://" + "10.0.2.2" + ":11434" + "/v1/" + "chat/" + "completions"
 }
 
@@ -20,15 +24,17 @@ enum class ReasoningPreset(
     val defaultBaseUrl: String,
     val defaultModel: String
 ) {
-    MESSAGES_COMPATIBLE("Messages-compatible", ReasoningWireFormat.MESSAGES, "", ""),
-    CHAT_COMPATIBLE("Chat-compatible", ReasoningWireFormat.CHAT, "", ""),
-    RESPONSES_COMPATIBLE("Responses-compatible", ReasoningWireFormat.RESPONSES, "", ""),
-    LOCAL_COMPATIBLE("Local-compatible", ReasoningWireFormat.CHAT, localChatUrl(), DEFAULT_LOCAL_MODEL),
-    CUSTOM("Custom-compatible", ReasoningWireFormat.CHAT, "", "");
+    LOCAL_USB_HELPER("Ollama USB helper", ReasoningWireFormat.CHAT, localUsbChatUrl(), DEFAULT_LOCAL_MODEL),
+    LOCAL_EMULATOR_HELPER("Ollama emulator helper", ReasoningWireFormat.CHAT, localEmulatorChatUrl(), DEFAULT_LOCAL_MODEL),
+    LOCAL_COMPATIBLE("Local helper legacy", ReasoningWireFormat.CHAT, localEmulatorChatUrl(), DEFAULT_LOCAL_MODEL),
+    MESSAGES_COMPATIBLE("Remote Messages helper", ReasoningWireFormat.MESSAGES, "", ""),
+    CHAT_COMPATIBLE("Remote Chat helper", ReasoningWireFormat.CHAT, "", ""),
+    RESPONSES_COMPATIBLE("Remote Responses helper", ReasoningWireFormat.RESPONSES, "", ""),
+    CUSTOM("Custom helper", ReasoningWireFormat.CHAT, "", "");
 
     companion object {
         fun fromName(name: String?): ReasoningPreset {
-            return entries.firstOrNull { it.name == name } ?: LOCAL_COMPATIBLE
+            return entries.firstOrNull { it.name == name } ?: LOCAL_USB_HELPER
         }
     }
 }
@@ -69,7 +75,7 @@ data class ReasoningProviderConfig(
         const val DEFAULT_MAX_TOKENS = 2048
         const val MAX_ALLOWED_TOKENS = 32768
 
-        fun default(): ReasoningProviderConfig = fromPreset(ReasoningPreset.LOCAL_COMPATIBLE)
+        fun default(): ReasoningProviderConfig = fromPreset(ReasoningPreset.LOCAL_USB_HELPER)
 
         fun fromPreset(preset: ReasoningPreset): ReasoningProviderConfig {
             return ReasoningProviderConfig(
@@ -82,12 +88,12 @@ data class ReasoningProviderConfig(
 }
 
 data class ReasoningMotorSlot(val config: ReasoningProviderConfig) {
-    val id: Int = SINGLE_API_ID
-    val displayName: String = SINGLE_API_LABEL
+    val id: Int = SINGLE_HELPER_ID
+    val displayName: String = SINGLE_HELPER_LABEL
 
     companion object {
-        const val SINGLE_API_ID = 1
-        const val SINGLE_API_LABEL = "API principal"
+        const val SINGLE_HELPER_ID = 1
+        const val SINGLE_HELPER_LABEL = "Motor auxiliar configurado"
     }
 }
 
