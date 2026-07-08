@@ -8,11 +8,18 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -20,7 +27,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -55,6 +64,8 @@ fun NativeWebBridgePanel(
     var isLoading by remember { mutableStateOf(false) }
     var canGoBack by remember { mutableStateOf(false) }
     var canGoForward by remember { mutableStateOf(false) }
+    var isWebMinimized by remember { mutableStateOf(false) }
+    var webStatus by remember { mutableStateOf("Listo. Sin busqueda activa.") }
 
     fun refreshNavigationState(webView: WebView) {
         currentUrl = webView.url ?: currentUrl
@@ -105,6 +116,8 @@ fun NativeWebBridgePanel(
         candidateSources = emptyList()
         primaryCapture = null
         phase = WebBridgePhase.SEARCH_RESULTS
+        webStatus = "Reintentando busqueda ($retryCount): $reason"
+        isWebMinimized = false
         recordNavigationEvent(
             request = request,
             type = "RESEARCH_RETRY",
@@ -132,6 +145,7 @@ fun NativeWebBridgePanel(
         )
         NativeWebRequestStore.markHandled(request)
         phase = WebBridgePhase.IDLE
+        webStatus = "Contexto listo para Morimil."
         onPageReady(request.query)
     }
 
@@ -144,6 +158,8 @@ fun NativeWebBridgePanel(
         retryCount = 0
         resetNavigationTrace(request)
         phase = WebBridgePhase.SEARCH_RESULTS
+        isWebMinimized = false
+        webStatus = "Buscando: ${request.searchQuery}"
         activeWebView?.loadUrl(toSearchUrl(request.searchQuery))
     }
 
@@ -175,6 +191,8 @@ fun NativeWebBridgePanel(
                     activeWebView?.takeIf { it.canGoForward() }?.goForward()
                 },
                 onRefresh = {
+                    webStatus = "Recargando pagina."
+                    isWebMinimized = false
                     activeWebView?.reload()
                 },
                 onHome = {
@@ -185,11 +203,21 @@ fun NativeWebBridgePanel(
                     retryCount = 0
                     navigationEvents = emptyList()
                     phase = WebBridgePhase.IDLE
+                    webStatus = "Listo. Sin busqueda activa."
+                    isWebMinimized = false
                     activeWebView?.loadUrl(BRAVE_HOME_URL)
                 }
             )
+            NativeWebStatusStrip(
+                statusText = webStatus,
+                isMinimized = isWebMinimized,
+                onToggleMinimized = { isWebMinimized = !isWebMinimized }
+            )
             AndroidView(
-                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (isWebMinimized) Modifier.height(1.dp) else Modifier.aspectRatio(16f / 9f))
+                    .alpha(if (isWebMinimized) 0f else 1f),
                 factory = { context ->
                     WebView(context).apply {
                         activeWebView = this
@@ -199,6 +227,12 @@ fun NativeWebBridgePanel(
                             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
                                 isLoading = true
                                 currentUrl = url ?: currentUrl
+                                webStatus = when (phase) {
+                                    WebBridgePhase.SEARCH_RESULTS -> "Buscando resultados en Brave."
+                                    WebBridgePhase.PRIMARY_SOURCE_PAGE -> "Abriendo fuente primaria${selectedSource?.host?.let { ": $it" } ?: ""}."
+                                    WebBridgePhase.SECONDARY_SOURCE_PAGE -> "Abriendo fuente secundaria${selectedSource?.host?.let { ": $it" } ?: ""}."
+                                    WebBridgePhase.IDLE -> "Cargando pagina."
+                                }
                                 activeRequest?.let { request ->
                                     recordNavigationEvent(
                                         request = request,
@@ -217,9 +251,11 @@ fun NativeWebBridgePanel(
                                 val request = activeRequest ?: return
                                 when (phase) {
                                     WebBridgePhase.SEARCH_RESULTS -> {
+                                        webStatus = "Seleccionando fuente util."
                                         selectBestUsefulResults(view, request) { selected ->
                                             val primary = selected.firstOrNull()
                                             if (primary == null) {
+                                                webStatus = "Sin candidato util; evaluando reintento."
                                                 recordNavigationEvent(
                                                     request = request,
                                                     type = "NO_USEFUL_CANDIDATE",
@@ -228,6 +264,7 @@ fun NativeWebBridgePanel(
                                                 if (attemptResearchRetry(view, request, "sin candidato util")) {
                                                     return@selectBestUsefulResults
                                                 }
+                                                webStatus = "Capturando resultados visibles."
                                                 NativeWebContextPublisher.capturePage(view, request, selectedSource) { capture ->
                                                     val verifier = NativeMultiSourceVerification(
                                                         status = "single_source_fallback",
@@ -239,6 +276,7 @@ fun NativeWebBridgePanel(
                                             } else {
                                                 candidateSources = selected
                                                 selectedSource = primary
+                                                webStatus = "Fuente primaria seleccionada: ${primary.host}."
                                                 recordNavigationEvent(
                                                     request = request,
                                                     type = "SOURCE_SELECTED",
@@ -255,8 +293,10 @@ fun NativeWebBridgePanel(
                                         }
                                     }
                                     WebBridgePhase.PRIMARY_SOURCE_PAGE -> {
+                                        webStatus = "Capturando fuente primaria${selectedSource?.host?.let { ": $it" } ?: ""}."
                                         NativeWebContextPublisher.capturePage(view, request, selectedSource) { capture ->
                                             if (capture == null) {
+                                                webStatus = "Captura primaria insuficiente."
                                                 recordNavigationEvent(
                                                     request = request,
                                                     type = "CAPTURE_REJECTED",
@@ -282,6 +322,7 @@ fun NativeWebBridgePanel(
                                             if (decision.shouldOpenSecondary && secondary != null) {
                                                 primaryCapture = capture
                                                 selectedSource = secondary
+                                                webStatus = "Fuente secundaria seleccionada: ${secondary.host}."
                                                 recordNavigationEvent(
                                                     request = request,
                                                     type = "SECONDARY_SOURCE_SELECTED",
@@ -305,6 +346,7 @@ fun NativeWebBridgePanel(
                                         }
                                     }
                                     WebBridgePhase.SECONDARY_SOURCE_PAGE -> {
+                                        webStatus = "Capturando fuente secundaria${selectedSource?.host?.let { ": $it" } ?: ""}."
                                         NativeWebContextPublisher.capturePage(view, request, selectedSource) { secondaryCapture ->
                                             val primary = primaryCapture
                                             val verifier = NativeWebResearchPolicy.verifySources(primary, secondaryCapture)
@@ -325,6 +367,7 @@ fun NativeWebBridgePanel(
                             ) {
                                 if (request.isForMainFrame) {
                                     isLoading = false
+                                    webStatus = "Error de navegacion. Puedes refrescar o buscar otra vez."
                                     refreshNavigationState(view)
                                 }
                             }
@@ -342,10 +385,39 @@ fun NativeWebBridgePanel(
                         retryCount = 0
                         resetNavigationTrace(request)
                         phase = WebBridgePhase.SEARCH_RESULTS
+                        isWebMinimized = false
+                        webStatus = "Buscando: ${request.searchQuery}"
                         webView.loadUrl(toSearchUrl(request.searchQuery))
                     }
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun NativeWebStatusStrip(
+    statusText: String,
+    isMinimized: Boolean,
+    onToggleMinimized: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(NativeWebWindowColor)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "WEB: $statusText",
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2
+        )
+        TextButton(onClick = onToggleMinimized) {
+            Text(if (isMinimized) "Restaurar" else "Minimizar")
         }
     }
 }
