@@ -31,25 +31,25 @@ fun SuperiorBackendConfigCard(
 ) {
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Motor superior", style = MaterialTheme.typography.titleMedium)
+            Text("Motor auxiliar local API", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Perfil separado para tareas fuertes. No se usa automaticamente; requiere autorizacion.",
+                "Perfil separado para tareas fuertes. No reemplaza al nucleo de Morimil; se usa solo con autorizacion.",
                 style = MaterialTheme.typography.bodySmall
             )
             TextField(
                 value = endpoint,
                 onValueChange = onEndpointChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Endpoint superior") }
+                label = { Text("Endpoint API") }
             )
             TextField(
                 value = model,
                 onValueChange = onModelChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Modelo superior") }
+                label = { Text("Modelo API") }
             )
             Button(onClick = onSave, enabled = endpoint.isNotBlank() && model.isNotBlank()) {
-                Text("Guardar motor superior")
+                Text("Guardar motor auxiliar local API")
             }
             Text(saveStatus, style = MaterialTheme.typography.bodySmall)
 
@@ -57,7 +57,7 @@ fun SuperiorBackendConfigCard(
                 value = runtimeKey,
                 onValueChange = onRuntimeKeyChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Llave superior") },
+                label = { Text("Llave API") },
                 visualTransformation = PasswordVisualTransformation()
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
