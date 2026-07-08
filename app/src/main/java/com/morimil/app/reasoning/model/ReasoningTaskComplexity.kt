@@ -36,14 +36,14 @@ object ReasoningTaskComplexityClassifier {
 
     fun routingHint(complexity: ReasoningTaskComplexity): String {
         return when (complexity) {
-            ReasoningTaskComplexity.LIGHT_LOCAL -> "prefer_local_fast"
-            ReasoningTaskComplexity.MEMORY_LOCAL -> "prefer_local_memory"
-            ReasoningTaskComplexity.WEB_CONTEXT_LOCAL -> "prefer_local_with_web_evidence"
-            ReasoningTaskComplexity.DEEP_ANALYSIS -> "may_need_stronger_backend"
-            ReasoningTaskComplexity.CODE_REVIEW -> "may_need_stronger_backend"
-            ReasoningTaskComplexity.ARCHITECTURE_CRITICAL -> "may_need_stronger_backend"
-            ReasoningTaskComplexity.TOOL_OR_AGENT -> "requires_owner_approval"
-            ReasoningTaskComplexity.UNKNOWN -> "prefer_safe_default"
+            ReasoningTaskComplexity.LIGHT_LOCAL -> "prefer_configured_backend"
+            ReasoningTaskComplexity.MEMORY_LOCAL -> "prefer_configured_backend"
+            ReasoningTaskComplexity.WEB_CONTEXT_LOCAL -> "prefer_configured_backend"
+            ReasoningTaskComplexity.DEEP_ANALYSIS -> "prefer_configured_backend"
+            ReasoningTaskComplexity.CODE_REVIEW -> "prefer_configured_backend"
+            ReasoningTaskComplexity.ARCHITECTURE_CRITICAL -> "prefer_configured_backend"
+            ReasoningTaskComplexity.TOOL_OR_AGENT -> "prefer_configured_backend"
+            ReasoningTaskComplexity.UNKNOWN -> "prefer_configured_backend"
         }
     }
 
