@@ -11,9 +11,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ElevatedCard
@@ -30,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -52,6 +55,8 @@ fun NativeWebBridgePanel(
     onPageReady: (String) -> Unit
 ) {
     val pendingRequest by NativeWebRequestStore.pendingRequest.collectAsStateWithLifecycle()
+    val density = LocalDensity.current
+    val isKeyboardVisible = WindowInsets.ime.getBottom(density) > 0
     var activeWebView by remember { mutableStateOf<WebView?>(null) }
     var activeRequest by remember { mutableStateOf<NativeWebRequest?>(null) }
     var selectedSource by remember { mutableStateOf<NativeSelectedWebSource?>(null) }
@@ -211,12 +216,19 @@ fun NativeWebBridgePanel(
             NativeWebStatusStrip(
                 statusText = webStatus,
                 isMinimized = isWebMinimized,
+                isKeyboardVisible = isKeyboardVisible,
                 onToggleMinimized = { isWebMinimized = !isWebMinimized }
             )
             AndroidView(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(if (isWebMinimized) Modifier.height(1.dp) else Modifier.aspectRatio(16f / 9f))
+                    .then(
+                        when {
+                            isWebMinimized -> Modifier.height(1.dp)
+                            isKeyboardVisible -> Modifier.height(WEBVIEW_KEYBOARD_HEIGHT)
+                            else -> Modifier.aspectRatio(16f / 9f)
+                        }
+                    )
                     .alpha(if (isWebMinimized) 0f else 1f),
                 factory = { context ->
                     WebView(context).apply {
@@ -399,8 +411,14 @@ fun NativeWebBridgePanel(
 private fun NativeWebStatusStrip(
     statusText: String,
     isMinimized: Boolean,
+    isKeyboardVisible: Boolean,
     onToggleMinimized: () -> Unit
 ) {
+    val visibleStatus = if (isKeyboardVisible && !isMinimized) {
+        "$statusText Altura compacta por teclado."
+    } else {
+        statusText
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -410,7 +428,7 @@ private fun NativeWebStatusStrip(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = "WEB: $statusText",
+            text = "WEB: $visibleStatus",
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -584,3 +602,4 @@ private const val BRAVE_SEARCH_URL = "https://search.brave.com/search?q="
 private const val DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 private const val MAX_RESEARCH_RETRIES = 1
 private const val MAX_RETRY_QUERY_CHARS = 240
+private val WEBVIEW_KEYBOARD_HEIGHT = 112.dp
