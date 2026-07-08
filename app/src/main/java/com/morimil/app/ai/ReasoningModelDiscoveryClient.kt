@@ -3,6 +3,7 @@ package com.morimil.app.ai
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 
 data class DiscoveredReasoningModel(
@@ -180,7 +181,8 @@ class ReasoningModelDiscoveryClient {
         return when {
             lower.contains("/responses") -> ReasoningPreset.RESPONSES_COMPATIBLE
             lower.contains("/messages") -> ReasoningPreset.MESSAGES_COMPATIBLE
-            isLocalEndpoint(endpoint) -> ReasoningPreset.LOCAL_COMPATIBLE
+            isUsbEndpoint(endpoint) -> ReasoningPreset.LOCAL_USB_HELPER
+            isLanEndpoint(endpoint) -> ReasoningPreset.LOCAL_LAN_HELPER
             else -> ReasoningPreset.CHAT_COMPATIBLE
         }
     }
@@ -206,10 +208,23 @@ class ReasoningModelDiscoveryClient {
     }
 
     private fun isLocalEndpoint(endpoint: String): Boolean {
+        return isUsbEndpoint(endpoint) || isLanEndpoint(endpoint)
+    }
+
+    private fun isUsbEndpoint(endpoint: String): Boolean {
         val lower = endpoint.lowercase()
-        return lower.startsWith("http://127.0.0.1") ||
-            lower.startsWith("http://localhost") ||
-            lower.startsWith("http://10.0.2.2")
+        return lower.startsWith("http://127.0.0.1") || lower.startsWith("http://localhost")
+    }
+
+    private fun isLanEndpoint(endpoint: String): Boolean {
+        val host = runCatching { URI(endpoint.trim()).host.orEmpty().lowercase() }
+            .getOrDefault("")
+        if (host.startsWith("192.168.")) return true
+        val parts = host.split(".")
+        if (parts.size != 4) return false
+        val first = parts[0].toIntOrNull() ?: return false
+        val second = parts[1].toIntOrNull() ?: return false
+        return first == 10 || (first == 172 && second in 16..31)
     }
 
     companion object {
