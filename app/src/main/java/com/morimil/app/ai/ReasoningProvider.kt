@@ -8,8 +8,8 @@ private fun localUsbChatUrl(): String {
     return "http://" + "127.0.0.1" + ":11434" + "/v1/" + "chat/" + "completions"
 }
 
-private fun localEmulatorChatUrl(): String {
-    return "http://" + "10.0.2.2" + ":11434" + "/v1/" + "chat/" + "completions"
+private fun localLanChatUrl(): String {
+    return "http://" + "192.168.1.100" + ":11434" + "/v1/" + "chat/" + "completions"
 }
 
 enum class ReasoningWireFormat {
@@ -25,8 +25,7 @@ enum class ReasoningPreset(
     val defaultModel: String
 ) {
     LOCAL_USB_HELPER("Ollama USB helper", ReasoningWireFormat.CHAT, localUsbChatUrl(), DEFAULT_LOCAL_MODEL),
-    LOCAL_EMULATOR_HELPER("Ollama emulator helper", ReasoningWireFormat.CHAT, localEmulatorChatUrl(), DEFAULT_LOCAL_MODEL),
-    LOCAL_COMPATIBLE("Local helper legacy", ReasoningWireFormat.CHAT, localEmulatorChatUrl(), DEFAULT_LOCAL_MODEL),
+    LOCAL_LAN_HELPER("Ollama LAN helper", ReasoningWireFormat.CHAT, localLanChatUrl(), DEFAULT_LOCAL_MODEL),
     MESSAGES_COMPATIBLE("Remote Messages helper", ReasoningWireFormat.MESSAGES, "", ""),
     CHAT_COMPATIBLE("Remote Chat helper", ReasoningWireFormat.CHAT, "", ""),
     RESPONSES_COMPATIBLE("Remote Responses helper", ReasoningWireFormat.RESPONSES, "", ""),
@@ -34,7 +33,10 @@ enum class ReasoningPreset(
 
     companion object {
         fun fromName(name: String?): ReasoningPreset {
-            return entries.firstOrNull { it.name == name } ?: LOCAL_USB_HELPER
+            return when (name) {
+                "LOCAL_EMULATOR_HELPER", "LOCAL_COMPATIBLE" -> LOCAL_USB_HELPER
+                else -> entries.firstOrNull { it.name == name } ?: LOCAL_USB_HELPER
+            }
         }
     }
 }
