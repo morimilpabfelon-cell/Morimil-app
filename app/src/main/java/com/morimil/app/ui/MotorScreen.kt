@@ -114,7 +114,6 @@ fun MotorScreen(viewModel: MotorViewModel) {
     ) {
         Text(uiState.title, style = MaterialTheme.typography.headlineMedium)
         Text("Aqui configuras motores auxiliares. Morimil mantiene identidad, memoria y nucleo local en el celular.")
-        RuntimeNote()
         ReasoningKernelGatesCard(
             localConfigured = endpoint.isNotBlank() && model.isNotBlank(),
             remoteProfileConfigured = thirdMotorEndpoint.isNotBlank() && thirdMotorModel.isNotBlank(),
