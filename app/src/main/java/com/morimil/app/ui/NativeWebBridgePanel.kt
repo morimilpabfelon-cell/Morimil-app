@@ -131,11 +131,6 @@ fun NativeWebBridgePanel(
             retryCount = retryCount
         )
         NativeWebRequestStore.markHandled(request)
-        activeRequest = null
-        selectedSource = null
-        candidateSources = emptyList()
-        primaryCapture = null
-        activeWebView = null
         phase = WebBridgePhase.IDLE
         onPageReady(request.query)
     }
@@ -157,10 +152,6 @@ fun NativeWebBridgePanel(
             activeWebView?.destroy()
             activeWebView = null
         }
-    }
-
-    if (activeRequest == null && pendingRequest == null && phase == WebBridgePhase.IDLE) {
-        return
     }
 
     ElevatedCard(
@@ -195,7 +186,6 @@ fun NativeWebBridgePanel(
                     navigationEvents = emptyList()
                     phase = WebBridgePhase.IDLE
                     activeWebView?.loadUrl(BRAVE_HOME_URL)
-                    activeWebView = null
                 }
             )
             AndroidView(
@@ -339,9 +329,7 @@ fun NativeWebBridgePanel(
                                 }
                             }
                         }
-                        activeRequest?.let { request ->
-                            loadUrl(toSearchUrl(request.searchQuery))
-                        } ?: loadUrl(BRAVE_HOME_URL)
+                        loadUrl(BRAVE_HOME_URL)
                     }
                 },
                 update = { webView ->
