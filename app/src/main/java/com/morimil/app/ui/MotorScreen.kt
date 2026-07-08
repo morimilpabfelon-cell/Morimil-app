@@ -114,7 +114,6 @@ fun MotorScreen(viewModel: MotorViewModel) {
     ) {
         Text(uiState.title, style = MaterialTheme.typography.headlineMedium)
         Text("Orden real: 1 Morimil nucleo, 2 auxiliar local Ollama, 3 auxiliar remoto API. Morimil mantiene identidad, memoria y nucleo local en el celular.")
-        RuntimeNote()
         MorimilCoreMotorCard()
         ReasoningKernelGatesCard(
             localConfigured = endpoint.isNotBlank() && model.isNotBlank(),
@@ -209,7 +208,7 @@ private fun MorimilCoreMotorCard() {
             GateRow("Identidad local activa", true)
             GateRow("Memoria viva local activa", true)
             GateRow("Gobernanza local activa", true)
-            GateRow("Requiere endpoint externo", false)
+            GateRow("No requiere endpoint externo", true)
         }
     }
 }
