@@ -71,13 +71,22 @@ object NativeWebContextStore {
         maxChars: Int
     ): String {
         val terms = importantWords("$query $title $url")
+        if (terms.isEmpty()) return ""
+
         val lines = text
             .replace(Regex("\\s+"), " ")
             .split(Regex("(?<=[.!?])\\s+|\\n+"))
             .map { it.trim() }
             .filter { it.length >= MIN_LINE_CHARS }
 
-        if (lines.isEmpty()) return text.take(maxChars).trim()
+        if (lines.isEmpty()) {
+            val normalizedText = normalize(text)
+            return if (terms.any { term -> normalizedText.contains(term) }) {
+                text.take(maxChars).trim()
+            } else {
+                ""
+            }
+        }
 
         val ranked = lines
             .mapIndexed { index, line ->
@@ -89,9 +98,10 @@ object NativeWebContextStore {
             .sortedByDescending { (_, score) -> score }
             .map { (line, _) -> line }
 
-        val selected = ranked.ifEmpty { lines.take(DEFAULT_EXTRACT_LINES) }
+        if (ranked.isEmpty()) return ""
+
         val output = StringBuilder()
-        for (line in selected) {
+        for (line in ranked) {
             if (output.length >= maxChars) break
             if (output.isNotEmpty()) output.append('\n')
             output.append(line.take(MAX_LINE_CHARS))
@@ -121,7 +131,6 @@ object NativeWebContextStore {
     private const val MAX_EXTRACT_CHARS = 2_100
     private const val MAX_LINE_CHARS = 520
     private const val MIN_LINE_CHARS = 36
-    private const val DEFAULT_EXTRACT_LINES = 6
     private const val MAX_CONTEXT_AGE_MILLIS = 10 * 60 * 1000L
 
     private val STOP_WORDS = setOf(
