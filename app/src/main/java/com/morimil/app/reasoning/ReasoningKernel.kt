@@ -116,12 +116,18 @@ class ReasoningKernel(
             }
 
             val localMemoryContext = memoryRepository.buildLivingMemoryContext(cleanInput)
-            val nativeWebContext = NativeWebContextStore.promptContext()
+            val webBudget = webPromptBudgetFor(localMemoryContext)
+            val nativeWebContext = NativeWebContextStore.consumePromptContext(
+                query = cleanInput,
+                maxChars = webBudget
+            )
             val memoryContext = buildString {
                 appendLine(localMemoryContext)
-                appendLine()
-                appendLine("EXTERNAL TEMPORARY CONTEXT:")
-                appendLine(nativeWebContext)
+                if (nativeWebContext.isNotBlank()) {
+                    appendLine()
+                    appendLine("EXTERNAL TEMPORARY CONTEXT:")
+                    appendLine(nativeWebContext)
+                }
             }.take(MAX_COMBINED_MEMORY_CONTEXT_CHARS)
             val capsuleContext = memoryOrganRepository.buildKnowledgeCapsuleContext()
             state = state.copy(
@@ -129,7 +135,7 @@ class ReasoningKernel(
                 capsuleContextSummary = summarizeContext(capsuleContext)
             ).withTrace(
                 "context_built",
-                "memory_chars=${memoryContext.length} capsule_chars=${capsuleContext.length} web_chars=${nativeWebContext.length}"
+                "memory_chars=${localMemoryContext.length} combined_chars=${memoryContext.length} capsule_chars=${capsuleContext.length} web_chars=${nativeWebContext.length}"
             )
 
             var fallbackUsed = !backend.usable || remoteBlocked
@@ -238,8 +244,13 @@ class ReasoningKernel(
             .take(420)
     }
 
+    private fun webPromptBudgetFor(localMemoryContext: String): Int {
+        return minOf(MAX_WEB_CONTEXT_CHARS, localMemoryContext.length.coerceAtLeast(0))
+    }
+
     private companion object {
         const val MAX_COMBINED_MEMORY_CONTEXT_CHARS = 24_000
+        const val MAX_WEB_CONTEXT_CHARS = 2_500
     }
 }
 
