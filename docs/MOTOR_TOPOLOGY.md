@@ -17,11 +17,12 @@ This layer is not Ollama and is not a remote API.
 
 This is an external local model used as compute help for Morimil's Core Motor.
 
-Examples:
+Official routes:
 
 - Ollama over USB ADB reverse: `http://127.0.0.1:11434/v1/chat/completions`
-- Ollama from Android emulator: `http://10.0.2.2:11434/v1/chat/completions`
-- Ollama over private LAN: `http://192.168.x.x:11434/v1/chat/completions`
+- Ollama over private LAN/local network: `http://192.168.x.x:11434/v1/chat/completions`
+
+The Android emulator endpoint is not part of Morimil's real local helper topology.
 
 This layer is local assistance. It is not Morimil's identity.
 
