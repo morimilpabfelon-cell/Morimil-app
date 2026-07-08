@@ -130,16 +130,10 @@ interface MemoryDao {
 
     @Query("SELECT * FROM memory_events WHERE eventType = 'rest_cycle.local_consolidation' ORDER BY createdAtMillis DESC, id DESC LIMIT 1")
     suspend fun loadLatestRestCycleEvent(): MemoryEventEntity?
-
     @Query("SELECT * FROM improvement_decision_history ORDER BY decidedAtMillis DESC LIMIT :limit")
     suspend fun loadImprovementDecisionHistory(limit: Int): List<ImprovementDecisionHistoryEntity>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertImprovementDecisionHistory(entry: ImprovementDecisionHistoryEntity)
 
-    @Query("SELECT * FROM native_web_search_audit ORDER BY createdAtMillis DESC LIMIT :limit")
-    suspend fun loadNativeWebSearchAudit(limit: Int): List<NativeWebSearchAuditEntity>
-
-    @Insert(onConflict = OnConflictStrategy.ABORT)
-    suspend fun insertNativeWebSearchAudit(entry: NativeWebSearchAuditEntity)
 }
