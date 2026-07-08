@@ -100,11 +100,11 @@ fun MotorScreen(viewModel: MotorViewModel) {
     var saveStatus by remember { mutableStateOf("Config actual cargada.") }
     var superiorEndpoint by remember { mutableStateOf(initialSuperior.baseUrl) }
     var superiorModel by remember { mutableStateOf(initialSuperior.model) }
-    var superiorSaveStatus by remember { mutableStateOf("Motor superior runtime sin configurar.") }
+    var superiorSaveStatus by remember { mutableStateOf("Motor auxiliar remoto sin configurar.") }
     var superiorRuntimeKey by remember { mutableStateOf("") }
     var superiorKeyStatus by remember {
         mutableStateOf(
-            if (secretVault.hasReasoningKey(2)) "Llave superior guardada." else "Llave superior no guardada."
+            if (secretVault.hasReasoningKey(2)) "Llave remota guardada." else "Llave remota no guardada."
         )
     }
 
@@ -113,14 +113,12 @@ fun MotorScreen(viewModel: MotorViewModel) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(uiState.title, style = MaterialTheme.typography.headlineMedium)
-        Text("Aqui configuras el razonamiento temporal. Morimil mantiene identidad y memoria local en el celular.")
+        Text("Aqui configuras motores auxiliares. Morimil mantiene identidad, memoria y nucleo local en el celular.")
         RuntimeNote()
         ReasoningKernelGatesCard(
             localConfigured = endpoint.isNotBlank() && model.isNotBlank(),
-            superiorProfileConfigured = superiorEndpoint.isNotBlank() && superiorModel.isNotBlank(),
-            superiorKeyStored = secretVault.hasReasoningKey(2),
-            approvalRequired = true,
-            approvalConsumedAfterUse = true,
+            remoteProfileConfigured = superiorEndpoint.isNotBlank() && superiorModel.isNotBlank(),
+            remoteKeyStored = secretVault.hasReasoningKey(2),
             externalWebIsContextOnly = true
         )
         LocalBackendConfigCard(
@@ -131,11 +129,11 @@ fun MotorScreen(viewModel: MotorViewModel) {
             onEndpointChange = { endpoint = it },
             onModelChange = { model = it },
             onPcIpChange = { pcIp = it },
-            onUseEmulator = {
-                endpoint = "http://10.0.2.2:11434/v1/chat/completions"
+            onUseUsb = {
+                endpoint = "http://127.0.0.1:11434/v1/chat/completions"
                 if (model.isBlank()) model = "llama3.2"
             },
-            onUsePhysicalDevice = {
+            onUseLan = {
                 val cleanIp = pcIp.trim()
                 if (cleanIp.isNotBlank()) {
                     endpoint = "http://$cleanIp:11434/v1/chat/completions"
@@ -145,13 +143,13 @@ fun MotorScreen(viewModel: MotorViewModel) {
             onSave = {
                 val result = configStore.save(
                     ReasoningProviderConfig(
-                        preset = ReasoningPreset.LOCAL_COMPATIBLE,
+                        preset = localHelperPresetFor(endpoint),
                         baseUrl = endpoint,
                         model = model
                     )
                 )
                 saveStatus = result.fold(
-                    onSuccess = { "Motor local guardado. El siguiente mensaje del chat usara esta configuracion." },
+                    onSuccess = { "Motor auxiliar local guardado. El siguiente mensaje del chat usara esta configuracion." },
                     onFailure = { error -> "No se pudo guardar: ${error.message ?: error::class.java.simpleName}" }
                 )
             }
@@ -170,15 +168,15 @@ fun MotorScreen(viewModel: MotorViewModel) {
                 superiorKeyStatus = result.fold(
                     onSuccess = {
                         superiorRuntimeKey = ""
-                        "Llave superior guardada en SecretVault slot 2."
+                        "Llave remota guardada en SecretVault slot 2."
                     },
-                    onFailure = { error -> "No se pudo guardar llave superior: ${error.message ?: error::class.java.simpleName}" }
+                    onFailure = { error -> "No se pudo guardar llave remota: ${error.message ?: error::class.java.simpleName}" }
                 )
             },
             onClearRuntimeKey = {
                 secretVault.clearReasoningKey(2)
                 superiorRuntimeKey = ""
-                superiorKeyStatus = "Llave superior borrada."
+                superiorKeyStatus = "Llave remota borrada."
             },
             onSave = {
                 val result = ReasoningProfileRuntimeStore.saveSuperior(
@@ -190,8 +188,8 @@ fun MotorScreen(viewModel: MotorViewModel) {
                     )
                 )
                 superiorSaveStatus = result.fold(
-                    onSuccess = { "Motor superior guardado de forma persistente." },
-                    onFailure = { error -> "No se pudo guardar superior: ${error.message ?: error::class.java.simpleName}" }
+                    onSuccess = { "Motor auxiliar remoto guardado de forma persistente." },
+                    onFailure = { error -> "No se pudo guardar remoto: ${error.message ?: error::class.java.simpleName}" }
                 )
             }
         )
@@ -201,24 +199,21 @@ fun MotorScreen(viewModel: MotorViewModel) {
 @Composable
 private fun ReasoningKernelGatesCard(
     localConfigured: Boolean,
-    superiorProfileConfigured: Boolean,
-    superiorKeyStored: Boolean,
-    approvalRequired: Boolean,
-    approvalConsumedAfterUse: Boolean,
+    remoteProfileConfigured: Boolean,
+    remoteKeyStored: Boolean,
     externalWebIsContextOnly: Boolean
 ) {
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Compuertas del kernel", style = MaterialTheme.typography.titleMedium)
+            Text("Topologia de motores", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Estado visible de las conexiones criticas antes de aceptar cambios de razonamiento.",
+                "Morimil conserva el nucleo. Los modelos local/remoto son motores auxiliares de computo.",
                 style = MaterialTheme.typography.bodySmall
             )
-            GateRow("Motor local configurado", localConfigured)
-            GateRow("Motor superior configurado", superiorProfileConfigured)
-            GateRow("Llave superior en SecretVault slot 2", superiorKeyStored)
-            GateRow("Superior requiere aprobacion", approvalRequired)
-            GateRow("Aprobacion superior se consume", approvalConsumedAfterUse)
+            GateRow("Motor nucleo de Morimil activo", true)
+            GateRow("Motor auxiliar local configurado", localConfigured)
+            GateRow("Motor auxiliar remoto configurado", remoteProfileConfigured)
+            GateRow("Llave remota en SecretVault slot 2", remoteKeyStored)
             GateRow("Web externa entra como contexto", externalWebIsContextOnly)
         }
     }
@@ -240,30 +235,30 @@ private fun LocalBackendConfigCard(
     onEndpointChange: (String) -> Unit,
     onModelChange: (String) -> Unit,
     onPcIpChange: (String) -> Unit,
-    onUseEmulator: () -> Unit,
-    onUsePhysicalDevice: () -> Unit,
+    onUseUsb: () -> Unit,
+    onUseLan: () -> Unit,
     onSave: () -> Unit
 ) {
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Motor local Ollama-compatible", style = MaterialTheme.typography.titleMedium)
+            Text("Motor auxiliar local Ollama", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Para emulador usa 10.0.2.2. Para celular fisico usa la IP local de tu PC, por ejemplo 192.168.1.28.",
+                "USB usa 127.0.0.1 con ADB reverse. LAN usa la IP local de tu PC, por ejemplo 192.168.1.28.",
                 style = MaterialTheme.typography.bodySmall
             )
             TextField(
                 value = pcIp,
                 onValueChange = onPcIpChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("IP de la PC para celular fisico") },
+                label = { Text("IP de la PC para LAN") },
                 placeholder = { Text("192.168.1.28") }
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onUseEmulator) {
-                    Text("Emulador")
+                Button(onClick = onUseUsb) {
+                    Text("USB")
                 }
-                Button(enabled = pcIp.trim().isNotBlank(), onClick = onUsePhysicalDevice) {
-                    Text("Celular fisico")
+                Button(enabled = pcIp.trim().isNotBlank(), onClick = onUseLan) {
+                    Text("LAN")
                 }
             }
             TextField(
@@ -279,9 +274,18 @@ private fun LocalBackendConfigCard(
                 label = { Text("Modelo") }
             )
             Button(onClick = onSave, enabled = endpoint.isNotBlank() && model.isNotBlank()) {
-                Text("Guardar motor local")
+                Text("Guardar motor auxiliar local")
             }
             Text(saveStatus, style = MaterialTheme.typography.bodySmall)
         }
+    }
+}
+
+private fun localHelperPresetFor(endpoint: String): ReasoningPreset {
+    val clean = endpoint.trim().lowercase(Locale.ROOT)
+    return if (clean.startsWith("http://127.0.0.1") || clean.startsWith("http://localhost")) {
+        ReasoningPreset.LOCAL_USB_HELPER
+    } else {
+        ReasoningPreset.LOCAL_LAN_HELPER
     }
 }
