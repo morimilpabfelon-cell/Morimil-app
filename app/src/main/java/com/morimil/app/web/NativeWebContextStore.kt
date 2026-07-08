@@ -22,20 +22,26 @@ object NativeWebContextStore {
 
     fun promptContext(): String {
         val page = _currentPage.value ?: return "consulta_nativa_sin_resultado: sin pagina capturada."
-        return buildString {
-            appendLine("FUENTE_EXTERNA")
-            appendLine("capturedAtMillis=${page.capturedAtMillis}")
-            appendLine("title=${page.title}")
-            appendLine("url=${page.url}")
-            appendLine("content:")
-            appendLine(page.text)
-        }.take(MAX_PROMPT_CHARS)
+        val body = page.text.trim()
+        val context = if (body.startsWith("FUENTE_EXTERNA")) {
+            body
+        } else {
+            buildString {
+                appendLine("FUENTE_EXTERNA")
+                appendLine("capturedAtMillis=${page.capturedAtMillis}")
+                appendLine("title=${page.title}")
+                appendLine("url=${page.url}")
+                appendLine("content:")
+                appendLine(body)
+            }
+        }
+        return context.take(MAX_PROMPT_CHARS)
     }
 
     private const val MAX_TITLE_CHARS = 180
     private const val MAX_URL_CHARS = 420
-    private const val MAX_TEXT_CHARS = 12_000
-    private const val MAX_PROMPT_CHARS = 14_000
+    private const val MAX_TEXT_CHARS = 6_000
+    private const val MAX_PROMPT_CHARS = 7_000
 }
 
 data class NativeWebPageContext(
