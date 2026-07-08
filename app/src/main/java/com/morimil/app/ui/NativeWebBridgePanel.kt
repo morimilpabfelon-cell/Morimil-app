@@ -30,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,8 +42,13 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.morimil.app.web.NativeWebRequest
 import com.morimil.app.web.NativeWebRequestStore
+import com.morimil.app.web.NativeWebSearchAuditEntry
+import com.morimil.app.web.NativeWebSearchAuditStore
 import com.morimil.app.web.WebSearchIntent
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.json.JSONArray
+import java.util.UUID
 
 private enum class WebBridgePhase {
     IDLE,
@@ -58,6 +64,7 @@ fun NativeWebBridgePanel(
     onPageReady: (String) -> Unit
 ) {
     val pendingRequest by NativeWebRequestStore.pendingRequest.collectAsStateWithLifecycle()
+    val auditScope = rememberCoroutineScope()
     val density = LocalDensity.current
     val isKeyboardVisible = WindowInsets.ime.getBottom(density) > 0
     var activeWebView by remember { mutableStateOf<WebView?>(null) }
@@ -110,6 +117,49 @@ fun NativeWebBridgePanel(
             score = score,
             reason = reason
         )
+    }
+
+    fun writeSearchAudit(
+        request: NativeWebRequest,
+        primary: NativeWebCapture?,
+        secondary: NativeWebCapture?,
+        verifier: NativeMultiSourceVerification,
+        retryCount: Int
+    ) {
+        val context = activeWebView?.context?.applicationContext ?: return
+        val fallbackCount = navigationEvents.count { it.type == "SOURCE_FALLBACK" }
+        val result = when {
+            primary != null && secondary != null -> "primary_secondary_captured"
+            primary != null -> "primary_captured"
+            secondary != null -> "secondary_captured"
+            else -> "capture_failed"
+        }
+        val entry = NativeWebSearchAuditEntry(
+            auditId = "web-${request.requestedAtMillis}-${UUID.randomUUID()}",
+            queryOriginal = request.query,
+            querySearch = request.searchQuery,
+            intent = request.intent.name,
+            strategy = request.strategy,
+            primaryUrl = primary?.url,
+            primaryHost = primary?.source?.host,
+            primaryScore = primary?.source?.score,
+            primaryReason = primary?.source?.reason,
+            secondaryUrl = secondary?.url,
+            secondaryHost = secondary?.source?.host,
+            secondaryScore = secondary?.source?.score,
+            secondaryReason = secondary?.source?.reason,
+            verifierStatus = verifier.status,
+            verifierConfidence = verifier.confidence,
+            verifierReason = verifier.reason,
+            retryCount = retryCount,
+            fallbackCount = fallbackCount,
+            navigationEventCount = navigationEvents.size,
+            result = result,
+            createdAtMillis = System.currentTimeMillis()
+        )
+        auditScope.launch(Dispatchers.IO) {
+            runCatching { NativeWebSearchAuditStore.append(context, entry) }
+        }
     }
 
     fun openFallbackCandidate(
@@ -179,6 +229,13 @@ fun NativeWebBridgePanel(
             primary = primary,
             secondary = secondary,
             navigationTrace = NativeWebNavigationTrace.text(request, navigationEvents),
+            verifier = verifier,
+            retryCount = retryCount
+        )
+        writeSearchAudit(
+            request = request,
+            primary = primary,
+            secondary = secondary,
             verifier = verifier,
             retryCount = retryCount
         )
