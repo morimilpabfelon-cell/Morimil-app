@@ -24,7 +24,7 @@ class FullChainDatabaseMigrationTest {
     }
 
     @Test
-    fun morimilDatabaseMigratesFrom1To8ThroughFullChain() {
+    fun morimilDatabaseMigratesFrom1To9ThroughFullChain() {
         createMorimilDatabaseAtVersion1()
 
         val database = Room.databaseBuilder(context, MorimilDatabase::class.java, MORIMIL_DB)
@@ -35,7 +35,8 @@ class FullChainDatabaseMigrationTest {
                 MorimilDatabase.MIGRATION_4_5,
                 MorimilDatabase.MIGRATION_5_6,
                 MorimilDatabase.MIGRATION_6_7,
-                MorimilDatabase.MIGRATION_7_8
+                MorimilDatabase.MIGRATION_7_8,
+                MorimilDatabase.MIGRATION_8_9
             )
             .build()
 
@@ -79,7 +80,7 @@ class FullChainDatabaseMigrationTest {
     }
 
     @Test
-    fun memoryOrganDatabaseMigratesFrom1To5ThroughFullChain() {
+    fun memoryOrganDatabaseMigratesFrom1To7ThroughFullChain() {
         createMemoryOrganDatabaseAtVersion1()
 
         val database = Room.databaseBuilder(context, MemoryOrganDatabase::class.java, MEMORY_ORGAN_DB)
@@ -87,7 +88,9 @@ class FullChainDatabaseMigrationTest {
                 MemoryOrganDatabase.MIGRATION_1_2,
                 MemoryOrganDatabase.MIGRATION_2_3,
                 MemoryOrganDatabase.MIGRATION_3_4,
-                MemoryOrganDatabase.MIGRATION_4_5
+                MemoryOrganDatabase.MIGRATION_4_5,
+                MemoryOrganDatabase.MIGRATION_5_6,
+                MemoryOrganDatabase.MIGRATION_6_7
             )
             .build()
 
