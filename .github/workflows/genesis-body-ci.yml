@@ -18,7 +18,7 @@ concurrency:
 jobs:
   android-validation:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: Check out repository
@@ -54,6 +54,19 @@ jobs:
       - name: Build debug APK and instrumentation tests
         run: ./gradlew --no-daemon --stacktrace --console=plain :app:assembleDebug :app:assembleDebugAndroidTest
 
+      - name: Enable KVM for managed devices
+        shell: bash
+        run: |
+          if [[ -e /dev/kvm ]]; then
+            sudo chmod 666 /dev/kvm
+          fi
+
+      - name: Run managed Android tests on API 30 and API 35
+        run: |
+          ./gradlew --no-daemon --stacktrace --console=plain \
+            :app:pixel2Api30DebugAndroidTest \
+            :app:pixel2Api35DebugAndroidTest
+
       - name: Upload diagnostic reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -64,4 +77,6 @@ jobs:
             unit-test.log
             app/build/reports/**
             app/build/test-results/**
+            app/build/outputs/androidTest-results/**
+            app/build/outputs/managed_device_android_test_additional_output/**
             app/build/outputs/apk/debug/**
