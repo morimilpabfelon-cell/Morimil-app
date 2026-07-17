@@ -190,3 +190,4 @@ diff --git a/app/src/androidTest/java/com/morimil/app/data/local/MorimilDatabase
              )
              .build()
      }
+
