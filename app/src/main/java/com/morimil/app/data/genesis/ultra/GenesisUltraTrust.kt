@@ -43,7 +43,7 @@ class GenesisUltraTrustedGuardianKeyEpochRegistry(
         }
     }
 
-    fun signatureVerifier(): GenesisUltraSignatureVerifier {
+    fun signatureVerifier(): GenesisUltraEd25519SignatureVerifier {
         val trusted = entries.filter { epoch -> epoch.status == "active" }.map { epoch ->
             GenesisUltraTrustedEd25519Key(
                 signerType = "guardian",
@@ -80,10 +80,63 @@ data class GenesisUltraBodyPossessionProof(
     val signature: GenesisUltraBodyPossessionSignature
 )
 
-class GenesisUltraVerifiedBodyPossession internal constructor(
-    val proof: GenesisUltraBodyPossessionProof,
+class GenesisUltraVerifiedBodyPossession private constructor(
+    proof: GenesisUltraBodyPossessionProof,
     val verifiedAt: String
-)
+) {
+    val proof: GenesisUltraBodyPossessionProof = proof.copy(signature = proof.signature.copy())
+
+    internal companion object {
+        fun verify(
+            proof: GenesisUltraBodyPossessionProof,
+            keyEpoch: GenesisUltraKeyEpoch,
+            rawPublicKey: ByteArray,
+            evaluatedAt: String
+        ): GenesisUltraVerifiedBodyPossession {
+            require(keyEpoch.status == "active") { "body_possession_key_epoch_inactive" }
+            require(keyEpoch.instanceId == proof.instanceId) { "body_possession_instance_mismatch" }
+            require(keyEpoch.bodyId == proof.bodyId) { "body_possession_body_mismatch" }
+            require(keyEpoch.keyEpochId == proof.signature.keyEpochId) { "body_possession_key_epoch_mismatch" }
+            require(keyEpoch.publicKeyFingerprint == proof.publicKeyFingerprint) {
+                "body_possession_fingerprint_mismatch"
+            }
+            require(GenesisUltraHashProfile.sha256(rawPublicKey) == proof.publicKeyFingerprint) {
+                "body_possession_public_key_mismatch"
+            }
+            val evaluated = Instant.parse(evaluatedAt)
+            require(evaluated >= Instant.parse(proof.issuedAt)) { "body_possession_not_yet_valid" }
+            require(evaluated < Instant.parse(proof.expiresAt)) { "body_possession_expired" }
+
+            val envelope = GenesisUltraSignatureEnvelope(
+                schemaVersion = "genesis.signature.envelope.v0.1",
+                signatureProfile = proof.signature.profile,
+                signerType = "body",
+                signerId = proof.bodyId,
+                keyEpochId = proof.signature.keyEpochId,
+                signedDomain = GenesisUltraBodyPossessionVerifier.BODY_POSSESSION_SIGNATURE_DOMAIN,
+                signedDigest = proof.proofDigest,
+                signatureValue = proof.signature.value,
+                createdAt = proof.issuedAt,
+                publicKeyRef = proof.publicKeyFingerprint
+            )
+            val verifier = GenesisUltraEd25519SignatureVerifier(
+                listOf(
+                    GenesisUltraTrustedEd25519Key(
+                        signerType = envelope.signerType,
+                        signerId = envelope.signerId,
+                        keyEpochId = envelope.keyEpochId,
+                        publicKeyRef = envelope.publicKeyRef,
+                        rawPublicKey = rawPublicKey
+                    )
+                )
+            )
+            require(verifier.verify(envelope, GenesisUltraHashProfile.signatureEnvelopePreimage(envelope))) {
+                "body_possession_signature_invalid"
+            }
+            return GenesisUltraVerifiedBodyPossession(proof = proof, verifiedAt = evaluatedAt)
+        }
+    }
+}
 
 object GenesisUltraBodyPossessionProofParser {
     fun parse(jsonText: String): GenesisUltraBodyPossessionProof {
@@ -172,47 +225,12 @@ class GenesisUltraBodyPossessionVerifier {
         rawPublicKey: ByteArray,
         evaluatedAt: String
     ): GenesisUltraVerifiedBodyPossession {
-        require(keyEpoch.status == "active") { "body_possession_key_epoch_inactive" }
-        require(keyEpoch.instanceId == proof.instanceId) { "body_possession_instance_mismatch" }
-        require(keyEpoch.bodyId == proof.bodyId) { "body_possession_body_mismatch" }
-        require(keyEpoch.keyEpochId == proof.signature.keyEpochId) { "body_possession_key_epoch_mismatch" }
-        require(keyEpoch.publicKeyFingerprint == proof.publicKeyFingerprint) {
-            "body_possession_fingerprint_mismatch"
-        }
-        require(GenesisUltraHashProfile.sha256(rawPublicKey) == proof.publicKeyFingerprint) {
-            "body_possession_public_key_mismatch"
-        }
-        val evaluated = Instant.parse(evaluatedAt)
-        require(evaluated >= Instant.parse(proof.issuedAt)) { "body_possession_not_yet_valid" }
-        require(evaluated < Instant.parse(proof.expiresAt)) { "body_possession_expired" }
-
-        val envelope = GenesisUltraSignatureEnvelope(
-            schemaVersion = "genesis.signature.envelope.v0.1",
-            signatureProfile = proof.signature.profile,
-            signerType = "body",
-            signerId = proof.bodyId,
-            keyEpochId = proof.signature.keyEpochId,
-            signedDomain = BODY_POSSESSION_SIGNATURE_DOMAIN,
-            signedDigest = proof.proofDigest,
-            signatureValue = proof.signature.value,
-            createdAt = proof.issuedAt,
-            publicKeyRef = proof.publicKeyFingerprint
+        return GenesisUltraVerifiedBodyPossession.verify(
+            proof = proof,
+            keyEpoch = keyEpoch,
+            rawPublicKey = rawPublicKey,
+            evaluatedAt = evaluatedAt
         )
-        val verifier = GenesisUltraEd25519SignatureVerifier(
-            listOf(
-                GenesisUltraTrustedEd25519Key(
-                    signerType = envelope.signerType,
-                    signerId = envelope.signerId,
-                    keyEpochId = envelope.keyEpochId,
-                    publicKeyRef = envelope.publicKeyRef,
-                    rawPublicKey = rawPublicKey
-                )
-            )
-        )
-        require(verifier.verify(envelope, GenesisUltraHashProfile.signatureEnvelopePreimage(envelope))) {
-            "body_possession_signature_invalid"
-        }
-        return GenesisUltraVerifiedBodyPossession(proof = proof, verifiedAt = evaluatedAt)
     }
 
     companion object {
