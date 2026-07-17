@@ -4,6 +4,7 @@ import java.security.GeneralSecurityException
 import java.security.KeyFactory
 import java.security.Signature
 import java.security.spec.X509EncodedKeySpec
+import java.util.Collections
 
 
 data class GenesisUltraReleaseBundle(
@@ -12,15 +13,64 @@ data class GenesisUltraReleaseBundle(
     val files: Map<String, ByteArray>
 )
 
-class GenesisUltraVerifiedRelease internal constructor(
-    val manifest: GenesisUltraSeedManifest,
-    val signature: GenesisUltraSignatureEnvelope,
+class GenesisUltraVerifiedRelease private constructor(
+    manifest: GenesisUltraSeedManifest,
+    signature: GenesisUltraSignatureEnvelope,
     val verifiedRootHash: String,
     val verifiedFileCount: Int
-)
+) {
+    val manifest: GenesisUltraSeedManifest = manifest.copy(
+        files = Collections.unmodifiableList(manifest.files.map { file -> file.copy() })
+    )
+    val signature: GenesisUltraSignatureEnvelope = signature.copy()
 
-fun interface GenesisUltraSignatureVerifier {
-    fun verify(envelope: GenesisUltraSignatureEnvelope, signingBytes: ByteArray): Boolean
+    internal companion object {
+        fun verify(
+            bundle: GenesisUltraReleaseBundle,
+            signatureVerifier: GenesisUltraEd25519SignatureVerifier
+        ): GenesisUltraVerifiedRelease {
+            val manifest = GenesisUltraContractParser.parseSeedManifest(bundle.manifestJson)
+            val declaredFiles = manifest.files.associateBy { file -> file.path }
+            require(declaredFiles.size == manifest.files.size) { "duplicate_seed_path" }
+
+            bundle.files.keys.forEach(GenesisUltraHashProfile::requireSafeRelativePath)
+            val actualPaths = bundle.files.keys.toSet()
+            val declaredPaths = declaredFiles.keys
+            require(actualPaths == declaredPaths) {
+                val missing = declaredPaths.minus(actualPaths).sorted()
+                val unexpected = actualPaths.minus(declaredPaths).sorted()
+                "release_file_set_mismatch:missing=$missing:unexpected=$unexpected"
+            }
+
+            manifest.files.forEach { file ->
+                val bytes = bundle.files.getValue(file.path)
+                val actualDigest = GenesisUltraHashProfile.sha256(bytes)
+                require(actualDigest == file.digest) { "release_file_digest_mismatch:${file.path}" }
+            }
+
+            val computedRoot = GenesisUltraHashProfile.seedRoot(manifest)
+            require(computedRoot == manifest.rootHash) { "seed_root_hash_mismatch" }
+
+            val envelope = GenesisUltraContractParser.parseSignatureEnvelope(bundle.signatureJson)
+            require(envelope.signerType == "guardian") { "seed_release_signer_must_be_guardian" }
+            require(envelope.signedDomain == GenesisUltraHashProfile.SEED_ROOT_DOMAIN) {
+                "seed_release_signed_domain_mismatch"
+            }
+            require(envelope.signedDigest == computedRoot) { "seed_release_signed_digest_mismatch" }
+
+            val signingBytes = GenesisUltraHashProfile.signatureEnvelopePreimage(envelope)
+            require(signatureVerifier.verify(envelope, signingBytes)) {
+                "seed_release_signature_invalid_or_untrusted"
+            }
+
+            return GenesisUltraVerifiedRelease(
+                manifest = manifest,
+                signature = envelope,
+                verifiedRootHash = computedRoot,
+                verifiedFileCount = manifest.files.size
+            )
+        }
+    }
 }
 
 class GenesisUltraTrustedEd25519Key(
@@ -35,7 +85,7 @@ class GenesisUltraTrustedEd25519Key(
 
 class GenesisUltraEd25519SignatureVerifier(
     trustedKeys: Collection<GenesisUltraTrustedEd25519Key>
-) : GenesisUltraSignatureVerifier {
+) {
     private val keysByIdentity: Map<TrustedKeyIdentity, ByteArray>
 
     init {
@@ -57,7 +107,7 @@ class GenesisUltraEd25519SignatureVerifier(
         keysByIdentity = prepared.toMap()
     }
 
-    override fun verify(envelope: GenesisUltraSignatureEnvelope, signingBytes: ByteArray): Boolean {
+    fun verify(envelope: GenesisUltraSignatureEnvelope, signingBytes: ByteArray): Boolean {
         val identity = TrustedKeyIdentity(
             signerType = envelope.signerType,
             signerId = envelope.signerId,
@@ -94,46 +144,9 @@ class GenesisUltraEd25519SignatureVerifier(
 }
 
 class GenesisUltraReleaseVerifier(
-    private val signatureVerifier: GenesisUltraSignatureVerifier
+    private val signatureVerifier: GenesisUltraEd25519SignatureVerifier
 ) {
     fun verify(bundle: GenesisUltraReleaseBundle): GenesisUltraVerifiedRelease {
-        val manifest = GenesisUltraContractParser.parseSeedManifest(bundle.manifestJson)
-        val declaredFiles = manifest.files.associateBy { file -> file.path }
-        require(declaredFiles.size == manifest.files.size) { "duplicate_seed_path" }
-
-        bundle.files.keys.forEach(GenesisUltraHashProfile::requireSafeRelativePath)
-        val actualPaths = bundle.files.keys.toSet()
-        val declaredPaths = declaredFiles.keys
-        require(actualPaths == declaredPaths) {
-            val missing = declaredPaths.minus(actualPaths).sorted()
-            val unexpected = actualPaths.minus(declaredPaths).sorted()
-            "release_file_set_mismatch:missing=$missing:unexpected=$unexpected"
-        }
-
-        manifest.files.forEach { file ->
-            val bytes = bundle.files.getValue(file.path)
-            val actualDigest = GenesisUltraHashProfile.sha256(bytes)
-            require(actualDigest == file.digest) { "release_file_digest_mismatch:${file.path}" }
-        }
-
-        val computedRoot = GenesisUltraHashProfile.seedRoot(manifest)
-        require(computedRoot == manifest.rootHash) { "seed_root_hash_mismatch" }
-
-        val envelope = GenesisUltraContractParser.parseSignatureEnvelope(bundle.signatureJson)
-        require(envelope.signerType == "guardian") { "seed_release_signer_must_be_guardian" }
-        require(envelope.signedDomain == GenesisUltraHashProfile.SEED_ROOT_DOMAIN) {
-            "seed_release_signed_domain_mismatch"
-        }
-        require(envelope.signedDigest == computedRoot) { "seed_release_signed_digest_mismatch" }
-
-        val signingBytes = GenesisUltraHashProfile.signatureEnvelopePreimage(envelope)
-        require(signatureVerifier.verify(envelope, signingBytes)) { "seed_release_signature_invalid_or_untrusted" }
-
-        return GenesisUltraVerifiedRelease(
-            manifest = manifest,
-            signature = envelope,
-            verifiedRootHash = computedRoot,
-            verifiedFileCount = manifest.files.size
-        )
+        return GenesisUltraVerifiedRelease.verify(bundle, signatureVerifier)
     }
 }
