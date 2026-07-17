@@ -1,41 +1,47 @@
 package com.morimil.app.data.genesis.ultra
 
-import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.parseToJsonElement
+import com.fasterxml.jackson.core.JsonFactory
+import com.fasterxml.jackson.core.JsonToken
+import com.fasterxml.jackson.core.StreamReadFeature
 import org.json.JSONException
 import org.json.JSONObject
+import java.io.IOException
 
 /**
- * Validates strict JSON syntax before using Android's JSONObject accessors.
- * JSONObject remains useful for the existing field extraction code, but its
- * parser is intentionally permissive; Genesis protocol artifacts must not be.
+ * Validates strict JSON syntax and duplicate keys before Android JSONObject
+ * extracts fields. This keeps JVM tests and device behavior identical.
  */
-@OptIn(ExperimentalSerializationApi::class)
 object GenesisUltraStrictJson {
-    private val parser = Json {
-        isLenient = false
-        ignoreUnknownKeys = false
-        allowTrailingComma = false
-        allowSpecialFloatingPointValues = false
-        explicitNulls = true
-    }
+    private val factory = JsonFactory.builder()
+        .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
+        .build()
 
     fun parseObject(jsonText: String): JSONObject {
-        val element = try {
-            parser.parseToJsonElement(jsonText)
-        } catch (error: IllegalArgumentException) {
+        try {
+            factory.createParser(jsonText).use { parser ->
+                require(parser.nextToken() == JsonToken.START_OBJECT) { "json_root_not_object" }
+                var depth = 1
+                while (depth > 0) {
+                    when (parser.nextToken() ?: throw IllegalArgumentException("incomplete_json")) {
+                        JsonToken.START_OBJECT,
+                        JsonToken.START_ARRAY -> depth += 1
+
+                        JsonToken.END_OBJECT,
+                        JsonToken.END_ARRAY -> depth -= 1
+
+                        else -> Unit
+                    }
+                }
+                require(parser.nextToken() == null) { "multiple_json_roots" }
+            }
+        } catch (error: IOException) {
             throw IllegalArgumentException("invalid_strict_json", error)
         }
-        require(element is JsonObject) { "json_root_not_object" }
 
         return try {
-            // Parsing the original text a second time preserves JSON-java's
-            // duplicate-key rejection at every nested object.
             JSONObject(jsonText)
         } catch (error: JSONException) {
-            throw IllegalArgumentException("invalid_or_duplicate_json", error)
+            throw IllegalArgumentException("invalid_strict_json", error)
         }
     }
 }
