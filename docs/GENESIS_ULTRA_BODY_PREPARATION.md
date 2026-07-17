@@ -47,7 +47,7 @@ The gate is no longer a placeholder for release verification. Morimil now implem
 1. strict Genesis Ultra contract parsing;
 2. exact NFC/UTF-8 field framing and normative digests;
 3. exact Seed release payload verification;
-4. Guardian Ed25519 signature verification;
+4. Guardian Ed25519 signature verification through Tink using the raw 32-byte public key;
 5. signer trust bound to Guardian identity, key epoch and public-key reference;
 6. Instance Identity, Body Registry and Key Epoch digest verification;
 7. exactly one `active_writer`;
@@ -88,14 +88,16 @@ Completed on the preparation branch:
 
 - source and base SHAs recorded;
 - work isolated from `main`;
-- CI covers unit tests, lint, debug APK and instrumentation-test compilation;
-- build and migration failures are reported with artifacts.
+- CI covers unit tests, lint, debug APK, instrumentation-test compilation and managed-device execution on Android API 30 and API 35;
+- build, migration, cryptographic and runtime failures are reported with artifacts.
 
 ### Phase 1 — Android integrity
 
 Completed for the current preparation scope:
 
 - Room migration `8 -> 9` is registered and instrumented;
+- historical Morimil migrations are executed through version 9;
+- historical Memory Organ migrations are executed through version 7;
 - legacy birth is blocked in UI and lower-level installation;
 - local state distinguishes `ABSENT`, `COMPLETE` and `INCONSISTENT` birth;
 - durable organs, rest cycles and orchestration are blocked before complete birth.
@@ -108,7 +110,9 @@ Completed for the pinned protocol revision:
 - strict protocol contracts in Kotlin;
 - shared golden-vector compatibility;
 - trusted active Guardian epoch binding;
-- Body Possession Proof verification.
+- Body Possession Proof verification;
+- strict duplicate-key and scalar-type rejection on Android;
+- valid and altered Ed25519 vectors executed on Android API 30 and API 35.
 
 ### Phase 3 — Birth transaction
 
@@ -152,6 +156,22 @@ Genesis must be able to inspect technical evidence from its Body and produce a s
 - proposed improvements linked to evidence.
 
 This report is advisory. It does not grant authority or apply changes.
+
+## Audited Android evidence
+
+The preparation branch has executed the managed-device suite on Android API 30 and API 35. Each device ran 17 instrumented tests with zero failures, zero errors and zero skipped tests.
+
+The suite includes:
+
+- valid and altered Ed25519 vectors;
+- duplicate JSON-key rejection;
+- strict Boolean and integer type rejection;
+- Morimil migration chains through schema version 9;
+- Memory Organ migration chains through schema version 7;
+- the dedicated Morimil `8 -> 9` migration;
+- rest-cycle scheduling instrumentation.
+
+This establishes Android runtime conformance for the implemented preparation boundary. It does not establish birth readiness.
 
 ## Birth readiness rule
 
