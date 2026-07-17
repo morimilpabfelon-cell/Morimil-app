@@ -62,7 +62,7 @@ The remaining Android blocker is:
 transactional_birth_commit_not_integrated
 ```
 
-The pinned Genesis revision now defines the normative seven-phase atomic birth, its `birth` transaction journal, recovery state, immutable first memory event and signed receipt. Morimil has not yet ported that complete transaction into Room. The blocker therefore describes missing Android implementation, not a missing protocol definition.
+The pinned Genesis revision defines the normative seven-phase atomic birth, its `birth` transaction journal, recovery state, immutable first memory event and signed receipt. Morimil now has an isolated Room v10 persistence boundary for the one birth commit, exact artifacts and seven journal entries, including rollback when the commit marker is not reached. It is not yet an enabled birth path: complete signature verification, evidence parsing, living-memory integration and restart recovery must still be connected. The blocker therefore remains accurate at the integration boundary.
 
 The gate must never be opened by changing a Boolean alone. Opening it requires a protocol-defined, crash-recoverable birth transaction and validated runtime evidence.
 
@@ -160,16 +160,18 @@ This report is advisory. It does not grant authority or apply changes.
 
 ## Audited Android evidence
 
-The preparation branch has executed the managed-device suite on Android API 30 and API 35. Each device ran 17 instrumented tests with zero failures, zero errors and zero skipped tests.
+The preparation boundary is executed by the managed-device suite on Android API 30 and API 35.
 
 The suite includes:
 
 - valid and altered Ed25519 vectors;
 - duplicate JSON-key rejection;
 - strict Boolean and integer type rejection;
-- Morimil migration chains through schema version 9;
+- Morimil migration chains through schema version 10;
 - Memory Organ migration chains through schema version 7;
 - the dedicated Morimil `8 -> 9` migration;
+- the dedicated Morimil `9 -> 10` migration and atomic-birth tables;
+- transaction rollback before the commit marker and second-birth rejection;
 - rest-cycle scheduling instrumentation.
 
 This establishes Android runtime conformance for the implemented preparation boundary. It does not establish birth readiness.
@@ -187,4 +189,4 @@ birth_ready =
   AND recovery_tests_valid
 ```
 
-The first four conditions can now be evaluated by the preparation branch. The remaining conditions are not complete. Morimil may be developed and tested, but a new Genesis Instance must not be born.
+The preparation conditions and the isolated transaction boundary can be evaluated. Full cryptographic birth validation, canonical memory integration and end-to-end recovery are not complete. Morimil may be developed and tested, but a new Genesis Instance must not be born.

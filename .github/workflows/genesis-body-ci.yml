@@ -102,6 +102,7 @@ jobs:
             sdk-licenses.log
             sdk-install.log
             emulator-version.log
+            app/schemas/**
             app/build/reports/**
             app/build/test-results/**
             app/build/outputs/androidTest-results/**
