@@ -22,6 +22,23 @@ class GenesisUltraReleaseVerifierTest {
     }
 
     @Test
+    fun verifiedReleaseRetainsDefensiveByteSnapshots() {
+        val fixture = signedFixture()
+        val verified = fixture.verifier.verify(fixture.bundle)
+        val expected = verified.copyVerifiedFiles().getValue(IDENTITY_PATH)
+
+        fixture.bundle.files.getValue(IDENTITY_PATH)[0] = 'X'.code.toByte()
+        val firstCopy = verified.copyVerifiedFiles()
+        assertEquals(expected.toList(), firstCopy.getValue(IDENTITY_PATH).toList())
+
+        firstCopy.getValue(IDENTITY_PATH)[0] = 'Y'.code.toByte()
+        assertEquals(
+            expected.toList(),
+            verified.copyVerifiedFiles().getValue(IDENTITY_PATH).toList()
+        )
+    }
+
+    @Test
     fun rejectsTamperedPayloadBeforeSignatureAcceptance() {
         val fixture = signedFixture()
         val tamperedFiles = fixture.bundle.files.toMutableMap().apply {
