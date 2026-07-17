@@ -7,9 +7,9 @@ import com.morimil.app.data.genesis.ultra.GenesisUltraBirthCandidateValidator
 /**
  * Prevents the legacy Morimil Genesis bundle from creating new identities.
  *
- * The Genesis Ultra contract verifier can now assess a candidate, but birth
- * remains fail-closed until guardian epochs, body possession and transactional
- * commit are implemented and verified.
+ * Signed Genesis Ultra releases, guardian key epochs and body possession can
+ * now be verified. Birth remains fail-closed until the protocol defines and
+ * Morimil implements a crash-recoverable transactional birth commit.
  */
 object GenesisUltraIntegrationGate {
     const val BLOCK_CODE = "genesis_ultra_birth_adapter_not_ready"
@@ -17,9 +17,8 @@ object GenesisUltraIntegrationGate {
     const val isBirthReady: Boolean = false
 
     const val statusMessage: String =
-        "Nacimiento deshabilitado: el contrato firmado de Genesis Ultra puede validarse, " +
-            "pero faltan la epoca confiable del guardian, la prueba de posesion del cuerpo " +
-            "y el commit transaccional de nacimiento."
+        "Nacimiento deshabilitado: release, epoca del guardian y posesion del cuerpo " +
+            "pueden validarse, pero falta el commit transaccional recuperable de nacimiento."
 
     fun assess(candidate: GenesisUltraBirthCandidate): GenesisUltraBirthCandidateAssessment {
         return GenesisUltraBirthCandidateValidator.assess(candidate)
