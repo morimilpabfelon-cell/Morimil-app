@@ -62,7 +62,8 @@ jobs:
           test -x "$sdkmanager_path"
           yes | "$sdkmanager_path" --licenses > sdk-licenses.log 2>&1 || true
           "$sdkmanager_path" --install "platform-tools" "emulator" > sdk-install.log 2>&1
-          "$ANDROID_HOME/emulator/emulator" -version
+          test -x "$ANDROID_HOME/emulator/emulator"
+          "$ANDROID_HOME/emulator/emulator" -version > emulator-version.log 2>&1 || true
 
       - name: Enable KVM for managed devices
         shell: bash
@@ -94,6 +95,7 @@ jobs:
             managed-device.log
             sdk-licenses.log
             sdk-install.log
+            emulator-version.log
             app/build/reports/**
             app/build/test-results/**
             app/build/outputs/androidTest-results/**
