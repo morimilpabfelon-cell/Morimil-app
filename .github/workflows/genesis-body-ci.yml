@@ -27,17 +27,61 @@ jobs:
           ref: agent/prepare-genesis-ultra-body-v0-1
           fetch-depth: 0
 
-      - name: Apply audited migration test patch
+      - name: Apply exact current-schema migration test updates
         shell: bash
         run: |
           set -euo pipefail
           patch_file=.github/patches/current-migration-tests.patch
           if [[ ! -f "$patch_file" ]]; then
-            echo "Migration patch already consumed."
+            echo "Migration updates already consumed."
             exit 0
           fi
-          git apply --check "$patch_file"
-          git apply "$patch_file"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              "app/src/androidTest/java/com/morimil/app/data/local/DatabaseMigrationTest.kt": [
+                  ("fun morimilDatabaseMigratesFrom7To8WithMemoryEventDefaults()", "fun morimilDatabaseMigratesFrom7To9WithMemoryEventDefaults()"),
+                  (".addMigrations(MorimilDatabase.MIGRATION_7_8)", ".addMigrations(\n                MorimilDatabase.MIGRATION_7_8,\n                MorimilDatabase.MIGRATION_8_9\n            )"),
+                  ("fun memoryOrganDatabaseMigratesFrom4To5WithGraphAndMigrationTables()", "fun memoryOrganDatabaseMigratesFrom4To7WithGraphAndMigrationTables()"),
+                  (".addMigrations(MemoryOrganDatabase.MIGRATION_4_5)", ".addMigrations(\n                MemoryOrganDatabase.MIGRATION_4_5,\n                MemoryOrganDatabase.MIGRATION_5_6,\n                MemoryOrganDatabase.MIGRATION_6_7\n            )"),
+              ],
+              "app/src/androidTest/java/com/morimil/app/data/local/FullChainDatabaseMigrationTest.kt": [
+                  ("fun morimilDatabaseMigratesFrom1To8ThroughFullChain()", "fun morimilDatabaseMigratesFrom1To9ThroughFullChain()"),
+                  ("MorimilDatabase.MIGRATION_7_8\n            )", "MorimilDatabase.MIGRATION_7_8,\n                MorimilDatabase.MIGRATION_8_9\n            )"),
+                  ("fun memoryOrganDatabaseMigratesFrom1To5ThroughFullChain()", "fun memoryOrganDatabaseMigratesFrom1To7ThroughFullChain()"),
+                  ("MemoryOrganDatabase.MIGRATION_4_5\n            )", "MemoryOrganDatabase.MIGRATION_4_5,\n                MemoryOrganDatabase.MIGRATION_5_6,\n                MemoryOrganDatabase.MIGRATION_6_7\n            )"),
+              ],
+              "app/src/androidTest/java/com/morimil/app/data/local/MemoryOrganDatabaseMigrationTest.kt": [
+                  ("fun migratesLegacyV1ToCurrentV5WithoutDroppingCapsules()", "fun migratesLegacyV1ToCurrentV7WithoutDroppingCapsules()"),
+                  ("fun migratesV4ToV5AndAcceptsGraphAndMigrationRows()", "fun migratesV4ToV7AndAcceptsGraphAndMigrationRows()"),
+                  ("fun migratesV3ToCurrentV5WithRecallScheduleRuntimeTable()", "fun migratesV3ToCurrentV7WithRecallScheduleRuntimeTable()"),
+                  ("assertEquals(5, migrated.userVersion())", "assertEquals(7, migrated.userVersion())", 3),
+                  (".addMigrations(MemoryOrganDatabase.MIGRATION_4_5)", ".addMigrations(\n                MemoryOrganDatabase.MIGRATION_4_5,\n                MemoryOrganDatabase.MIGRATION_5_6,\n                MemoryOrganDatabase.MIGRATION_6_7\n            )"),
+                  ("MemoryOrganDatabase.MIGRATION_3_4,\n                MemoryOrganDatabase.MIGRATION_4_5\n            )", "MemoryOrganDatabase.MIGRATION_3_4,\n                MemoryOrganDatabase.MIGRATION_4_5,\n                MemoryOrganDatabase.MIGRATION_5_6,\n                MemoryOrganDatabase.MIGRATION_6_7\n            )"),
+                  ("MemoryOrganDatabase.MIGRATION_3_4,\n                MemoryOrganDatabase.MIGRATION_4_5\n            )\n            .build()", "MemoryOrganDatabase.MIGRATION_3_4,\n                MemoryOrganDatabase.MIGRATION_4_5,\n                MemoryOrganDatabase.MIGRATION_5_6,\n                MemoryOrganDatabase.MIGRATION_6_7\n            )\n            .build()"),
+              ],
+              "app/src/androidTest/java/com/morimil/app/data/local/MorimilDatabaseMigrationTest.kt": [
+                  ("fun migratesLegacyV1ToCurrentV8WithoutDroppingCoreMemory()", "fun migratesLegacyV1ToCurrentV9WithoutDroppingCoreMemory()"),
+                  ("fun migratesV7ToV8WithMemoryEventDefaultsAndIndexes()", "fun migratesV7ToV9WithMemoryEventDefaultsAndIndexes()"),
+                  ("assertEquals(8, migrated.userVersion())", "assertEquals(9, migrated.userVersion())", 3),
+                  (".addMigrations(MorimilDatabase.MIGRATION_7_8)", ".addMigrations(\n                MorimilDatabase.MIGRATION_7_8,\n                MorimilDatabase.MIGRATION_8_9\n            )"),
+                  ("MorimilDatabase.MIGRATION_7_8\n            )", "MorimilDatabase.MIGRATION_7_8,\n                MorimilDatabase.MIGRATION_8_9\n            )", 2),
+              ],
+          }
+
+          for file_name, rules in replacements.items():
+              path = Path(file_name)
+              text = path.read_text(encoding="utf-8")
+              for rule in rules:
+                  old, new = rule[0], rule[1]
+                  expected = rule[2] if len(rule) == 3 else 1
+                  actual = text.count(old)
+                  if actual != expected:
+                      raise SystemExit(f"{file_name}: expected {expected} matches for {old!r}, found {actual}")
+                  text = text.replace(old, new)
+              path.write_text(text, encoding="utf-8")
+          PY
           rm "$patch_file"
           git diff --check
           git config user.name "genesis-body-ci"
