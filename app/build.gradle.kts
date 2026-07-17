@@ -39,7 +39,7 @@ android {
                 maybeCreate<ManagedVirtualDevice>("pixel2Api35").apply {
                     device = "Pixel 2"
                     apiLevel = 35
-                    systemImageSource = "aosp-atd"
+                    systemImageSource = "aosp"
                 }
             }
         }
