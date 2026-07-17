@@ -8,6 +8,7 @@ import com.morimil.app.ai.ChatTurn
 import com.morimil.app.ai.ReasoningClient
 import com.morimil.app.ai.ReasoningProfileRuntimeStore
 import com.morimil.app.data.genesis.GenesisIdentitySource
+import com.morimil.app.data.genesis.GenesisUltraIntegrationGate
 import com.morimil.app.data.local.AutobiographicalSnapshotEntity
 import com.morimil.app.data.local.DecisionLogEntity
 import com.morimil.app.data.local.GenesisCoreEntity
@@ -23,6 +24,7 @@ import com.morimil.app.data.local.ProjectVaultEntity
 import com.morimil.app.data.local.RecallScheduleEntity
 import com.morimil.app.data.local.UserWorkspaceEntity
 import com.morimil.app.data.repository.MemoryLinkRepository
+import com.morimil.app.data.repository.LocalBirthState
 import com.morimil.app.data.repository.RestCycleRepository
 import com.morimil.app.reasoning.ReasoningKernelRequest
 import com.morimil.app.reasoning.model.ReasoningEscalationDecision
@@ -207,8 +209,6 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     val chatError: StateFlow<String?> = _chatError.asStateFlow()
 
     init {
-        RestCycleScheduler.schedule(application)
-        refreshRestCycleScheduleStatus()
         viewModelScope.launch(Dispatchers.IO) {
             MemorySigningRuntimeIssues.latestIssue.collect { issue ->
                 if (issue == null) {
@@ -225,11 +225,26 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                     .onFailure { error -> recordInternalRuntimeIssue("organism_health.refresh", error) }
             }
         }
-        viewModelScope.launch {
-            repository.seedInitialStateIfNeeded()
-            agentOrchestrationRepository.seedDefaultOrchestrationIfNeeded()
-            runObservedInternalTask("rest_cycle.startup") { runRestCycleUseCase() }
-            runObservedInternalTask("recall.startup") { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
+        viewModelScope.launch(Dispatchers.IO) {
+            when (repository.readLocalBirthState()) {
+                LocalBirthState.ABSENT -> Unit
+                LocalBirthState.COMPLETE -> {
+                    RestCycleScheduler.schedule(application)
+                    refreshRestCycleScheduleStatusOnWorker(application)
+                    repository.seedInitialStateIfNeeded()
+                    agentOrchestrationRepository.seedDefaultOrchestrationIfNeeded()
+                    runObservedInternalTask("rest_cycle.startup") { runRestCycleUseCase() }
+                    runObservedInternalTask("recall.startup") { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
+                }
+                LocalBirthState.INCONSISTENT -> {
+                    recordInternalRuntimeIssue(
+                        component = "birth_state",
+                        message = "Local birth state is incomplete; durable runtime startup is blocked.",
+                        failureCount = 1,
+                        occurredAtMillis = System.currentTimeMillis()
+                    )
+                }
+            }
         }
         viewModelScope.launch {
             recentMemoryEvents.collect {
@@ -665,6 +680,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     }
     suspend fun bornInstance(alias: String): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
+            GenesisUltraIntegrationGate.requireBirthReady()
             val genesisSource = _genesisResult.value?.getOrNull()
                 ?: error("Genesis identity not loaded yet.")
             val genesis = genesisSource.identity

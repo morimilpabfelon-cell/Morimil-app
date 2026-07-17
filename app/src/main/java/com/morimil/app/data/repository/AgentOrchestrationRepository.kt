@@ -22,6 +22,7 @@ class AgentOrchestrationRepository(
     val delegatedTasks: Flow<List<DelegatedTaskEntity>> = dao.observeDelegatedTasks()
 
     suspend fun seedDefaultOrchestrationIfNeeded(nowMillis: Long = System.currentTimeMillis()) {
+        if (!memoryRepository.hasCompleteBirth()) return
         if (dao.countAgentProfiles() == 0) {
             dao.insertAgentProfiles(defaultAgents(nowMillis))
         }
@@ -36,6 +37,7 @@ class AgentOrchestrationRepository(
         targetDeviceId: String? = null,
         nowMillis: Long = System.currentTimeMillis()
     ): String {
+        requireCompleteBirth()
         seedDefaultOrchestrationIfNeeded(nowMillis)
         val plan = AgentCapabilityPolicy.planDelegation(goal, preferredAgentId, targetDeviceId)
         val immuneBlocked = AgentCapabilityPolicy.isImmuneBlocked(plan.immuneDecision)
@@ -76,6 +78,7 @@ class AgentOrchestrationRepository(
     }
 
     suspend fun approveDelegatedTask(taskId: String, nowMillis: Long = System.currentTimeMillis()): Boolean {
+        if (!memoryRepository.hasCompleteBirth()) return false
         val existingTask = dao.loadDelegatedTask(taskId) ?: return false
         if (existingTask.errorSummary?.startsWith(IMMUNE_BLOCK_PREFIX) == true) {
             recordImmuneApprovalDenied(existingTask, nowMillis)
@@ -103,6 +106,7 @@ class AgentOrchestrationRepository(
     }
 
     suspend fun rejectDelegatedTask(taskId: String, reason: String, nowMillis: Long = System.currentTimeMillis()): Boolean {
+        if (!memoryRepository.hasCompleteBirth()) return false
         val cleanReason = reason.take(240)
         val updated = dao.rejectDelegatedTask(
             taskId = taskId,
@@ -124,6 +128,12 @@ class AgentOrchestrationRepository(
             }
         }
         return updated
+    }
+
+    private suspend fun requireCompleteBirth() {
+        require(memoryRepository.hasCompleteBirth()) {
+            "Genesis must have a complete local birth before orchestration can create durable tasks."
+        }
     }
 
     private suspend fun recordDelegatedTaskDecision(
