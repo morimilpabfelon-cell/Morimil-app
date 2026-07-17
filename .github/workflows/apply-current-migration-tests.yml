@@ -1,0 +1,58 @@
+name: Apply current migration test patch
+
+on:
+  push:
+    branches:
+      - agent/prepare-genesis-ultra-body-v0-1
+    paths:
+      - .github/patches/current-migration-tests.patch
+      - .github/workflows/apply-current-migration-tests.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-current-migration-tests
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out preparation branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/prepare-genesis-ultra-body-v0-1
+          fetch-depth: 0
+
+      - name: Validate and apply patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch_file=.github/patches/current-migration-tests.patch
+          if [[ ! -f "$patch_file" ]]; then
+            echo "Patch already consumed."
+            exit 0
+          fi
+          git apply --check "$patch_file"
+          git apply "$patch_file"
+          rm "$patch_file"
+          git diff --check
+
+      - name: Commit migration test update
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git config user.name "genesis-body-ci"
+          git config user.email "genesis-body-ci@users.noreply.github.com"
+          git add app/src/androidTest/java/com/morimil/app/data/local/DatabaseMigrationTest.kt
+          git add app/src/androidTest/java/com/morimil/app/data/local/FullChainDatabaseMigrationTest.kt
+          git add app/src/androidTest/java/com/morimil/app/data/local/MemoryOrganDatabaseMigrationTest.kt
+          git add app/src/androidTest/java/com/morimil/app/data/local/MorimilDatabaseMigrationTest.kt
+          git add -A .github/patches/current-migration-tests.patch
+          git commit -m "Validate migrations through current database schemas"
+          git push origin HEAD:refs/heads/agent/prepare-genesis-ultra-body-v0-1
