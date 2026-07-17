@@ -2,6 +2,7 @@ package com.morimil.app.data.genesis.ultra
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.math.BigDecimal
 import java.time.Instant
 import java.time.format.DateTimeParseException
 
@@ -96,7 +97,7 @@ data class GenesisUltraKeyEpoch(
 
 object GenesisUltraContractParser {
     fun parseSeedManifest(jsonText: String): GenesisUltraSeedManifest {
-        val root = JSONObject(jsonText)
+        val root = GenesisUltraStrictJson.parseObject(jsonText)
         root.requireExactKeys(SEED_MANIFEST_KEYS)
         val schemaVersion = root.requiredConst("schema_version", SEED_MANIFEST_SCHEMA)
         val protocolVersion = root.requiredConst("protocol_version", PROTOCOL_VERSION)
@@ -129,11 +130,11 @@ object GenesisUltraContractParser {
     }
 
     fun parseSignatureEnvelope(jsonText: String): GenesisUltraSignatureEnvelope {
-        return parseSignatureEnvelope(JSONObject(jsonText))
+        return parseSignatureEnvelope(GenesisUltraStrictJson.parseObject(jsonText))
     }
 
     fun parseInstanceIdentity(jsonText: String): GenesisUltraInstanceIdentity {
-        val root = JSONObject(jsonText)
+        val root = GenesisUltraStrictJson.parseObject(jsonText)
         root.requireExactKeys(INSTANCE_IDENTITY_KEYS)
         val identity = GenesisUltraInstanceIdentity(
             schemaVersion = root.requiredConst("schema_version", INSTANCE_IDENTITY_SCHEMA),
@@ -152,7 +153,7 @@ object GenesisUltraContractParser {
     }
 
     fun parseBodyRecord(jsonText: String): GenesisUltraBodyRecord {
-        val root = JSONObject(jsonText)
+        val root = GenesisUltraStrictJson.parseObject(jsonText)
         root.requireAllowedAndRequiredKeys(BODY_RECORD_KEYS, BODY_RECORD_REQUIRED_KEYS)
         return GenesisUltraBodyRecord(
             schemaVersion = root.requiredConst("schema_version", BODY_RECORD_SCHEMA),
@@ -168,7 +169,7 @@ object GenesisUltraContractParser {
     }
 
     fun parseBodyRegistry(jsonText: String): GenesisUltraBodyRegistry {
-        val root = JSONObject(jsonText)
+        val root = GenesisUltraStrictJson.parseObject(jsonText)
         root.requireExactKeys(BODY_REGISTRY_KEYS)
         val bodiesArray = root.getJSONArray("bodies")
         require(bodiesArray.length() >= 1) { "body_registry_empty" }
@@ -191,7 +192,7 @@ object GenesisUltraContractParser {
     }
 
     fun parseKeyEpoch(jsonText: String): GenesisUltraKeyEpoch {
-        val root = JSONObject(jsonText)
+        val root = GenesisUltraStrictJson.parseObject(jsonText)
         root.requireAllowedAndRequiredKeys(KEY_EPOCH_KEYS, KEY_EPOCH_REQUIRED_KEYS)
         val epoch = GenesisUltraKeyEpoch(
             schemaVersion = root.requiredConst("schema_version", KEY_EPOCH_SCHEMA),
@@ -236,7 +237,7 @@ object GenesisUltraContractParser {
         return GenesisUltraSeedFileRecord(
             path = path,
             kind = root.requiredEnum("kind", SEED_FILE_KINDS),
-            required = root.getBoolean("required"),
+            required = root.requiredBoolean("required"),
             digest = root.requiredSha256("digest")
         )
     }
@@ -281,7 +282,9 @@ object GenesisUltraContractParser {
         minLength: Int,
         maxLength: Int = Int.MAX_VALUE
     ): String {
-        val value = getString(name)
+        val rawValue = get(name)
+        require(rawValue is String) { "invalid_$name" }
+        val value = rawValue
         GenesisUltraHashProfile.requireNfc(value)
         require(value.length in minLength..maxLength) { "invalid_$name" }
         return value
@@ -295,6 +298,12 @@ object GenesisUltraContractParser {
     private fun JSONObject.optionalObject(name: String): JSONObject? {
         if (!has(name) || isNull(name)) return null
         return getJSONObject(name)
+    }
+
+    private fun JSONObject.requiredBoolean(name: String): Boolean {
+        val rawValue = get(name)
+        require(rawValue is Boolean) { "invalid_$name" }
+        return rawValue
     }
 
     private fun JSONObject.requiredEnum(name: String, values: Set<String>): String {
@@ -338,7 +347,18 @@ object GenesisUltraContractParser {
     }
 
     private fun JSONObject.requiredPortableNonNegativeLong(name: String): Long {
-        val value = getLong(name)
+        val rawValue = get(name)
+        require(rawValue is Number) { "invalid_$name" }
+        val decimal = try {
+            BigDecimal(rawValue.toString())
+        } catch (_: NumberFormatException) {
+            throw IllegalArgumentException("invalid_$name")
+        }
+        val value = try {
+            decimal.longValueExact()
+        } catch (_: ArithmeticException) {
+            throw IllegalArgumentException("invalid_$name")
+        }
         require(value in 0..MAX_SAFE_INTEGER) { "invalid_$name" }
         return value
     }
