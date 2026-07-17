@@ -5,8 +5,8 @@ import org.junit.Test
 
 class ReasoningProviderConfigTest {
     @Test
-    fun reasoningRuntimeExposesOnePrincipalApi() {
-        assertEquals(1, ReasoningMotorSlot.SINGLE_API_ID)
-        assertEquals("API principal", ReasoningMotorSlot.SINGLE_API_LABEL)
+    fun reasoningRuntimeExposesOneConfiguredHelperMotor() {
+        assertEquals(1, ReasoningMotorSlot.SINGLE_HELPER_ID)
+        assertEquals("Motor auxiliar configurado", ReasoningMotorSlot.SINGLE_HELPER_LABEL)
     }
 }
