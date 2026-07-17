@@ -18,7 +18,7 @@ concurrency:
 jobs:
   android-validation:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
 
     steps:
       - name: Check out repository
@@ -54,6 +54,16 @@ jobs:
       - name: Build debug APK and instrumentation tests
         run: ./gradlew --no-daemon --stacktrace --console=plain :app:assembleDebug :app:assembleDebugAndroidTest
 
+      - name: Accept Android SDK licenses and install emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager_path="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$sdkmanager_path"
+          yes | "$sdkmanager_path" --licenses > sdk-licenses.log 2>&1 || true
+          "$sdkmanager_path" --install "platform-tools" "emulator" > sdk-install.log 2>&1
+          "$ANDROID_HOME/emulator/emulator" -version
+
       - name: Enable KVM for managed devices
         shell: bash
         run: |
@@ -66,6 +76,7 @@ jobs:
         run: |
           set +e
           ./gradlew --no-daemon --stacktrace --console=plain \
+            -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
             :app:pixel2Api30DebugAndroidTest \
             :app:pixel2Api35DebugAndroidTest > managed-device.log 2>&1
           status=$?
@@ -81,6 +92,8 @@ jobs:
           path: |
             unit-test.log
             managed-device.log
+            sdk-licenses.log
+            sdk-install.log
             app/build/reports/**
             app/build/test-results/**
             app/build/outputs/androidTest-results/**
