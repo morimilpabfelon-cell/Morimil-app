@@ -21,14 +21,13 @@ jobs:
     timeout-minutes: 75
 
     steps:
-      - name: Check out repository
+      - name: Check out preparation branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'push' && github.ref_name || github.sha }}
+          ref: agent/prepare-genesis-ultra-body-v0-1
           fetch-depth: 0
 
       - name: Apply audited migration test patch
-        if: github.event_name == 'push'
         shell: bash
         run: |
           set -euo pipefail
