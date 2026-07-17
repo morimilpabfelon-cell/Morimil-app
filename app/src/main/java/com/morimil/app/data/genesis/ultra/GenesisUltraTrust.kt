@@ -118,33 +118,33 @@ object GenesisUltraBodyPossessionProofParser {
 
     private fun requiredConst(root: org.json.JSONObject, name: String, expected: String): String {
         val value = requiredText(root, name, expected.length, expected.length)
-        require(value == expected) { "body_possession_$name_invalid" }
+        require(value == expected) { "body_possession_${name}_invalid" }
         return value
     }
 
     private fun requiredText(root: org.json.JSONObject, name: String, min: Int, max: Int): String {
         val value = root.getString(name)
         GenesisUltraHashProfile.requireNfc(value)
-        require(value.length in min..max) { "body_possession_$name_invalid" }
+        require(value.length in min..max) { "body_possession_${name}_invalid" }
         return value
     }
 
     private fun requiredTimestamp(root: org.json.JSONObject, name: String): String {
         val value = requiredText(root, name, 20, 20)
-        require(CANONICAL_TIMESTAMP.matches(value)) { "body_possession_$name_invalid" }
+        require(CANONICAL_TIMESTAMP.matches(value)) { "body_possession_${name}_invalid" }
         Instant.parse(value)
         return value
     }
 
     private fun requiredSha256(root: org.json.JSONObject, name: String): String {
         val value = requiredText(root, name, 71, 71)
-        require(SHA256.matches(value)) { "body_possession_$name_invalid" }
+        require(SHA256.matches(value)) { "body_possession_${name}_invalid" }
         return value
     }
 
     private fun requiredLowerHex(root: org.json.JSONObject, name: String, length: Int): String {
         val value = requiredText(root, name, length, length)
-        require(LOWER_HEX.matches(value)) { "body_possession_$name_invalid" }
+        require(LOWER_HEX.matches(value)) { "body_possession_${name}_invalid" }
         return value
     }
 
