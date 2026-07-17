@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.morimil.app.data.genesis.GenesisUltraIntegrationGate
 import kotlinx.coroutines.launch
 
 @Composable
@@ -43,8 +44,10 @@ fun OnboardingScreen(viewModel: MorimilViewModel) {
     var status by remember { mutableStateOf<String?>(null) }
     var working by remember { mutableStateOf(false) }
 
-    val genesisReady = genesisResult?.isSuccess == true
+    val legacyGenesisVerified = genesisResult?.isSuccess == true
     val genesisError = genesisResult?.exceptionOrNull()?.message
+    val genesisUltraReady = GenesisUltraIntegrationGate.isBirthReady
+    val birthReady = legacyGenesisVerified && genesisUltraReady
 
     Box(
         modifier = Modifier
@@ -136,7 +139,7 @@ fun OnboardingScreen(viewModel: MorimilViewModel) {
                 }
 
                 Button(
-                    enabled = genesisReady && alias.isNotBlank() && !working,
+                    enabled = birthReady && alias.isNotBlank() && !working,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFFBA7517),
                         contentColor = Color.White,
@@ -149,13 +152,20 @@ fun OnboardingScreen(viewModel: MorimilViewModel) {
                         working = true
                         status = null
                         scope.launch {
-                            viewModel.bornInstance(alias.trim())
-                                .onSuccess {
-                                    status = "Instancia creada."
-                                }
+                            runCatching { GenesisUltraIntegrationGate.requireBirthReady() }
                                 .onFailure { error ->
                                     status = error.message.orEmpty()
                                     working = false
+                                }
+                                .onSuccess {
+                                    viewModel.bornInstance(alias.trim())
+                                        .onSuccess {
+                                            status = "Instancia creada."
+                                        }
+                                        .onFailure { error ->
+                                            status = error.message.orEmpty()
+                                            working = false
+                                        }
                                 }
                         }
                     }
@@ -163,8 +173,9 @@ fun OnboardingScreen(viewModel: MorimilViewModel) {
                     Text(
                         text = when {
                             working -> "Creando instancia..."
-                            genesisReady -> "Crear instancia"
-                            else -> "Preparando semilla local"
+                            !genesisUltraReady -> "Esperando Genesis Ultra"
+                            legacyGenesisVerified -> "Crear instancia"
+                            else -> "Preparando release Genesis"
                         },
                         modifier = Modifier.padding(vertical = 6.dp)
                     )
@@ -172,6 +183,15 @@ fun OnboardingScreen(viewModel: MorimilViewModel) {
 
                 if (working) {
                     CircularProgressIndicator(color = Color(0xFFBA7517))
+                }
+
+                if (!genesisUltraReady) {
+                    Text(
+                        text = GenesisUltraIntegrationGate.statusMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF8A4B0F),
+                        textAlign = TextAlign.Center
+                    )
                 }
 
                 genesisError?.let { error ->
@@ -194,7 +214,7 @@ fun OnboardingScreen(viewModel: MorimilViewModel) {
             }
 
             Text(
-                text = "LOCAL / PRIVATE / ONE-TIME INSTANCE",
+                text = "LOCAL / PRIVATE / GENESIS ULTRA BIRTH PENDING",
                 style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
                 color = Color(0xFF44483F),
                 modifier = Modifier.fillMaxWidth(),
