@@ -23,15 +23,48 @@ fun interface GenesisUltraSignatureVerifier {
     fun verify(envelope: GenesisUltraSignatureEnvelope, signingBytes: ByteArray): Boolean
 }
 
+class GenesisUltraTrustedEd25519Key(
+    val signerType: String,
+    val signerId: String,
+    val keyEpochId: String,
+    val publicKeyRef: String,
+    rawPublicKey: ByteArray
+) {
+    val rawPublicKey: ByteArray = rawPublicKey.copyOf()
+}
+
 class GenesisUltraEd25519SignatureVerifier(
-    trustedPublicKeys: Map<String, ByteArray>
+    trustedKeys: Collection<GenesisUltraTrustedEd25519Key>
 ) : GenesisUltraSignatureVerifier {
-    private val keysByRef = trustedPublicKeys.mapValues { (_, bytes) -> bytes.copyOf() }
+    private val keysByIdentity: Map<TrustedKeyIdentity, ByteArray>
+
+    init {
+        val prepared = trustedKeys.map { trusted ->
+            require(trusted.rawPublicKey.size == ED25519_PUBLIC_KEY_BYTES) { "trusted_ed25519_key_size_invalid" }
+            require(GenesisUltraHashProfile.sha256(trusted.rawPublicKey) == trusted.publicKeyRef) {
+                "trusted_ed25519_public_key_ref_mismatch"
+            }
+            TrustedKeyIdentity(
+                signerType = trusted.signerType,
+                signerId = trusted.signerId,
+                keyEpochId = trusted.keyEpochId,
+                publicKeyRef = trusted.publicKeyRef
+            ) to trusted.rawPublicKey.copyOf()
+        }
+        require(prepared.map { (identity, _) -> identity }.distinct().size == prepared.size) {
+            "duplicate_trusted_ed25519_identity"
+        }
+        keysByIdentity = prepared.toMap()
+    }
 
     override fun verify(envelope: GenesisUltraSignatureEnvelope, signingBytes: ByteArray): Boolean {
-        val rawPublicKey = keysByRef[envelope.publicKeyRef]?.copyOf() ?: return false
-        if (rawPublicKey.size != ED25519_PUBLIC_KEY_BYTES) return false
-        if (GenesisUltraHashProfile.sha256(rawPublicKey) != envelope.publicKeyRef) return false
+        val identity = TrustedKeyIdentity(
+            signerType = envelope.signerType,
+            signerId = envelope.signerId,
+            keyEpochId = envelope.keyEpochId,
+            publicKeyRef = envelope.publicKeyRef
+        )
+        val rawPublicKey = keysByIdentity[identity]?.copyOf() ?: return false
         return try {
             val encodedPublicKey = X509_ED25519_PREFIX + rawPublicKey
             val publicKey = KeyFactory.getInstance("Ed25519")
@@ -46,6 +79,13 @@ class GenesisUltraEd25519SignatureVerifier(
             false
         }
     }
+
+    private data class TrustedKeyIdentity(
+        val signerType: String,
+        val signerId: String,
+        val keyEpochId: String,
+        val publicKeyRef: String
+    )
 
     private companion object {
         const val ED25519_PUBLIC_KEY_BYTES = 32
