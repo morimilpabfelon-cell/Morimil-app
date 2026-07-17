@@ -22,14 +22,6 @@ data class GenesisUltraBirthCandidateAssessment(
 )
 
 object GenesisUltraBirthCandidateValidator {
-    /**
-     * Compatibility helper for deterministic tests. Production gates must pass
-     * the actual decision time to the overload below.
-     */
-    fun assess(candidate: GenesisUltraBirthCandidate): GenesisUltraBirthCandidateAssessment {
-        return assess(candidate, candidate.bodyPossession.verifiedAt)
-    }
-
     fun assess(
         candidate: GenesisUltraBirthCandidate,
         evaluatedAt: String
