@@ -62,10 +62,15 @@ jobs:
           fi
 
       - name: Run managed Android tests on API 30 and API 35
+        shell: bash
         run: |
+          set +e
           ./gradlew --no-daemon --stacktrace --console=plain \
             :app:pixel2Api30DebugAndroidTest \
-            :app:pixel2Api35DebugAndroidTest
+            :app:pixel2Api35DebugAndroidTest > managed-device.log 2>&1
+          status=$?
+          tail -n 400 managed-device.log
+          exit "$status"
 
       - name: Upload diagnostic reports
         if: always()
@@ -75,6 +80,7 @@ jobs:
           if-no-files-found: ignore
           path: |
             unit-test.log
+            managed-device.log
             app/build/reports/**
             app/build/test-results/**
             app/build/outputs/androidTest-results/**
