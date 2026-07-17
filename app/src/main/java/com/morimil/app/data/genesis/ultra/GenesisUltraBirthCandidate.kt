@@ -3,10 +3,12 @@ package com.morimil.app.data.genesis.ultra
 
 data class GenesisUltraBirthCandidate(
     val release: GenesisUltraVerifiedRelease,
+    val guardianKeyEpochRegistry: GenesisUltraTrustedGuardianKeyEpochRegistry,
     val instanceIdentity: GenesisUltraInstanceIdentity,
     val bodyRecord: GenesisUltraBodyRecord,
     val bodyRegistry: GenesisUltraBodyRegistry,
-    val keyEpochs: List<GenesisUltraKeyEpoch>
+    val keyEpochs: List<GenesisUltraKeyEpoch>,
+    val bodyPossession: GenesisUltraVerifiedBodyPossession
 )
 
 data class GenesisUltraBirthCandidateAssessment(
@@ -23,7 +25,11 @@ object GenesisUltraBirthCandidateValidator {
         val identity = candidate.instanceIdentity
         val body = candidate.bodyRecord
         val registry = candidate.bodyRegistry
+        val possession = candidate.bodyPossession.proof
 
+        if (!candidate.guardianKeyEpochRegistry.trusts(release.signature)) {
+            issues += "release_guardian_key_epoch_untrusted"
+        }
         if (identity.seedId != release.manifest.seedId) issues += "seed_id_mismatch"
         if (identity.seedRootHash != release.verifiedRootHash) issues += "seed_root_hash_mismatch"
         if (identity.guardianId != release.signature.signerId) issues += "guardian_signer_mismatch"
@@ -61,15 +67,23 @@ object GenesisUltraBirthCandidateValidator {
         }
         if (activeBodyEpochs.size != 1) {
             issues += "active_body_key_epoch_count_invalid"
-        } else if (activeBodyEpochs.single().publicKeyFingerprint != body.publicKeyFingerprint) {
-            issues += "active_body_key_fingerprint_mismatch"
+        } else {
+            val activeEpoch = activeBodyEpochs.single()
+            if (activeEpoch.publicKeyFingerprint != body.publicKeyFingerprint) {
+                issues += "active_body_key_fingerprint_mismatch"
+            }
+            if (possession.signature.keyEpochId != activeEpoch.keyEpochId) {
+                issues += "possession_key_epoch_mismatch"
+            }
         }
 
-        val blockers = listOf(
-            "trusted_guardian_key_epoch_registry_not_integrated",
-            "body_possession_proof_not_integrated",
-            "transactional_birth_commit_not_integrated"
-        )
+        if (possession.instanceId != identity.instanceId) issues += "possession_instance_mismatch"
+        if (possession.bodyId != body.bodyId) issues += "possession_body_mismatch"
+        if (possession.publicKeyFingerprint != body.publicKeyFingerprint) {
+            issues += "possession_public_key_fingerprint_mismatch"
+        }
+
+        val blockers = listOf("transactional_birth_commit_not_integrated")
         return GenesisUltraBirthCandidateAssessment(
             structurallyValid = issues.isEmpty(),
             birthReady = issues.isEmpty() && blockers.isEmpty(),
