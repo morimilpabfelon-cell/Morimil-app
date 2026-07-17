@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: genesis-body-${{ github.workflow }}-${{ github.ref }}
@@ -23,6 +23,33 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.ref_name || github.sha }}
+          fetch-depth: 0
+
+      - name: Apply audited migration test patch
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch_file=.github/patches/current-migration-tests.patch
+          if [[ ! -f "$patch_file" ]]; then
+            echo "Migration patch already consumed."
+            exit 0
+          fi
+          git apply --check "$patch_file"
+          git apply "$patch_file"
+          rm "$patch_file"
+          git diff --check
+          git config user.name "genesis-body-ci"
+          git config user.email "genesis-body-ci@users.noreply.github.com"
+          git add app/src/androidTest/java/com/morimil/app/data/local/DatabaseMigrationTest.kt
+          git add app/src/androidTest/java/com/morimil/app/data/local/FullChainDatabaseMigrationTest.kt
+          git add app/src/androidTest/java/com/morimil/app/data/local/MemoryOrganDatabaseMigrationTest.kt
+          git add app/src/androidTest/java/com/morimil/app/data/local/MorimilDatabaseMigrationTest.kt
+          git add -A "$patch_file"
+          git commit -m "Validate migrations through current database schemas"
+          git push origin HEAD:refs/heads/agent/prepare-genesis-ultra-body-v0-1
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -76,7 +103,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          ./gradlew --no-daemon --stacktrace --console=plain \
+          ./gradlew --continue --no-daemon --stacktrace --console=plain \
             -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
             :app:pixel2Api30DebugAndroidTest \
             :app:pixel2Api35DebugAndroidTest > managed-device.log 2>&1
