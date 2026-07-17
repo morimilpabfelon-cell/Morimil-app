@@ -26,7 +26,7 @@ Morimil now parses and validates these Genesis Ultra structures with strict fiel
 - `genesis.key.epoch.v0.1`;
 - `genesis.body.possession.v0.1`.
 
-Unknown fields, missing fields, unsafe relative paths, non-NFC text, unsupported profiles, invalid canonical timestamps and malformed digests are rejected instead of normalized silently.
+Unknown fields, missing fields, duplicate object keys, unsafe relative paths, non-NFC text, unsupported profiles, invalid canonical timestamps, incorrect scalar types and malformed digests are rejected instead of normalized silently.
 
 ## Normative hashing
 
@@ -65,7 +65,9 @@ A release candidate is accepted as a verified release only when all of these che
    - public key reference;
 9. the Ed25519 signature verifies over the normative envelope preimage.
 
-There is no algorithm downgrade. When the runtime cannot provide Ed25519 verification, verification returns false and the candidate remains unauthorized.
+There is no algorithm downgrade. Verification uses Tink's Ed25519 implementation with the exact raw 32-byte public key rather than depending on the Android platform JCA provider. Any malformed key, malformed signature or verification exception returns false and leaves the candidate unauthorized.
+
+Verified releases and possession proofs are non-forgeable result types: their constructors are private and the verifier creates them only after all required checks succeed. Verified release payload bytes are stored as defensive copies and are returned only through additional defensive copies.
 
 ## Guardian key epochs
 
@@ -90,7 +92,8 @@ The body possession verifier:
 - binds the key epoch identifier and public key fingerprint;
 - reconstructs the normative Ed25519 signature envelope;
 - verifies the signature under `genesis.body.possession.signature.v0.1`;
-- rejects proofs before `issued_at` or at/after `expires_at`.
+- rejects proofs before `issued_at` or at/after `expires_at`;
+- requires the evaluation caller to supply the current verification instant explicitly.
 
 The verified result does not expose or persist a private key.
 
@@ -109,7 +112,7 @@ verified Seed release
         +-- fresh verified Body Possession Proof
 ```
 
-The candidate validator rejects mismatches in Seed, root hash, guardian, Instance, Body, registry, platform profile, timestamps, key fingerprints, key epochs and possession evidence.
+The candidate validator rejects mismatches in Seed, root hash, guardian, Instance, Body, registry, platform profile, timestamps, key fingerprints, key epochs and possession evidence. It recomputes Instance Identity, Body Registry and Key Epoch digests at evaluation time rather than trusting an earlier object label.
 
 ## Why birth remains disabled
 
@@ -136,6 +139,17 @@ Until that exists, `GenesisUltraIntegrationGate.isBirthReady` remains false and 
 
 ## Conformance coverage
 
-The Android tests reproduce Genesis Ultra golden vectors for framing, Seed root, Instance Identity, Body Registry, Key Epoch, Body Possession and Ed25519 signature verification. Negative tests cover altered payloads, unexpected files, extra JSON fields, unsafe paths, non-NFC identity text, multiple active writers, untrusted signer identity, signature mutation, expired possession proofs and cross-Body evidence.
+The JVM tests reproduce Genesis Ultra golden vectors for framing, Seed root, Instance Identity, Body Registry, Key Epoch, Body Possession and Ed25519 signature verification. Negative tests cover altered payloads, unexpected files, extra JSON fields, duplicate keys, unsafe paths, non-NFC identity text, multiple active writers, untrusted signer identity, signature mutation, expired possession proofs, mutable input bytes and cross-Body evidence.
 
-This establishes protocol-compatible verification. It does not claim that Morimil has completed a Genesis Ultra birth.
+The managed Android suite runs 17 instrumented tests on API 30 and the same 17 tests on API 35. Both devices complete with zero failures, zero errors and zero skipped tests. Android runtime coverage includes:
+
+- valid Ed25519 verification through Tink;
+- altered Ed25519 signature rejection;
+- duplicate JSON-key rejection;
+- rejection of strings masquerading as Boolean or integer values;
+- Morimil migration chains through schema version 9;
+- Memory Organ migration chains through schema version 7;
+- the dedicated Morimil `8 -> 9` migration;
+- rest-cycle scheduling instrumentation.
+
+This establishes protocol-compatible verification and Android runtime conformance for the implemented boundary. It does not claim that Morimil has completed a Genesis Ultra birth.
