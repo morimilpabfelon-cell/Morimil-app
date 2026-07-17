@@ -14,27 +14,43 @@ data class GenesisUltraReleaseBundle(
 )
 
 class GenesisUltraVerifiedRelease private constructor(
+    val manifestJson: String,
+    val signatureJson: String,
     manifest: GenesisUltraSeedManifest,
     signature: GenesisUltraSignatureEnvelope,
     val verifiedRootHash: String,
-    val verifiedFileCount: Int
+    verifiedFiles: Map<String, ByteArray>
 ) {
     val manifest: GenesisUltraSeedManifest = manifest.copy(
         files = Collections.unmodifiableList(manifest.files.map { file -> file.copy() })
     )
     val signature: GenesisUltraSignatureEnvelope = signature.copy()
+    private val files: Map<String, ByteArray> = Collections.unmodifiableMap(
+        verifiedFiles.mapValues { (_, bytes) -> bytes.copyOf() }
+    )
+
+    val verifiedFileCount: Int
+        get() = files.size
+
+    fun copyVerifiedFiles(): Map<String, ByteArray> {
+        return files.mapValues { (_, bytes) -> bytes.copyOf() }
+    }
 
     internal companion object {
         fun verify(
             bundle: GenesisUltraReleaseBundle,
             signatureVerifier: GenesisUltraEd25519SignatureVerifier
         ): GenesisUltraVerifiedRelease {
-            val manifest = GenesisUltraContractParser.parseSeedManifest(bundle.manifestJson)
+            val manifestJsonSnapshot = bundle.manifestJson
+            val signatureJsonSnapshot = bundle.signatureJson
+            val fileSnapshot = bundle.files.mapValues { (_, bytes) -> bytes.copyOf() }
+
+            val manifest = GenesisUltraContractParser.parseSeedManifest(manifestJsonSnapshot)
             val declaredFiles = manifest.files.associateBy { file -> file.path }
             require(declaredFiles.size == manifest.files.size) { "duplicate_seed_path" }
 
-            bundle.files.keys.forEach(GenesisUltraHashProfile::requireSafeRelativePath)
-            val actualPaths = bundle.files.keys.toSet()
+            fileSnapshot.keys.forEach(GenesisUltraHashProfile::requireSafeRelativePath)
+            val actualPaths = fileSnapshot.keys.toSet()
             val declaredPaths = declaredFiles.keys
             require(actualPaths == declaredPaths) {
                 val missing = declaredPaths.minus(actualPaths).sorted()
@@ -43,7 +59,7 @@ class GenesisUltraVerifiedRelease private constructor(
             }
 
             manifest.files.forEach { file ->
-                val bytes = bundle.files.getValue(file.path)
+                val bytes = fileSnapshot.getValue(file.path)
                 val actualDigest = GenesisUltraHashProfile.sha256(bytes)
                 require(actualDigest == file.digest) { "release_file_digest_mismatch:${file.path}" }
             }
@@ -51,7 +67,7 @@ class GenesisUltraVerifiedRelease private constructor(
             val computedRoot = GenesisUltraHashProfile.seedRoot(manifest)
             require(computedRoot == manifest.rootHash) { "seed_root_hash_mismatch" }
 
-            val envelope = GenesisUltraContractParser.parseSignatureEnvelope(bundle.signatureJson)
+            val envelope = GenesisUltraContractParser.parseSignatureEnvelope(signatureJsonSnapshot)
             require(envelope.signerType == "guardian") { "seed_release_signer_must_be_guardian" }
             require(envelope.signedDomain == GenesisUltraHashProfile.SEED_ROOT_DOMAIN) {
                 "seed_release_signed_domain_mismatch"
@@ -64,10 +80,12 @@ class GenesisUltraVerifiedRelease private constructor(
             }
 
             return GenesisUltraVerifiedRelease(
+                manifestJson = manifestJsonSnapshot,
+                signatureJson = signatureJsonSnapshot,
                 manifest = manifest,
                 signature = envelope,
                 verifiedRootHash = computedRoot,
-                verifiedFileCount = manifest.files.size
+                verifiedFiles = fileSnapshot
             )
         }
     }
