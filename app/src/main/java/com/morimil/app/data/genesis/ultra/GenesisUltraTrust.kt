@@ -26,7 +26,10 @@ class GenesisUltraTrustedGuardianKeyEpochRegistry(
     init {
         val identities = entries.map { epoch -> epoch.guardianId to epoch.keyEpochId }
         require(identities.distinct().size == identities.size) { "duplicate_trusted_guardian_key_epoch" }
-        val activeCounts = entries.filter { epoch -> epoch.status == "active" }.groupingBy { epoch -> epoch.guardianId }.eachCount()
+        val activeCounts = entries
+            .filter { epoch -> epoch.status == "active" }
+            .groupingBy { epoch -> epoch.guardianId }
+            .eachCount()
         require(activeCounts.values.all { count -> count == 1 }) { "multiple_active_guardian_key_epochs" }
     }
 
@@ -84,7 +87,7 @@ class GenesisUltraVerifiedBodyPossession internal constructor(
 
 object GenesisUltraBodyPossessionProofParser {
     fun parse(jsonText: String): GenesisUltraBodyPossessionProof {
-        val root = org.json.JSONObject(jsonText)
+        val root = GenesisUltraStrictJson.parseObject(jsonText)
         val keys = root.keys().asSequence().toSet()
         require(keys == PROOF_KEYS) { "body_possession_unexpected_or_missing_fields" }
         val signatureJson = root.getJSONObject("signature")
@@ -123,7 +126,9 @@ object GenesisUltraBodyPossessionProofParser {
     }
 
     private fun requiredText(root: org.json.JSONObject, name: String, min: Int, max: Int): String {
-        val value = root.getString(name)
+        val rawValue = root.get(name)
+        require(rawValue is String) { "body_possession_${name}_invalid" }
+        val value = rawValue
         GenesisUltraHashProfile.requireNfc(value)
         require(value.length in min..max) { "body_possession_${name}_invalid" }
         return value
