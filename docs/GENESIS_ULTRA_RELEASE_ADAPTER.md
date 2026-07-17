@@ -6,7 +6,7 @@ Normative source pin:
 
 ```text
 repository: morimilpabfelon-cell/genesis-ultra-updated-1
-commit: 9f5f7b7ad6a9ea7fd03c8b118485460ef46b730e
+commit: d0293b3614153ef2155620fc75ceee9bd798f370
 protocol: genesis.protocol.v0.1
 hash profile: genesis.hash.fields.v0.1
 signature profile: genesis.signature.ed25519.v0.1
@@ -45,7 +45,7 @@ The adapter reproduces the normative digests for:
 - Body Possession Proof;
 - Signature Envelope preimage.
 
-File and body ordering uses unsigned UTF-8 byte comparison. Optional registry text is represented as an empty framed string, matching the protocol validators.
+File and body ordering uses unsigned UTF-8 byte comparison. Optional registry text is represented as an empty framed string, matching the protocol validators. A Key Epoch always hashes exactly ten fields; nullable `previous_epoch_id` and `rotation_authorization_ref` become empty framed strings, so key ancestry and rotation authority cannot be changed without changing the digest.
 
 ## Signed release verification
 
@@ -122,9 +122,9 @@ The remaining blocker is:
 transactional_birth_commit_not_integrated
 ```
 
-The pinned Genesis Ultra `genesis.transaction.journal.v0.1` schema currently defines `operation_kind` values for `transfer` and `recovery`. It does not define a `birth` transaction journal. Morimil therefore does not invent a non-normative `birth` operation and does not reinterpret a transfer or recovery journal as birth authority.
+The pinned Genesis Ultra revision now defines a normative `birth` operation, seven transaction phases, crash recovery, an immutable first memory event and a signed birth receipt. Morimil still lacks the Room-backed atomic commit and restart recovery implementation for those contracts. The gate remains closed until Android can prove the complete operation rather than merely validate the release candidate.
 
-Before the gate can open, the protocol and Android adapter need a crash-recoverable birth transaction that atomically commits at least:
+Before the gate can open, the Android adapter must implement the protocol's crash-recoverable birth transaction and atomically commit at least:
 
 - immutable Instance Identity;
 - Seed root and original committed Seed bytes;
@@ -135,7 +135,7 @@ Before the gate can open, the protocol and Android adapter need a crash-recovera
 - first append-only memory event;
 - recovery state for interruption before and after commit.
 
-Until that exists, `GenesisUltraIntegrationGate.isBirthReady` remains false and the legacy Morimil Genesis cannot create an Instance.
+Until that exists, every `GenesisUltraBirthCandidateAssessment.birthReady` result remains false and the legacy Morimil Genesis cannot create an Instance.
 
 ## Conformance coverage
 

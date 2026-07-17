@@ -106,7 +106,9 @@ object GenesisUltraHashProfile {
                 epoch.epochNumber.toString(),
                 epoch.publicKeyFingerprint,
                 epoch.createdAt,
-                epoch.status
+                epoch.status,
+                epoch.previousEpochId.orEmpty(),
+                epoch.rotationAuthorizationRef.orEmpty()
             )
         )
     }
