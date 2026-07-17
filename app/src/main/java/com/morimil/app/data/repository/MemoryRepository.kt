@@ -22,6 +22,24 @@ import kotlinx.coroutines.flow.Flow
 import org.json.JSONArray
 import org.json.JSONObject
 
+enum class LocalBirthState {
+    ABSENT,
+    COMPLETE,
+    INCONSISTENT;
+
+    companion object {
+        fun fromCounts(localIdentityCount: Int, genesisCoreCount: Int): LocalBirthState {
+            require(localIdentityCount >= 0) { "localIdentityCount cannot be negative." }
+            require(genesisCoreCount >= 0) { "genesisCoreCount cannot be negative." }
+            return when {
+                localIdentityCount == 0 && genesisCoreCount == 0 -> ABSENT
+                localIdentityCount == 1 && genesisCoreCount == 1 -> COMPLETE
+                else -> INCONSISTENT
+            }
+        }
+    }
+}
+
 class MemoryRepository(
     private val database: MorimilDatabase,
     private val memoryIntegrityCore: MemoryIntegrityCore,
@@ -83,8 +101,19 @@ class MemoryRepository(
         return listOf("El nombre solo se define una vez.")
     }
 
+    suspend fun readLocalBirthState(): LocalBirthState {
+        return LocalBirthState.fromCounts(
+            localIdentityCount = memoryDao.countLocalIdentity(),
+            genesisCoreCount = memoryDao.countGenesisCore()
+        )
+    }
+
     suspend fun hasExistingBirth(): Boolean {
-        return memoryDao.countLocalIdentity() > 0 || memoryDao.countGenesisCore() > 0
+        return readLocalBirthState() != LocalBirthState.ABSENT
+    }
+
+    suspend fun hasCompleteBirth(): Boolean {
+        return readLocalBirthState() == LocalBirthState.COMPLETE
     }
 
     suspend fun birthLocalIdentity(

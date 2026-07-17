@@ -8,8 +8,10 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * Reads the bundled Genesis seed. GitHub is only the development workshop;
- * the installed app uses the Genesis bundle shipped in assets/genesis.
+ * Reads the bundled legacy Genesis material for migration analysis.
+ *
+ * The embedded bundle is non-authoritative and cannot be installed for a new
+ * birth. A future Genesis Ultra adapter will replace the installation path.
  */
 class GenesisReader(private val context: Context) {
     private val manifestVerifier = GenesisManifestVerifier(context)
@@ -35,6 +37,8 @@ class GenesisReader(private val context: Context) {
 
     suspend fun installGenesisBundle(): Result<GenesisInstalledBundle> = withContext(Dispatchers.IO) {
         runCatching {
+            GenesisUltraIntegrationGate.requireBirthReady()
+
             val verification = manifestVerifier.verify()
             val manifest = JSONObject(readBundledText("genesis_manifest.json"))
             val files = manifest.getJSONArray("files")

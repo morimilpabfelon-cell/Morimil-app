@@ -187,7 +187,7 @@ class ReasoningWireTest {
 
     @Test
     fun localEndpointDoesNotRequireRuntimeKey() {
-        val cfg = ReasoningProviderConfig.fromPreset(ReasoningPreset.LOCAL_COMPATIBLE)
+        val cfg = ReasoningProviderConfig.fromPreset(ReasoningPreset.LOCAL_USB_HELPER)
             .copy(model = "local-model")
 
         assertFalse(cfg.requiresRuntimeKey)

@@ -23,13 +23,13 @@ class MemoryOrganDatabaseMigrationTest {
     }
 
     @Test
-    fun migratesLegacyV1ToCurrentV5WithoutDroppingCapsules() {
+    fun migratesLegacyV1ToCurrentV7WithoutDroppingCapsules() {
         createVersion1Database()
 
         val database = openMigratedDatabase()
         val migrated = database.openHelper.writableDatabase
 
-        assertEquals(5, migrated.userVersion())
+        assertEquals(7, migrated.userVersion())
         assertTrue(
             migrated.tableNames().containsAll(
                 listOf(
@@ -68,15 +68,19 @@ class MemoryOrganDatabaseMigrationTest {
     }
 
     @Test
-    fun migratesV4ToV5AndAcceptsGraphAndMigrationRows() {
+    fun migratesV4ToV7AndAcceptsGraphAndMigrationRows() {
         createVersion4Database()
 
         val database = Room.databaseBuilder(context, MemoryOrganDatabase::class.java, MEMORY_ORGAN_DB)
-            .addMigrations(MemoryOrganDatabase.MIGRATION_4_5)
+            .addMigrations(
+                MemoryOrganDatabase.MIGRATION_4_5,
+                MemoryOrganDatabase.MIGRATION_5_6,
+                MemoryOrganDatabase.MIGRATION_6_7
+            )
             .build()
         val migrated = database.openHelper.writableDatabase
 
-        assertEquals(5, migrated.userVersion())
+        assertEquals(7, migrated.userVersion())
         assertTrue(migrated.columnNames("memory_links").containsAll(MEMORY_LINK_COLUMNS))
         assertTrue(migrated.columnNames("migration_records").containsAll(MIGRATION_RECORD_COLUMNS))
         assertTrue(migrated.indexNames("memory_links").containsAll(MEMORY_LINK_INDEXES))
@@ -184,18 +188,20 @@ class MemoryOrganDatabaseMigrationTest {
     }
 
     @Test
-    fun migratesV3ToCurrentV5WithRecallScheduleRuntimeTable() {
+    fun migratesV3ToCurrentV7WithRecallScheduleRuntimeTable() {
         createVersion3Database()
 
         val database = Room.databaseBuilder(context, MemoryOrganDatabase::class.java, MEMORY_ORGAN_DB)
             .addMigrations(
                 MemoryOrganDatabase.MIGRATION_3_4,
-                MemoryOrganDatabase.MIGRATION_4_5
+                MemoryOrganDatabase.MIGRATION_4_5,
+                MemoryOrganDatabase.MIGRATION_5_6,
+                MemoryOrganDatabase.MIGRATION_6_7
             )
             .build()
         val migrated = database.openHelper.writableDatabase
 
-        assertEquals(5, migrated.userVersion())
+        assertEquals(7, migrated.userVersion())
         assertTrue(migrated.columnNames("recall_schedules").containsAll(RECALL_SCHEDULE_COLUMNS))
         assertTrue(migrated.indexNames("recall_schedules").containsAll(RECALL_SCHEDULE_INDEXES))
         migrated.execSQL(
@@ -243,7 +249,9 @@ class MemoryOrganDatabaseMigrationTest {
                 MemoryOrganDatabase.MIGRATION_1_2,
                 MemoryOrganDatabase.MIGRATION_2_3,
                 MemoryOrganDatabase.MIGRATION_3_4,
-                MemoryOrganDatabase.MIGRATION_4_5
+                MemoryOrganDatabase.MIGRATION_4_5,
+                MemoryOrganDatabase.MIGRATION_5_6,
+                MemoryOrganDatabase.MIGRATION_6_7
             )
             .build()
     }

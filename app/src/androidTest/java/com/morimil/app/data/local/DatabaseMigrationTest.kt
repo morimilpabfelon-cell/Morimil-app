@@ -24,11 +24,14 @@ class DatabaseMigrationTest {
     }
 
     @Test
-    fun morimilDatabaseMigratesFrom7To8WithMemoryEventDefaults() {
+    fun morimilDatabaseMigratesFrom7To9WithMemoryEventDefaults() {
         createMorimilDatabaseAtVersion7()
 
         val database = Room.databaseBuilder(context, MorimilDatabase::class.java, MORIMIL_DB)
-            .addMigrations(MorimilDatabase.MIGRATION_7_8)
+            .addMigrations(
+                MorimilDatabase.MIGRATION_7_8,
+                MorimilDatabase.MIGRATION_8_9
+            )
             .build()
 
         val migrated = database.openHelper.writableDatabase
@@ -51,11 +54,15 @@ class DatabaseMigrationTest {
     }
 
     @Test
-    fun memoryOrganDatabaseMigratesFrom4To5WithGraphAndMigrationTables() {
+    fun memoryOrganDatabaseMigratesFrom4To7WithGraphAndMigrationTables() {
         createMemoryOrganDatabaseAtVersion4()
 
         val database = Room.databaseBuilder(context, MemoryOrganDatabase::class.java, MEMORY_ORGAN_DB)
-            .addMigrations(MemoryOrganDatabase.MIGRATION_4_5)
+            .addMigrations(
+                MemoryOrganDatabase.MIGRATION_4_5,
+                MemoryOrganDatabase.MIGRATION_5_6,
+                MemoryOrganDatabase.MIGRATION_6_7
+            )
             .build()
 
         val migrated = database.openHelper.writableDatabase

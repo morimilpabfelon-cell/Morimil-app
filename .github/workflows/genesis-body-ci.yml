@@ -1,0 +1,109 @@
+name: Genesis Body Preparation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches:
+      - agent/prepare-genesis-ultra-body-v0-1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: genesis-body-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Validate wrapper and project
+        run: ./gradlew --no-daemon --stacktrace --console=plain help
+
+      - name: Run unit tests
+        shell: bash
+        run: |
+          set +e
+          ./gradlew --no-daemon --stacktrace --console=plain :app:testDebugUnitTest > unit-test.log 2>&1
+          status=$?
+          tail -n 250 unit-test.log
+          exit "$status"
+
+      - name: Run Android lint
+        run: ./gradlew --no-daemon --stacktrace --console=plain :app:lintDebug
+
+      - name: Build debug APK and instrumentation tests
+        run: ./gradlew --no-daemon --stacktrace --console=plain :app:assembleDebug :app:assembleDebugAndroidTest
+
+      - name: Install emulator and managed-device system images
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager_path="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$sdkmanager_path"
+          yes | "$sdkmanager_path" --licenses > sdk-licenses.log 2>&1 || true
+          "$sdkmanager_path" --install \
+            "platform-tools" \
+            "emulator" \
+            "system-images;android-30;aosp_atd;x86" \
+            "system-images;android-35;default;x86_64" > sdk-install.log 2>&1
+          test -x "$ANDROID_HOME/emulator/emulator"
+          test -d "$ANDROID_HOME/system-images/android-30/aosp_atd/x86"
+          test -d "$ANDROID_HOME/system-images/android-35/default/x86_64"
+          "$ANDROID_HOME/emulator/emulator" -version > emulator-version.log 2>&1 || true
+
+      - name: Enable KVM for managed devices
+        shell: bash
+        run: |
+          if [[ -e /dev/kvm ]]; then
+            sudo chmod 666 /dev/kvm
+          fi
+
+      - name: Run managed Android tests on API 30 and API 35
+        shell: bash
+        run: |
+          set +e
+          ./gradlew --continue --no-daemon --stacktrace --console=plain \
+            -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
+            :app:pixel2Api30DebugAndroidTest \
+            :app:pixel2Api35DebugAndroidTest > managed-device.log 2>&1
+          status=$?
+          tail -n 400 managed-device.log
+          exit "$status"
+
+      - name: Upload diagnostic reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: morimil-validation-reports
+          if-no-files-found: ignore
+          path: |
+            unit-test.log
+            managed-device.log
+            sdk-licenses.log
+            sdk-install.log
+            emulator-version.log
+            app/build/reports/**
+            app/build/test-results/**
+            app/build/outputs/androidTest-results/**
+            app/build/outputs/managed_device_android_test_additional_output/**
+            app/build/outputs/apk/debug/**
