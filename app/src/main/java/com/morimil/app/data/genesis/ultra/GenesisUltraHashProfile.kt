@@ -11,6 +11,7 @@ object GenesisUltraHashProfile {
     const val INSTANCE_IDENTITY_DOMAIN = "genesis.instance.identity.v0.1"
     const val BODY_REGISTRY_DOMAIN = "genesis.body.registry.v0.1"
     const val KEY_EPOCH_DOMAIN = "genesis.key.epoch.v0.1"
+    const val BODY_POSSESSION_DOMAIN = "genesis.body.possession.v0.1"
     const val SIGNATURE_ENVELOPE_BYTES_DOMAIN = "genesis.signature.envelope.bytes.v0.1"
 
     fun frame(value: String): ByteArray {
@@ -106,6 +107,22 @@ object GenesisUltraHashProfile {
                 epoch.publicKeyFingerprint,
                 epoch.createdAt,
                 epoch.status
+            )
+        )
+    }
+
+    fun bodyPossessionDigest(proof: GenesisUltraBodyPossessionProof): String {
+        return hashFields(
+            BODY_POSSESSION_DOMAIN,
+            listOf(
+                proof.schemaVersion,
+                proof.proofId,
+                proof.instanceId,
+                proof.bodyId,
+                proof.challengeNonce,
+                proof.issuedAt,
+                proof.expiresAt,
+                proof.publicKeyFingerprint
             )
         )
     }
