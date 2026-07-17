@@ -1,9 +1,7 @@
 package com.morimil.app.data.genesis.ultra
 
+import com.google.crypto.tink.subtle.Ed25519Verify
 import java.security.GeneralSecurityException
-import java.security.KeyFactory
-import java.security.Signature
-import java.security.spec.X509EncodedKeySpec
 import java.util.Collections
 
 
@@ -134,16 +132,16 @@ class GenesisUltraEd25519SignatureVerifier(
         )
         val rawPublicKey = keysByIdentity[identity]?.copyOf() ?: return false
         return try {
-            val encodedPublicKey = X509_ED25519_PREFIX + rawPublicKey
-            val publicKey = KeyFactory.getInstance("Ed25519")
-                .generatePublic(X509EncodedKeySpec(encodedPublicKey))
-            val verifier = Signature.getInstance("Ed25519")
-            verifier.initVerify(publicKey)
-            verifier.update(signingBytes)
-            verifier.verify(GenesisUltraHashProfile.decodeLowerHex(envelope.signatureValue))
+            Ed25519Verify(rawPublicKey).verify(
+                GenesisUltraHashProfile.decodeLowerHex(envelope.signatureValue),
+                signingBytes
+            )
+            true
         } catch (_: GeneralSecurityException) {
             false
         } catch (_: IllegalArgumentException) {
+            false
+        } catch (_: IllegalStateException) {
             false
         }
     }
@@ -157,7 +155,6 @@ class GenesisUltraEd25519SignatureVerifier(
 
     private companion object {
         const val ED25519_PUBLIC_KEY_BYTES = 32
-        val X509_ED25519_PREFIX = GenesisUltraHashProfile.decodeLowerHex("302a300506032b6570032100")
     }
 }
 
