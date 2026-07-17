@@ -170,7 +170,7 @@ class OrganismHealthUiStateTest {
     private fun localSlot(): ReasoningMotorSlot {
         return ReasoningMotorSlot(
             config = ReasoningProviderConfig(
-                preset = ReasoningPreset.LOCAL_COMPATIBLE,
+                preset = ReasoningPreset.LOCAL_USB_HELPER,
                 baseUrl = "http://127.0.0.1:11434/v1/chat/completions",
                 model = "local-model"
             )
