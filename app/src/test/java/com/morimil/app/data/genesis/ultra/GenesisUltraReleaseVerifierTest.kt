@@ -4,6 +4,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.security.KeyPairGenerator
 import java.security.Signature
@@ -45,7 +46,7 @@ class GenesisUltraReleaseVerifierTest {
             fixture.verifier.verify(fixture.bundle.copy(files = unexpectedFiles))
         }
 
-        assert(error.message.orEmpty().startsWith("release_file_set_mismatch:"))
+        assertTrue(error.message.orEmpty().startsWith("release_file_set_mismatch:"))
     }
 
     @Test
@@ -62,10 +63,17 @@ class GenesisUltraReleaseVerifierTest {
     }
 
     @Test
-    fun rejectsCryptographicallyValidKeyWhenItIsNotTrusted() {
+    fun rejectsCryptographicallyValidKeyWhenSignerIdentityIsNotTrusted() {
         val fixture = signedFixture()
+        val wrongSignerKey = GenesisUltraTrustedEd25519Key(
+            signerType = "guardian",
+            signerId = "guardian_01HOTHER000000000000001",
+            keyEpochId = fixture.keyEpochId,
+            publicKeyRef = fixture.publicKeyRef,
+            rawPublicKey = fixture.rawPublicKey
+        )
         val untrustedVerifier = GenesisUltraReleaseVerifier(
-            GenesisUltraEd25519SignatureVerifier(emptyMap())
+            GenesisUltraEd25519SignatureVerifier(listOf(wrongSignerKey))
         )
 
         val error = assertThrows(IllegalArgumentException::class.java) {
@@ -84,7 +92,7 @@ class GenesisUltraReleaseVerifierTest {
             fixture.verifier.verify(fixture.bundle.copy(manifestJson = manifest.toString()))
         }
 
-        assert(error.message.orEmpty().startsWith("unexpected_or_missing_fields:"))
+        assertTrue(error.message.orEmpty().startsWith("unexpected_or_missing_fields:"))
     }
 
     private fun signedFixture(): Fixture {
@@ -142,12 +150,13 @@ class GenesisUltraReleaseVerifierTest {
         val keyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
         val rawPublicKey = keyPair.public.encoded.takeLast(32).toByteArray()
         val publicKeyRef = GenesisUltraHashProfile.sha256(rawPublicKey)
+        val keyEpochId = "guardian_epoch_01HRELEASE00001"
         val unsignedEnvelope = GenesisUltraSignatureEnvelope(
             schemaVersion = "genesis.signature.envelope.v0.1",
             signatureProfile = "genesis.signature.ed25519.v0.1",
             signerType = "guardian",
             signerId = "guardian_01HRELEASE000000000001",
-            keyEpochId = "guardian_epoch_01HRELEASE00001",
+            keyEpochId = keyEpochId,
             signedDomain = GenesisUltraHashProfile.SEED_ROOT_DOMAIN,
             signedDigest = rootHash,
             signatureValue = "0".repeat(128),
@@ -178,10 +187,24 @@ class GenesisUltraReleaseVerifierTest {
                 DOCTRINE_PATH to doctrineBytes
             )
         )
-        val verifier = GenesisUltraReleaseVerifier(
-            GenesisUltraEd25519SignatureVerifier(mapOf(publicKeyRef to rawPublicKey))
+        val trustedKey = GenesisUltraTrustedEd25519Key(
+            signerType = unsignedEnvelope.signerType,
+            signerId = unsignedEnvelope.signerId,
+            keyEpochId = unsignedEnvelope.keyEpochId,
+            publicKeyRef = publicKeyRef,
+            rawPublicKey = rawPublicKey
         )
-        return Fixture(bundle = bundle, verifier = verifier, rootHash = rootHash)
+        val verifier = GenesisUltraReleaseVerifier(
+            GenesisUltraEd25519SignatureVerifier(listOf(trustedKey))
+        )
+        return Fixture(
+            bundle = bundle,
+            verifier = verifier,
+            rootHash = rootHash,
+            rawPublicKey = rawPublicKey,
+            publicKeyRef = publicKeyRef,
+            keyEpochId = keyEpochId
+        )
     }
 
     private fun ByteArray.toHex(): String = joinToString(separator = "") { byte ->
@@ -191,7 +214,10 @@ class GenesisUltraReleaseVerifierTest {
     private data class Fixture(
         val bundle: GenesisUltraReleaseBundle,
         val verifier: GenesisUltraReleaseVerifier,
-        val rootHash: String
+        val rootHash: String,
+        val rawPublicKey: ByteArray,
+        val publicKeyRef: String,
+        val keyEpochId: String
     )
 
     private companion object {
