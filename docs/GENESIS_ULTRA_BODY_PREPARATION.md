@@ -2,14 +2,15 @@
 
 ## Decision
 
-Morimil-app is the first Android Body for Genesis Ultra.
+Morimil-app is the first Android Body candidate for Genesis Ultra.
 
 The embedded legacy Morimil Genesis bundle is not a valid source for new births. It remains temporarily available only for migration analysis and compatibility with existing development data.
 
-The only normative source for the future birth protocol is:
+The normative source currently pinned by the Android adapter is:
 
 ```text
-morimilpabfelon-cell/genesis-ultra-updated-1
+repository: morimilpabfelon-cell/genesis-ultra-updated-1
+commit: 9f5f7b7ad6a9ea7fd03c8b118485460ef46b730e
 ```
 
 ## Repository roles
@@ -41,18 +42,29 @@ Morimil must implement Genesis contracts. Morimil must not create a second const
 
 The legacy birth path is intentionally blocked by `GenesisUltraIntegrationGate`.
 
-The gate must remain closed until all of the following exist:
+The gate is no longer a placeholder for release verification. Morimil now implements and tests:
 
-1. A frozen Genesis Ultra release candidate.
-2. A signed release manifest and trusted Guardian root.
-3. An Android release verifier with shared conformance vectors.
-4. A transactional birth journal.
-5. Instance, Body, Guardian and key-epoch records.
-6. A Body Registry with one `active_writer`.
-7. A signed first memory event and birth receipt.
-8. Recovery tests for interruption and storage failure.
+1. strict Genesis Ultra contract parsing;
+2. exact NFC/UTF-8 field framing and normative digests;
+3. exact Seed release payload verification;
+4. Guardian Ed25519 signature verification;
+5. signer trust bound to Guardian identity, key epoch and public-key reference;
+6. Instance Identity, Body Registry and Key Epoch digest verification;
+7. exactly one `active_writer`;
+8. active trusted Guardian Key Epoch registration;
+9. fresh Ed25519 Body Possession Proof verification.
 
-The gate must never be opened by changing a Boolean alone. Opening it requires replacing the temporary gate with a verifier that derives readiness from validated release and runtime evidence.
+Detailed algorithms and negative cases are documented in `docs/GENESIS_ULTRA_RELEASE_ADAPTER.md`.
+
+The remaining blocker is:
+
+```text
+transactional_birth_commit_not_integrated
+```
+
+The pinned `genesis.transaction.journal.v0.1` schema defines `transfer` and `recovery`. It does not define a normative `birth` operation. Morimil therefore does not invent a birth transaction or reinterpret another operation as birth authority.
+
+The gate must never be opened by changing a Boolean alone. Opening it requires a protocol-defined, crash-recoverable birth transaction and validated runtime evidence.
 
 ## Legacy Genesis retirement
 
@@ -72,32 +84,46 @@ Deleting the legacy files before the adapter is valid would remove evidence and 
 
 ### Phase 0 — Baseline
 
-- Freeze the source SHA.
-- Work only on isolated branches.
-- Add CI for unit tests, lint, debug build and instrumentation-test compilation.
-- Record known build and migration failures.
+Completed on the preparation branch:
+
+- source and base SHAs recorded;
+- work isolated from `main`;
+- CI covers unit tests, lint, debug APK and instrumentation-test compilation;
+- build and migration failures are reported with artifacts.
 
 ### Phase 1 — Android integrity
 
-- Complete every Room migration path.
-- Test upgrades from supported historical schemas.
-- Remove duplicate or hidden Engine configurations.
-- Identify all startup writes and prevent pre-birth identity state.
+Completed for the current preparation scope:
+
+- Room migration `8 -> 9` is registered and instrumented;
+- legacy birth is blocked in UI and lower-level installation;
+- local state distinguishes `ABSENT`, `COMPLETE` and `INCONSISTENT` birth;
+- durable organs, rest cycles and orchestration are blocked before complete birth.
 
 ### Phase 2 — Genesis release adapter
 
-- Consume a frozen signed Genesis Ultra release.
-- Verify required artifacts, schemas, domains, digests and signatures.
-- Map protocol contracts to Kotlin without changing their meaning.
+Completed for the pinned protocol revision:
+
+- exact signed Seed release verification;
+- strict protocol contracts in Kotlin;
+- shared golden-vector compatibility;
+- trusted active Guardian epoch binding;
+- Body Possession Proof verification.
 
 ### Phase 3 — Birth transaction
 
-- Prepare Guardian trust.
-- Generate and attest the Body key.
-- Create Instance and Body identifiers.
-- Register the Body and establish `active_writer`.
-- Commit the first signed canonical event.
-- Emit a verifiable birth receipt.
+Not complete.
+
+The future normative transaction must atomically:
+
+- commit original Seed bytes and root;
+- commit immutable Instance Identity;
+- commit Body record and Body Registry;
+- establish exactly one `active_writer`;
+- commit active Body Key Epoch and Guardian trust evidence;
+- commit the first signed canonical memory event;
+- record interruption and recovery state;
+- emit a verifiable birth receipt.
 
 ### Phase 4 — Canonical memory
 
@@ -132,11 +158,12 @@ This report is advisory. It does not grant authority or apply changes.
 ```text
 birth_ready =
   signed_release_valid
+  AND trusted_guardian_epoch_valid
+  AND body_possession_valid
   AND android_conformance_valid
-  AND body_key_ready
-  AND birth_transaction_ready
-  AND canonical_memory_ready
+  AND transactional_birth_commit_valid
+  AND canonical_memory_valid
   AND recovery_tests_valid
 ```
 
-Until every condition is true, Morimil may be developed and tested, but a new Genesis instance must not be born.
+The first four conditions can now be evaluated by the preparation branch. The remaining conditions are not complete. Morimil may be developed and tested, but a new Genesis Instance must not be born.
