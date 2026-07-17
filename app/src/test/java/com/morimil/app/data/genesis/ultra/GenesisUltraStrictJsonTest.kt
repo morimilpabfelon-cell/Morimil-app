@@ -29,7 +29,7 @@ class GenesisUltraStrictJsonTest {
             GenesisUltraStrictJson.parseObject("{\"value\":1,\"value\":2}")
         }
 
-        assertEquals("invalid_or_duplicate_json", error.message)
+        assertEquals("invalid_strict_json", error.message)
     }
 
     @Test
