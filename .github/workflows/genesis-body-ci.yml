@@ -9,82 +9,95 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: genesis-body-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  apply-current-migrations:
+  android-validation:
     runs-on: ubuntu-latest
-    steps:
-      - name: Check out preparation branch
-        uses: actions/checkout@v4
-        with:
-          ref: agent/prepare-genesis-ultra-body-v0-1
-          fetch-depth: 0
+    timeout-minutes: 75
 
-      - name: Apply exact current-schema migration test updates
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Validate wrapper and project
+        run: ./gradlew --no-daemon --stacktrace --console=plain help
+
+      - name: Run unit tests
+        shell: bash
+        run: |
+          set +e
+          ./gradlew --no-daemon --stacktrace --console=plain :app:testDebugUnitTest > unit-test.log 2>&1
+          status=$?
+          tail -n 250 unit-test.log
+          exit "$status"
+
+      - name: Run Android lint
+        run: ./gradlew --no-daemon --stacktrace --console=plain :app:lintDebug
+
+      - name: Build debug APK and instrumentation tests
+        run: ./gradlew --no-daemon --stacktrace --console=plain :app:assembleDebug :app:assembleDebugAndroidTest
+
+      - name: Accept Android SDK licenses and install emulator
         shell: bash
         run: |
           set -euo pipefail
-          patch_file=.github/patches/current-migration-tests.patch
-          if [[ ! -f "$patch_file" ]]; then
-            echo "Migration updates already consumed."
-            exit 0
+          sdkmanager_path="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$sdkmanager_path"
+          yes | "$sdkmanager_path" --licenses > sdk-licenses.log 2>&1 || true
+          "$sdkmanager_path" --install "platform-tools" "emulator" > sdk-install.log 2>&1
+          test -x "$ANDROID_HOME/emulator/emulator"
+          "$ANDROID_HOME/emulator/emulator" -version > emulator-version.log 2>&1 || true
+
+      - name: Enable KVM for managed devices
+        shell: bash
+        run: |
+          if [[ -e /dev/kvm ]]; then
+            sudo chmod 666 /dev/kvm
           fi
-          python3 - <<'PY'
-          from pathlib import Path
 
-          replacements = {
-              "app/src/androidTest/java/com/morimil/app/data/local/DatabaseMigrationTest.kt": [
-                  ("fun morimilDatabaseMigratesFrom7To8WithMemoryEventDefaults()", "fun morimilDatabaseMigratesFrom7To9WithMemoryEventDefaults()", 1),
-                  (".addMigrations(MorimilDatabase.MIGRATION_7_8)", ".addMigrations(\n                MorimilDatabase.MIGRATION_7_8,\n                MorimilDatabase.MIGRATION_8_9\n            )", 1),
-                  ("fun memoryOrganDatabaseMigratesFrom4To5WithGraphAndMigrationTables()", "fun memoryOrganDatabaseMigratesFrom4To7WithGraphAndMigrationTables()", 1),
-                  (".addMigrations(MemoryOrganDatabase.MIGRATION_4_5)", ".addMigrations(\n                MemoryOrganDatabase.MIGRATION_4_5,\n                MemoryOrganDatabase.MIGRATION_5_6,\n                MemoryOrganDatabase.MIGRATION_6_7\n            )", 1),
-              ],
-              "app/src/androidTest/java/com/morimil/app/data/local/FullChainDatabaseMigrationTest.kt": [
-                  ("fun morimilDatabaseMigratesFrom1To8ThroughFullChain()", "fun morimilDatabaseMigratesFrom1To9ThroughFullChain()", 1),
-                  ("MorimilDatabase.MIGRATION_7_8\n            )", "MorimilDatabase.MIGRATION_7_8,\n                MorimilDatabase.MIGRATION_8_9\n            )", 1),
-                  ("fun memoryOrganDatabaseMigratesFrom1To5ThroughFullChain()", "fun memoryOrganDatabaseMigratesFrom1To7ThroughFullChain()", 1),
-                  ("MemoryOrganDatabase.MIGRATION_4_5\n            )", "MemoryOrganDatabase.MIGRATION_4_5,\n                MemoryOrganDatabase.MIGRATION_5_6,\n                MemoryOrganDatabase.MIGRATION_6_7\n            )", 1),
-              ],
-              "app/src/androidTest/java/com/morimil/app/data/local/MemoryOrganDatabaseMigrationTest.kt": [
-                  ("fun migratesLegacyV1ToCurrentV5WithoutDroppingCapsules()", "fun migratesLegacyV1ToCurrentV7WithoutDroppingCapsules()", 1),
-                  ("fun migratesV4ToV5AndAcceptsGraphAndMigrationRows()", "fun migratesV4ToV7AndAcceptsGraphAndMigrationRows()", 1),
-                  ("fun migratesV3ToCurrentV5WithRecallScheduleRuntimeTable()", "fun migratesV3ToCurrentV7WithRecallScheduleRuntimeTable()", 1),
-                  ("assertEquals(5, migrated.userVersion())", "assertEquals(7, migrated.userVersion())", 3),
-                  (".addMigrations(MemoryOrganDatabase.MIGRATION_4_5)", ".addMigrations(\n                MemoryOrganDatabase.MIGRATION_4_5,\n                MemoryOrganDatabase.MIGRATION_5_6,\n                MemoryOrganDatabase.MIGRATION_6_7\n            )", 1),
-                  ("MemoryOrganDatabase.MIGRATION_3_4,\n                MemoryOrganDatabase.MIGRATION_4_5\n            )", "MemoryOrganDatabase.MIGRATION_3_4,\n                MemoryOrganDatabase.MIGRATION_4_5,\n                MemoryOrganDatabase.MIGRATION_5_6,\n                MemoryOrganDatabase.MIGRATION_6_7\n            )", 2),
-              ],
-              "app/src/androidTest/java/com/morimil/app/data/local/MorimilDatabaseMigrationTest.kt": [
-                  ("fun migratesLegacyV1ToCurrentV8WithoutDroppingCoreMemory()", "fun migratesLegacyV1ToCurrentV9WithoutDroppingCoreMemory()", 1),
-                  ("fun migratesV7ToV8WithMemoryEventDefaultsAndIndexes()", "fun migratesV7ToV9WithMemoryEventDefaultsAndIndexes()", 1),
-                  ("assertEquals(8, migrated.userVersion())", "assertEquals(9, migrated.userVersion())", 3),
-                  (".addMigrations(MorimilDatabase.MIGRATION_7_8)", ".addMigrations(\n                MorimilDatabase.MIGRATION_7_8,\n                MorimilDatabase.MIGRATION_8_9\n            )", 1),
-                  ("MorimilDatabase.MIGRATION_7_8\n            )", "MorimilDatabase.MIGRATION_7_8,\n                MorimilDatabase.MIGRATION_8_9\n            )", 2),
-              ],
-          }
+      - name: Run managed Android tests on API 30 and API 35
+        shell: bash
+        run: |
+          set +e
+          ./gradlew --continue --no-daemon --stacktrace --console=plain \
+            -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader_indirect \
+            :app:pixel2Api30DebugAndroidTest \
+            :app:pixel2Api35DebugAndroidTest > managed-device.log 2>&1
+          status=$?
+          tail -n 400 managed-device.log
+          exit "$status"
 
-          for file_name, rules in replacements.items():
-              path = Path(file_name)
-              text = path.read_text(encoding="utf-8")
-              for old, new, expected in rules:
-                  actual = text.count(old)
-                  if actual != expected:
-                      raise SystemExit(f"{file_name}: expected {expected} matches for {old!r}, found {actual}")
-                  text = text.replace(old, new)
-              path.write_text(text, encoding="utf-8")
-          PY
-          rm "$patch_file"
-          git diff --check
-          git config user.name "genesis-body-ci"
-          git config user.email "genesis-body-ci@users.noreply.github.com"
-          git add app/src/androidTest/java/com/morimil/app/data/local/DatabaseMigrationTest.kt
-          git add app/src/androidTest/java/com/morimil/app/data/local/FullChainDatabaseMigrationTest.kt
-          git add app/src/androidTest/java/com/morimil/app/data/local/MemoryOrganDatabaseMigrationTest.kt
-          git add app/src/androidTest/java/com/morimil/app/data/local/MorimilDatabaseMigrationTest.kt
-          git add -A "$patch_file"
-          git commit -m "Validate migrations through current database schemas"
-          git push origin HEAD:refs/heads/agent/prepare-genesis-ultra-body-v0-1
+      - name: Upload diagnostic reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: morimil-validation-reports
+          if-no-files-found: ignore
+          path: |
+            unit-test.log
+            managed-device.log
+            sdk-licenses.log
+            sdk-install.log
+            emulator-version.log
+            app/build/reports/**
+            app/build/test-results/**
+            app/build/outputs/androidTest-results/**
+            app/build/outputs/managed_device_android_test_additional_output/**
+            app/build/outputs/apk/debug/**
