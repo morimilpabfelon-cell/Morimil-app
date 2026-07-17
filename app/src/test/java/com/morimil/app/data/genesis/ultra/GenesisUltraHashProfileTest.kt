@@ -104,11 +104,36 @@ class GenesisUltraHashProfileTest {
             status = "active",
             previousEpochId = null,
             rotationAuthorizationRef = null,
-            epochDigest = "sha256:87e9286776d2ed339bdea91c54f0078a57192d8f0d9c5bd85663b24625ebc7df",
+            epochDigest = "sha256:d8bb77c80131b4faebec7a385b00e29a3ce2d70c0e414bff340e21c325155053",
             signature = null
         )
 
         assertEquals(epoch.epochDigest, GenesisUltraHashProfile.keyEpochDigest(epoch))
+    }
+
+    @Test
+    fun rotatedKeyEpochBindsAncestryAndAuthorization() {
+        val epoch = GenesisUltraKeyEpoch(
+            schemaVersion = "genesis.key.epoch.v0.1",
+            keyEpochId = "epoch_01HNEUTRAL0000000000002",
+            instanceId = "inst_01HNEUTRAL00000000000001",
+            bodyId = "body_01HNEUTRAL00000000000001",
+            epochNumber = 2,
+            publicKeyFingerprint = "sha256:" + "c".repeat(64),
+            createdAt = "2026-07-13T00:00:00Z",
+            status = "active",
+            previousEpochId = "epoch_01HNEUTRAL0000000000001",
+            rotationAuthorizationRef = "grant_01HNEUTRAL_ROTATE0000001",
+            epochDigest = "sha256:c004cc8c49659b0f7ae913a2bdf644bf611bad0211bb5bc22ac6f07d2ae755a2",
+            signature = null
+        )
+
+        assertEquals(epoch.epochDigest, GenesisUltraHashProfile.keyEpochDigest(epoch))
+        assertFalse(
+            epoch.epochDigest == GenesisUltraHashProfile.keyEpochDigest(
+                epoch.copy(rotationAuthorizationRef = "grant_01HNEUTRAL_ROTATE0000002")
+            )
+        )
     }
 
     @Test

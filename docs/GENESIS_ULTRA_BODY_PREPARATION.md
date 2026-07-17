@@ -10,7 +10,7 @@ The normative source currently pinned by the Android adapter is:
 
 ```text
 repository: morimilpabfelon-cell/genesis-ultra-updated-1
-commit: 9f5f7b7ad6a9ea7fd03c8b118485460ef46b730e
+commit: d0293b3614153ef2155620fc75ceee9bd798f370
 ```
 
 ## Repository roles
@@ -56,13 +56,13 @@ The gate is no longer a placeholder for release verification. Morimil now implem
 
 Detailed algorithms and negative cases are documented in `docs/GENESIS_ULTRA_RELEASE_ADAPTER.md`.
 
-The remaining blocker is:
+The remaining Android blocker is:
 
 ```text
 transactional_birth_commit_not_integrated
 ```
 
-The pinned `genesis.transaction.journal.v0.1` schema defines `transfer` and `recovery`. It does not define a normative `birth` operation. Morimil therefore does not invent a birth transaction or reinterpret another operation as birth authority.
+The pinned Genesis revision now defines the normative seven-phase atomic birth, its `birth` transaction journal, recovery state, immutable first memory event and signed receipt. Morimil has not yet ported that complete transaction into Room. The blocker therefore describes missing Android implementation, not a missing protocol definition.
 
 The gate must never be opened by changing a Boolean alone. Opening it requires a protocol-defined, crash-recoverable birth transaction and validated runtime evidence.
 
@@ -104,7 +104,7 @@ Completed for the current preparation scope:
 
 ### Phase 2 — Genesis release adapter
 
-Completed for the pinned protocol revision:
+Completed for the signed-release boundary of the pinned protocol revision:
 
 - exact signed Seed release verification;
 - strict protocol contracts in Kotlin;
@@ -113,12 +113,13 @@ Completed for the pinned protocol revision:
 - Body Possession Proof verification;
 - strict duplicate-key and scalar-type rejection on Android;
 - valid and altered Ed25519 vectors executed on Android API 30 and API 35.
+- the ten-field Key Epoch digest binds nullable rotation ancestry and authorization fields exactly as the final Genesis profile requires.
 
 ### Phase 3 — Birth transaction
 
 Not complete.
 
-The future normative transaction must atomically:
+The Android implementation of the normative transaction must atomically:
 
 - commit original Seed bytes and root;
 - commit immutable Instance Identity;

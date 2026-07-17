@@ -51,13 +51,35 @@ class GenesisUltraContractParserTest {
             .put("status", "active")
             .put("previous_epoch_id", JSONObject.NULL)
             .put("rotation_authorization_ref", JSONObject.NULL)
-            .put("epoch_digest", "sha256:87e9286776d2ed339bdea91c54f0078a57192d8f0d9c5bd85663b24625ebc7df")
+            .put("epoch_digest", "sha256:d8bb77c80131b4faebec7a385b00e29a3ce2d70c0e414bff340e21c325155053")
             .put("signature", JSONObject.NULL)
 
         val epoch = GenesisUltraContractParser.parseKeyEpoch(json.toString())
 
         assertEquals("active", epoch.status)
         assertEquals(1L, epoch.epochNumber)
+    }
+
+    @Test
+    fun parsesRotatedKeyEpochAndBindsRotationFields() {
+        val json = JSONObject()
+            .put("schema_version", "genesis.key.epoch.v0.1")
+            .put("key_epoch_id", "epoch_01HNEUTRAL0000000000002")
+            .put("instance_id", "inst_01HNEUTRAL00000000000001")
+            .put("body_id", "body_01HNEUTRAL00000000000001")
+            .put("epoch_number", 2)
+            .put("public_key_fingerprint", "sha256:" + "c".repeat(64))
+            .put("created_at", "2026-07-13T00:00:00Z")
+            .put("status", "active")
+            .put("previous_epoch_id", "epoch_01HNEUTRAL0000000000001")
+            .put("rotation_authorization_ref", "grant_01HNEUTRAL_ROTATE0000001")
+            .put("epoch_digest", "sha256:c004cc8c49659b0f7ae913a2bdf644bf611bad0211bb5bc22ac6f07d2ae755a2")
+            .put("signature", JSONObject.NULL)
+
+        val epoch = GenesisUltraContractParser.parseKeyEpoch(json.toString())
+
+        assertEquals("epoch_01HNEUTRAL0000000000001", epoch.previousEpochId)
+        assertEquals("grant_01HNEUTRAL_ROTATE0000001", epoch.rotationAuthorizationRef)
     }
 
     @Test
