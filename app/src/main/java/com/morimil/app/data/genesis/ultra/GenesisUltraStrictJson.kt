@@ -1,5 +1,6 @@
 package com.morimil.app.data.genesis.ultra
 
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.parseToJsonElement
@@ -7,10 +8,11 @@ import org.json.JSONException
 import org.json.JSONObject
 
 /**
- * Validates RFC-style JSON syntax before using Android's JSONObject accessors.
+ * Validates strict JSON syntax before using Android's JSONObject accessors.
  * JSONObject remains useful for the existing field extraction code, but its
  * parser is intentionally permissive; Genesis protocol artifacts must not be.
  */
+@OptIn(ExperimentalSerializationApi::class)
 object GenesisUltraStrictJson {
     private val parser = Json {
         isLenient = false
