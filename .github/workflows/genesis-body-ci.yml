@@ -32,6 +32,7 @@ jobs:
           path: |
             app/src/main/java/com/morimil/app/ui/MorimilViewModel.kt
             app/src/main/java/com/morimil/app/data/repository/AgentOrchestrationRepository.kt
+            app/src/main/java/com/morimil/app/data/repository/MemoryRepository.kt
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
