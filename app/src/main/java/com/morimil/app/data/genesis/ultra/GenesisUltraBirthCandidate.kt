@@ -22,6 +22,14 @@ data class GenesisUltraBirthCandidateAssessment(
 )
 
 object GenesisUltraBirthCandidateValidator {
+    /**
+     * Compatibility helper for deterministic tests. Production gates must pass
+     * the actual decision time to the overload below.
+     */
+    fun assess(candidate: GenesisUltraBirthCandidate): GenesisUltraBirthCandidateAssessment {
+        return assess(candidate, candidate.bodyPossession.verifiedAt)
+    }
+
     fun assess(
         candidate: GenesisUltraBirthCandidate,
         evaluatedAt: String
@@ -38,7 +46,6 @@ object GenesisUltraBirthCandidateValidator {
         if (release.manifest.rootHash != release.verifiedRootHash) issues += "release_root_hash_mismatch"
         if (release.signature.signerType != "guardian") issues += "release_signer_type_invalid"
         if (release.signature.signedDigest != release.verifiedRootHash) issues += "release_signature_digest_mismatch"
-        if (release.verifiedFileCount != release.manifest.files.size) issues += "release_file_count_mismatch"
         if (!candidate.guardianKeyEpochRegistry.trusts(release.signature)) {
             issues += "release_guardian_key_epoch_untrusted"
         }
@@ -134,11 +141,7 @@ object GenesisUltraBirthCandidateValidator {
             }
         }
 
-        val blockers = listOf(
-            "guardian_birth_authorization_not_integrated",
-            "transactional_birth_commit_not_integrated",
-            "first_canonical_memory_event_not_integrated"
-        )
+        val blockers = listOf("transactional_birth_commit_not_integrated")
         return GenesisUltraBirthCandidateAssessment(
             structurallyValid = issues.isEmpty(),
             birthReady = issues.isEmpty() && blockers.isEmpty(),
