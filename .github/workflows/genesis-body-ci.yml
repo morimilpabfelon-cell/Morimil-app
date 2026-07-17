@@ -37,16 +37,22 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Validate wrapper and project
-        run: ./gradlew --no-daemon --stacktrace help
+        run: ./gradlew --no-daemon --stacktrace --console=plain help
 
       - name: Run unit tests
-        run: ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest
+        shell: bash
+        run: |
+          set +e
+          ./gradlew --no-daemon --stacktrace --console=plain :app:testDebugUnitTest > unit-test.log 2>&1
+          status=$?
+          tail -n 250 unit-test.log
+          exit "$status"
 
       - name: Run Android lint
-        run: ./gradlew --no-daemon --stacktrace :app:lintDebug
+        run: ./gradlew --no-daemon --stacktrace --console=plain :app:lintDebug
 
       - name: Build debug APK and instrumentation tests
-        run: ./gradlew --no-daemon --stacktrace :app:assembleDebug :app:assembleDebugAndroidTest
+        run: ./gradlew --no-daemon --stacktrace --console=plain :app:assembleDebug :app:assembleDebugAndroidTest
 
       - name: Upload diagnostic reports
         if: always()
@@ -55,6 +61,7 @@ jobs:
           name: morimil-validation-reports
           if-no-files-found: ignore
           path: |
+            unit-test.log
             app/build/reports/**
             app/build/test-results/**
             app/build/outputs/apk/debug/**
