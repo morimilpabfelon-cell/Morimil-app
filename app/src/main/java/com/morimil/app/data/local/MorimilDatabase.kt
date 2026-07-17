@@ -208,7 +208,6 @@ abstract class MorimilDatabase : RoomDatabase() {
             }
         }
 
-
         val MIGRATION_8_9 = object : Migration(8, 9) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
@@ -228,6 +227,7 @@ abstract class MorimilDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_improvement_decision_history_decidedAtMillis ON improvement_decision_history(decidedAtMillis)")
             }
         }
+
         fun getInstance(context: Context): MorimilDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -242,7 +242,8 @@ abstract class MorimilDatabase : RoomDatabase() {
                         MIGRATION_4_5,
                         MIGRATION_5_6,
                         MIGRATION_6_7,
-                        MIGRATION_7_8
+                        MIGRATION_7_8,
+                        MIGRATION_8_9
                     )
                     .build()
                     .also { instance = it }
