@@ -128,7 +128,17 @@ class GenesisUltraHashProfileTest {
             createdAt = "2026-07-15T02:30:00Z",
             publicKeyRef = "sha256:10ba682c8ad13513971e8b56881aab8bd702bb807796eca81932c735a94d6e6d"
         )
-        val verifier = GenesisUltraEd25519SignatureVerifier(mapOf(envelope.publicKeyRef to publicKey))
+        val verifier = GenesisUltraEd25519SignatureVerifier(
+            listOf(
+                GenesisUltraTrustedEd25519Key(
+                    signerType = envelope.signerType,
+                    signerId = envelope.signerId,
+                    keyEpochId = envelope.keyEpochId,
+                    publicKeyRef = envelope.publicKeyRef,
+                    rawPublicKey = publicKey
+                )
+            )
+        )
 
         assertTrue(verifier.verify(envelope, GenesisUltraHashProfile.signatureEnvelopePreimage(envelope)))
 
