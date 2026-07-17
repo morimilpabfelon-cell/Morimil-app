@@ -54,15 +54,21 @@ jobs:
       - name: Build debug APK and instrumentation tests
         run: ./gradlew --no-daemon --stacktrace --console=plain :app:assembleDebug :app:assembleDebugAndroidTest
 
-      - name: Accept Android SDK licenses and install emulator
+      - name: Install emulator and managed-device system images
         shell: bash
         run: |
           set -euo pipefail
           sdkmanager_path="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           test -x "$sdkmanager_path"
           yes | "$sdkmanager_path" --licenses > sdk-licenses.log 2>&1 || true
-          "$sdkmanager_path" --install "platform-tools" "emulator" > sdk-install.log 2>&1
+          "$sdkmanager_path" --install \
+            "platform-tools" \
+            "emulator" \
+            "system-images;android-30;aosp_atd;x86" \
+            "system-images;android-35;default;x86_64" > sdk-install.log 2>&1
           test -x "$ANDROID_HOME/emulator/emulator"
+          test -d "$ANDROID_HOME/system-images/android-30/aosp_atd/x86"
+          test -d "$ANDROID_HOME/system-images/android-35/default/x86_64"
           "$ANDROID_HOME/emulator/emulator" -version > emulator-version.log 2>&1 || true
 
       - name: Enable KVM for managed devices
