@@ -14,7 +14,7 @@ class GenesisUltraBirthCandidateTest {
     fun matchingContractsAreStructurallyValidButTransactionStillBlocksBirth() {
         val candidate = validCandidate()
 
-        val assessment = GenesisUltraBirthCandidateValidator.assess(candidate)
+        val assessment = GenesisUltraBirthCandidateValidator.assess(candidate, ASSESSMENT_TIME)
 
         assertTrue(assessment.structurallyValid)
         assertFalse(assessment.birthReady)
@@ -31,7 +31,8 @@ class GenesisUltraBirthCandidateTest {
         )
 
         val assessment = GenesisUltraBirthCandidateValidator.assess(
-            base.copy(instanceIdentity = invalidIdentity)
+            base.copy(instanceIdentity = invalidIdentity),
+            ASSESSMENT_TIME
         )
 
         assertFalse(assessment.structurallyValid)
@@ -46,7 +47,10 @@ class GenesisUltraBirthCandidateTest {
         val readOnlyBody = base.bodyRegistry.bodies.single().copy(status = "read_only")
         val registry = base.bodyRegistry.copy(bodies = listOf(readOnlyBody))
 
-        val assessment = GenesisUltraBirthCandidateValidator.assess(base.copy(bodyRegistry = registry))
+        val assessment = GenesisUltraBirthCandidateValidator.assess(
+            base.copy(bodyRegistry = registry),
+            ASSESSMENT_TIME
+        )
 
         assertFalse(assessment.structurallyValid)
         assertTrue("active_writer_count_invalid" in assessment.issues)
@@ -61,7 +65,10 @@ class GenesisUltraBirthCandidateTest {
             publicKeyFingerprint = "sha256:" + "c".repeat(64)
         )
 
-        val assessment = GenesisUltraBirthCandidateValidator.assess(base.copy(keyEpochs = listOf(epoch)))
+        val assessment = GenesisUltraBirthCandidateValidator.assess(
+            base.copy(keyEpochs = listOf(epoch)),
+            ASSESSMENT_TIME
+        )
 
         assertFalse(assessment.structurallyValid)
         assertTrue("active_body_key_fingerprint_mismatch" in assessment.issues)
@@ -86,7 +93,8 @@ class GenesisUltraBirthCandidateTest {
         )
 
         val assessment = GenesisUltraBirthCandidateValidator.assess(
-            base.copy(guardianKeyEpochRegistry = otherRegistry)
+            base.copy(guardianKeyEpochRegistry = otherRegistry),
+            ASSESSMENT_TIME
         )
 
         assertFalse(assessment.structurallyValid)
@@ -103,7 +111,8 @@ class GenesisUltraBirthCandidateTest {
         )
 
         val assessment = GenesisUltraBirthCandidateValidator.assess(
-            base.copy(bodyPossession = wrongPossession)
+            base.copy(bodyPossession = wrongPossession),
+            ASSESSMENT_TIME
         )
 
         assertFalse(assessment.structurallyValid)
@@ -358,7 +367,7 @@ class GenesisUltraBirthCandidateTest {
             proof = proof,
             keyEpoch = epoch,
             rawPublicKey = bodyRawKey,
-            evaluatedAt = "2026-07-17T00:02:00Z"
+            evaluatedAt = ASSESSMENT_TIME
         )
         return epoch to verified
     }
@@ -394,6 +403,7 @@ class GenesisUltraBirthCandidateTest {
     }
 
     private companion object {
+        const val ASSESSMENT_TIME = "2026-07-17T00:02:00Z"
         const val IDENTITY_PATH = "identity/companion.identity.json"
         const val DOCTRINE_PATH = "doctrine/doctrine.md"
     }
