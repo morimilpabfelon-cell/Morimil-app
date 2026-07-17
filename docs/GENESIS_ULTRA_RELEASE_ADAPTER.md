@@ -122,7 +122,9 @@ The remaining blocker is:
 transactional_birth_commit_not_integrated
 ```
 
-The pinned Genesis Ultra revision now defines a normative `birth` operation, seven transaction phases, crash recovery, an immutable first memory event and a signed birth receipt. Morimil still lacks the Room-backed atomic commit and restart recovery implementation for those contracts. The gate remains closed until Android can prove the complete operation rather than merely validate the release candidate.
+The pinned Genesis Ultra revision defines a normative `birth` operation, seven transaction phases, crash recovery, an immutable first memory event and a signed birth receipt. Morimil now contains an isolated Room schema and atomic store for the commit marker, exact input bytes and seven journal entries. The commit marker is written last in one SQLite transaction, and interruption tests require all earlier writes to roll back to `ABSENT`.
+
+That store is deliberately not connected to onboarding. Full Ed25519 verification of every birth envelope, parsing of every persisted evidence document, canonical living-memory integration and restart recovery evidence are still required. The gate remains closed until Android can prove that complete operation rather than merely persist a structurally linked candidate.
 
 Before the gate can open, the Android adapter must implement the protocol's crash-recoverable birth transaction and atomically commit at least:
 
@@ -135,21 +137,24 @@ Before the gate can open, the Android adapter must implement the protocol's cras
 - first append-only memory event;
 - recovery state for interruption before and after commit.
 
-Until that exists, every `GenesisUltraBirthCandidateAssessment.birthReady` result remains false and the legacy Morimil Genesis cannot create an Instance.
+Until the remaining validation and integration exist, every `GenesisUltraBirthCandidateAssessment.birthReady` result remains false and the legacy Morimil Genesis cannot create an Instance.
 
 ## Conformance coverage
 
 The JVM tests reproduce Genesis Ultra golden vectors for framing, Seed root, Instance Identity, Body Registry, Key Epoch, Body Possession and Ed25519 signature verification. Negative tests cover altered payloads, unexpected files, extra JSON fields, duplicate keys, unsafe paths, non-NFC identity text, multiple active writers, untrusted signer identity, signature mutation, expired possession proofs, mutable input bytes and cross-Body evidence.
 
-The managed Android suite runs 17 instrumented tests on API 30 and the same 17 tests on API 35. Both devices complete with zero failures, zero errors and zero skipped tests. Android runtime coverage includes:
+The managed Android suite runs the same instrumented boundary on API 30 and API 35. Android runtime coverage includes:
 
 - valid Ed25519 verification through Tink;
 - altered Ed25519 signature rejection;
 - duplicate JSON-key rejection;
 - rejection of strings masquerading as Boolean or integer values;
-- Morimil migration chains through schema version 9;
+- Morimil migration chains through schema version 10;
 - Memory Organ migration chains through schema version 7;
 - the dedicated Morimil `8 -> 9` migration;
+- the dedicated Morimil `9 -> 10` migration and atomic-birth tables;
+- rollback to `ABSENT` when persistence is interrupted before the commit marker;
+- rejection of a second birth without changing the original name;
 - rest-cycle scheduling instrumentation.
 
 This establishes protocol-compatible verification and Android runtime conformance for the implemented boundary. It does not claim that Morimil has completed a Genesis Ultra birth.

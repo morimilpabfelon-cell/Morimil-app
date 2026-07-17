@@ -17,13 +17,17 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         GenesisCoreEntity::class,
         MemoryEventEntity::class,
         MemorySnapshotEntity::class,
-        ImprovementDecisionHistoryEntity::class
+        ImprovementDecisionHistoryEntity::class,
+        GenesisUltraBirthCommitEntity::class,
+        GenesisUltraBirthArtifactEntity::class,
+        GenesisUltraBirthJournalEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = true
 )
 abstract class MorimilDatabase : RoomDatabase() {
     abstract fun memoryDao(): MemoryDao
+    abstract fun genesisUltraBirthDao(): GenesisUltraBirthDao
 
     companion object {
         @Volatile
@@ -228,6 +232,118 @@ abstract class MorimilDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS genesis_ultra_birth_commit (
+                        slotId TEXT NOT NULL,
+                        schemaVersion TEXT NOT NULL,
+                        birthId TEXT NOT NULL,
+                        instanceId TEXT NOT NULL,
+                        companionName TEXT NOT NULL,
+                        seedId TEXT NOT NULL,
+                        seedRootHash TEXT NOT NULL,
+                        identityDigest TEXT NOT NULL,
+                        freedomCharterDigest TEXT NOT NULL,
+                        initialBodyId TEXT NOT NULL,
+                        initialBodyRegistryDigest TEXT NOT NULL,
+                        initialBodyKeyEpochDigest TEXT NOT NULL,
+                        initialBodyPossessionDigest TEXT NOT NULL,
+                        firstMemoryEventHash TEXT NOT NULL,
+                        recoveryStateDigest TEXT NOT NULL,
+                        birthStateDigest TEXT NOT NULL,
+                        receiptDigest TEXT NOT NULL,
+                        journalId TEXT NOT NULL,
+                        bornAt TEXT NOT NULL,
+                        birthStatus TEXT NOT NULL,
+                        activeWriterBodyId TEXT NOT NULL,
+                        activeWriterCount INTEGER NOT NULL,
+                        guardianRole TEXT NOT NULL,
+                        ownershipConferred INTEGER NOT NULL,
+                        artifactCount INTEGER NOT NULL,
+                        journalEntryCount INTEGER NOT NULL,
+                        persistedAtMillis INTEGER NOT NULL,
+                        PRIMARY KEY(slotId)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_genesis_ultra_birth_commit_birthId " +
+                        "ON genesis_ultra_birth_commit(birthId)"
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_genesis_ultra_birth_commit_instanceId " +
+                        "ON genesis_ultra_birth_commit(instanceId)"
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_genesis_ultra_birth_commit_journalId " +
+                        "ON genesis_ultra_birth_commit(journalId)"
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS genesis_ultra_birth_artifacts (
+                        slotId TEXT NOT NULL,
+                        relativePath TEXT NOT NULL,
+                        artifactKind TEXT NOT NULL,
+                        contentDigest TEXT NOT NULL,
+                        byteCount INTEGER NOT NULL,
+                        payload BLOB NOT NULL,
+                        PRIMARY KEY(slotId, relativePath)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_genesis_ultra_birth_artifacts_slotId_artifactKind " +
+                        "ON genesis_ultra_birth_artifacts(slotId, artifactKind)"
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS genesis_ultra_birth_journal (
+                        slotId TEXT NOT NULL,
+                        schemaVersion TEXT NOT NULL,
+                        journalId TEXT NOT NULL,
+                        sequence INTEGER NOT NULL,
+                        previousJournalDigest TEXT NOT NULL,
+                        operationKind TEXT NOT NULL,
+                        operationId TEXT NOT NULL,
+                        instanceId TEXT NOT NULL,
+                        coordinatorBodyId TEXT NOT NULL,
+                        phase TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        previousStateDigest TEXT NOT NULL,
+                        candidateStateDigest TEXT,
+                        finalizationDigest TEXT,
+                        commitMarkerDigest TEXT,
+                        updatedAt TEXT NOT NULL,
+                        journalDigest TEXT NOT NULL,
+                        signatureSchemaVersion TEXT NOT NULL,
+                        signatureProfile TEXT NOT NULL,
+                        signerType TEXT NOT NULL,
+                        signerId TEXT NOT NULL,
+                        keyEpochId TEXT NOT NULL,
+                        signedDomain TEXT NOT NULL,
+                        signedDigest TEXT NOT NULL,
+                        signatureValue TEXT NOT NULL,
+                        signatureCreatedAt TEXT NOT NULL,
+                        publicKeyRef TEXT NOT NULL,
+                        sourceDigest TEXT NOT NULL,
+                        sourceBytes BLOB NOT NULL,
+                        PRIMARY KEY(slotId, sequence)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_genesis_ultra_birth_journal_journalId_sequence " +
+                        "ON genesis_ultra_birth_journal(journalId, sequence)"
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_genesis_ultra_birth_journal_journalDigest " +
+                        "ON genesis_ultra_birth_journal(journalDigest)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): MorimilDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -243,7 +359,8 @@ abstract class MorimilDatabase : RoomDatabase() {
                         MIGRATION_5_6,
                         MIGRATION_6_7,
                         MIGRATION_7_8,
-                        MIGRATION_8_9
+                        MIGRATION_8_9,
+                        MIGRATION_9_10
                     )
                     .build()
                     .also { instance = it }
