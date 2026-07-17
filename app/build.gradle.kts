@@ -74,6 +74,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
     implementation("com.fasterxml.jackson.core:jackson-core:2.22.0")
+    implementation("com.google.crypto.tink:tink-android:1.23.0")
 
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
