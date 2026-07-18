@@ -130,7 +130,7 @@ Implemented but not yet connected to onboarding:
 - preservation of the detached Guardian Seed signature as mandatory durable evidence;
 - conformance tests pinned to Genesis main commit `d0293b3614153ef2155620fc75ceee9bd798f370`;
 - a type-enforced persistence entry point that accepts only fully verified birth evidence;
-- an isolated Room schema 11 boundary with atomic birth rollback to `ABSENT`;
+- an isolated Room schema 12 boundary with atomic birth rollback to `ABSENT` and a non-memory reasoning transcript;
 - one non-duplicated living-memory root backed by the exact signed first-event bytes;
 - structural restart auditing tied to the commit marker;
 - full cryptographic recovery from persisted evidence with caller-supplied trust anchors.
@@ -187,11 +187,12 @@ The suite includes:
 - valid and altered Ed25519 vectors;
 - duplicate JSON-key rejection;
 - strict Boolean and integer type rejection;
-- Morimil migration chains through schema version 11;
+- Morimil migration chains through schema version 12;
 - Memory Organ migration chains through schema version 7;
 - the dedicated Morimil `8 -> 9` migration;
 - the dedicated Morimil `9 -> 10` migration and atomic-birth tables;
 - the dedicated Morimil `10 -> 11` migration and canonical-memory table;
+- the dedicated Morimil `11 -> 12` migration separating reasoning transcript from memory;
 - transaction rollback before the commit marker and second-birth rejection;
 - full evidence parsing and rejection of missing Seed signatures, forged Guardian/Body/journal signatures and unknown fields;
 - exact living-memory-root recovery after a real database close and reopen;
