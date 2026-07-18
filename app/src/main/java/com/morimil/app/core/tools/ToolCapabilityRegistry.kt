@@ -59,6 +59,10 @@ object ToolCapabilityRegistry {
     const val ACTION_INSPECT_UI = "inspect_ui"
     const val ACTION_PROPOSE_VISUAL_CHANGES = "propose_visual_changes"
     const val ACTION_PRODUCE_DESIGN_NOTES = "produce_design_notes"
+    const val ACTION_CANVAS_READ = "canvas_read"
+    const val ACTION_CANVAS_PROPOSE = "canvas_propose"
+    const val ACTION_CANVAS_APPLY = "canvas_apply"
+    const val ACTION_CANVAS_EXPORT = "canvas_export"
     const val ACTION_AUDIT_PERMISSIONS = "audit_permissions"
     const val ACTION_AUDIT_RISK = "audit_risk"
     const val ACTION_RECOMMEND_POLICY = "recommend_policy"
@@ -89,6 +93,10 @@ object ToolCapabilityRegistry {
         read(ACTION_INSPECT_UI, "Inspect UI"),
         propose(ACTION_PROPOSE_VISUAL_CHANGES, "Propose visual changes"),
         propose(ACTION_PRODUCE_DESIGN_NOTES, "Produce design notes"),
+        read(ACTION_CANVAS_READ, "Read local canvas scene"),
+        propose(ACTION_CANVAS_PROPOSE, "Propose canvas elements"),
+        localWrite(ACTION_CANVAS_APPLY, "Apply local canvas changes", requiresAuthorizedDevice = true),
+        localWrite(ACTION_CANVAS_EXPORT, "Export local canvas document", requiresAuthorizedDevice = true),
         read(ACTION_AUDIT_PERMISSIONS, "Audit permissions"),
         read(ACTION_AUDIT_RISK, "Audit risk"),
         propose(ACTION_RECOMMEND_POLICY, "Recommend policy"),
@@ -107,7 +115,19 @@ object ToolCapabilityRegistry {
         "android_build_agent" to listOf(ACTION_RUN_GRADLE_TESTS, ACTION_RUN_ASSEMBLE_DEBUG, ACTION_SUMMARIZE_BUILD_OUTPUT),
         "file_audit_agent" to listOf(ACTION_READ_ALLOWED_FILES, ACTION_SUMMARIZE_FILES, ACTION_PROPOSE_PATCH),
         "research_agent" to listOf(ACTION_RESEARCH_WEB, ACTION_SUMMARIZE_SOURCES, ACTION_PRODUCE_BRIEF),
-        "design_agent" to listOf(ACTION_INSPECT_UI, ACTION_PROPOSE_VISUAL_CHANGES, ACTION_PRODUCE_DESIGN_NOTES),
+        "design_agent" to listOf(
+            ACTION_INSPECT_UI,
+            ACTION_PROPOSE_VISUAL_CHANGES,
+            ACTION_PRODUCE_DESIGN_NOTES,
+            ACTION_CANVAS_READ,
+            ACTION_CANVAS_PROPOSE
+        ),
+        "canvas_agent" to listOf(
+            ACTION_CANVAS_READ,
+            ACTION_CANVAS_PROPOSE,
+            ACTION_CANVAS_APPLY,
+            ACTION_CANVAS_EXPORT
+        ),
         "security_agent" to listOf(ACTION_AUDIT_PERMISSIONS, ACTION_AUDIT_RISK, ACTION_RECOMMEND_POLICY),
         "pc_executor_agent" to listOf(ACTION_PREPARE_COMMAND, ACTION_AWAIT_HUMAN_APPROVAL, ACTION_REPORT_RESULT)
     )
