@@ -155,11 +155,12 @@ The managed Android suite runs the same instrumented boundary on API 30 and API 
 - altered Ed25519 signature rejection;
 - duplicate JSON-key rejection;
 - rejection of strings masquerading as Boolean or integer values;
-- Morimil migration chains through schema version 11;
+- Morimil migration chains through schema version 12, including lossless separation of legacy chat rows into `reasoning_turns`;
 - Memory Organ migration chains through schema version 7;
 - the dedicated Morimil `8 -> 9` migration;
 - the dedicated Morimil `9 -> 10` migration and atomic-birth tables;
 - the dedicated Morimil `10 -> 11` migration and isolated canonical-memory table;
+- the dedicated Morimil `11 -> 12` migration that removes chat rows from the memory namespace without deleting the transcript;
 - rollback to `ABSENT` when persistence is interrupted before the commit marker;
 - enforcement that the atomic persistence entry point requires verified evidence;
 - rejection of a second birth without changing the original name;
