@@ -46,7 +46,7 @@ class ReasoningClientAuxiliaryMotor(
     override suspend fun compute(request: AuxiliaryReasoningRequest): Result<String> {
         return client.sendMessage(
             config = request.config,
-            runtimeAccess = request.runtimeAccess,
+            runtimeKey = request.runtimeAccess,
             systemPrompt = request.systemPrompt,
             history = request.history
         )
