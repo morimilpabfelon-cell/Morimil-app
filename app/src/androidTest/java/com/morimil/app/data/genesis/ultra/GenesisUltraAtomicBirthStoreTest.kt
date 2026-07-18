@@ -16,6 +16,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.lang.reflect.Modifier
 import java.nio.charset.StandardCharsets
 
 @RunWith(AndroidJUnit4::class)
@@ -43,7 +44,7 @@ class GenesisUltraAtomicBirthStoreTest {
         val store = GenesisUltraAtomicBirthStore(database)
 
         assertEquals(GenesisUltraPersistedBirthState.ABSENT, store.readState())
-        val commit = store.persistPrevalidated(bundle, persistedAtMillis = 1000L)
+        val commit = store.persistVerified(testOnlyVerifiedBirth(bundle), persistedAtMillis = 1000L)
 
         assertEquals(GenesisUltraPersistedBirthState.COMMITTED, store.readState())
         assertEquals(GenesisUltraBirthCommitEntity.PRIMARY_SLOT, commit.slotId)
@@ -66,7 +67,10 @@ class GenesisUltraAtomicBirthStoreTest {
         }
 
         val failure = runCatching {
-            store.persistPrevalidated(validBundle(), persistedAtMillis = 1000L)
+            store.persistVerified(
+                testOnlyVerifiedBirth(validBundle()),
+                persistedAtMillis = 1000L
+            )
         }.exceptionOrNull()
 
         assertTrue(failure is IllegalStateException)
@@ -80,11 +84,11 @@ class GenesisUltraAtomicBirthStoreTest {
     fun secondBirthIsRejectedWithoutChangingTheOriginalName() = runBlocking {
         val original = validBundle()
         val store = GenesisUltraAtomicBirthStore(database)
-        store.persistPrevalidated(original, persistedAtMillis = 1000L)
+        store.persistVerified(testOnlyVerifiedBirth(original), persistedAtMillis = 1000L)
 
         val second = validBundle(companionName = "Otro Nombre")
         val failure = runCatching {
-            store.persistPrevalidated(second, persistedAtMillis = 2000L)
+            store.persistVerified(testOnlyVerifiedBirth(second), persistedAtMillis = 2000L)
         }.exceptionOrNull()
 
         assertTrue(failure is IllegalArgumentException)
@@ -92,6 +96,20 @@ class GenesisUltraAtomicBirthStoreTest {
             .loadBirthCommit(GenesisUltraBirthCommitEntity.PRIMARY_SLOT)
         assertEquals("Genesis Libre", persisted?.companionName)
         assertEquals(1, database.genesisUltraBirthDao().countBirthCommits())
+    }
+
+    @Test
+    fun persistenceEntryPointRequiresVerifiedTypeState() {
+        val persistenceEntryPoints = GenesisUltraAtomicBirthStore::class.java.declaredMethods
+            .filter { method ->
+                method.name.startsWith("persist") && !Modifier.isPrivate(method.modifiers)
+            }
+
+        assertEquals(listOf("persistVerified"), persistenceEntryPoints.map { method -> method.name })
+        assertEquals(
+            GenesisUltraVerifiedAtomicBirth::class.java,
+            persistenceEntryPoints.single().parameterTypes.first()
+        )
     }
 
     @Test
@@ -228,6 +246,21 @@ class GenesisUltraAtomicBirthStoreTest {
             artifacts = artifacts,
             journal = journal
         )
+    }
+
+    /**
+     * Store mechanics are tested independently from cryptography. This bridge
+     * exists only in the instrumentation-test APK; application code has no raw
+     * bundle factory and must call GenesisUltraAtomicBirthEvidenceVerifier.
+     */
+    private fun testOnlyVerifiedBirth(
+        bundle: GenesisUltraAtomicBirthPersistenceBundle
+    ): GenesisUltraVerifiedAtomicBirth {
+        val constructor = GenesisUltraVerifiedAtomicBirth::class.java.getDeclaredConstructor(
+            GenesisUltraAtomicBirthPersistenceBundle::class.java
+        )
+        constructor.isAccessible = true
+        return constructor.newInstance(bundle)
     }
 
     private fun journal(
