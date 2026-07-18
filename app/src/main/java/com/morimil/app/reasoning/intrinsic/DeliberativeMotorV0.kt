@@ -56,6 +56,9 @@ interface MorimilDeliberativeCore {
     ): Result<DeliberativePassOutcome>
 
     suspend fun decode(state: DeliberativeLatentState): Result<String>
+
+    /** Releases request-scoped compute resources; it never changes Morimil lifecycle state. */
+    suspend fun release(state: DeliberativeLatentState) = Unit
 }
 
 data class DeliberativeEffortBudget(
@@ -149,48 +152,54 @@ class DeliberativeMotorV0(
             "The deliberative motor cannot act as a candidate verifier."
         }
 
-        val budget = DeliberativeEffortPolicyV0.budgetFor(request.taskComplexity)
-        val input = DeliberativeCoreInput(
-            systemPrompt = request.systemPrompt,
-            history = request.history.toList(),
-            taskComplexity = request.taskComplexity
-        )
-        var state = core.initialize(input).getOrThrow()
-        var completedPasses = 0
-        var stopReason = DeliberativeStopReason.BUDGET_EXHAUSTED
-
-        while (completedPasses < budget.maximumPasses) {
-            val outcome = core.refine(
-                state = state,
-                pass = completedPasses + 1
-            ).getOrThrow()
-            state = outcome.state
-            completedPasses += 1
-
-            val minimumDepthReached = completedPasses >= budget.minimumPasses
-            val converged = outcome.certaintyPermille >= budget.certaintyTargetPermille &&
-                outcome.stabilityPermille >= budget.stabilityTargetPermille
-            if (minimumDepthReached && converged) {
-                stopReason = DeliberativeStopReason.CONVERGED
-                break
-            }
-        }
-
-        val reply = core.decode(state).getOrThrow().trim()
-        require(reply.isNotBlank()) {
-            "The intrinsic deliberative core produced an empty final reply."
-        }
-
-        IntrinsicReasoningResponse(
-            content = reply,
-            findings = listOf(
-                "intrinsic_motor:deliberative",
-                "motor_version:$capabilityVersion",
-                "blueprint_version:${MorimilIntrinsicMotorBlueprints.VERSION}",
-                "deliberation_passes:$completedPasses",
-                "deliberation_stop:${stopReason.name.lowercase()}"
+        var state: DeliberativeLatentState? = null
+        try {
+            val budget = DeliberativeEffortPolicyV0.budgetFor(request.taskComplexity)
+            val input = DeliberativeCoreInput(
+                systemPrompt = request.systemPrompt,
+                history = request.history.toList(),
+                taskComplexity = request.taskComplexity
             )
-        )
+            state = core.initialize(input).getOrThrow()
+            var completedPasses = 0
+            var stopReason = DeliberativeStopReason.BUDGET_EXHAUSTED
+
+            while (completedPasses < budget.maximumPasses) {
+                val currentState = requireNotNull(state)
+                val outcome = core.refine(
+                    state = currentState,
+                    pass = completedPasses + 1
+                ).getOrThrow()
+                state = outcome.state
+                completedPasses += 1
+
+                val minimumDepthReached = completedPasses >= budget.minimumPasses
+                val converged = outcome.certaintyPermille >= budget.certaintyTargetPermille &&
+                    outcome.stabilityPermille >= budget.stabilityTargetPermille
+                if (minimumDepthReached && converged) {
+                    stopReason = DeliberativeStopReason.CONVERGED
+                    break
+                }
+            }
+
+            val reply = core.decode(requireNotNull(state)).getOrThrow().trim()
+            require(reply.isNotBlank()) {
+                "The intrinsic deliberative core produced an empty final reply."
+            }
+
+            IntrinsicReasoningResponse(
+                content = reply,
+                findings = listOf(
+                    "intrinsic_motor:deliberative",
+                    "motor_version:$capabilityVersion",
+                    "blueprint_version:${MorimilIntrinsicMotorBlueprints.VERSION}",
+                    "deliberation_passes:$completedPasses",
+                    "deliberation_stop:${stopReason.name.lowercase()}"
+                )
+            )
+        } finally {
+            state?.let { core.release(it) }
+        }
     }
 
     companion object {

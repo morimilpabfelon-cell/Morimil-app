@@ -124,6 +124,7 @@ class DeliberativeMotorV0Test {
 
         assertTrue(result.isFailure)
         assertTrue(core.decodedStateIds.isEmpty())
+        assertEquals(1, core.releaseCount)
     }
 
     @Test
@@ -218,6 +219,7 @@ class DeliberativeMotorV0Test {
         val initialized: Boolean get() = initializationCount > 0
         val refinementPasses = mutableListOf<Int>()
         val decodedStateIds = mutableListOf<Int>()
+        var releaseCount: Int = 0
 
         override suspend fun initialize(
             input: DeliberativeCoreInput
@@ -247,6 +249,10 @@ class DeliberativeMotorV0Test {
         override suspend fun decode(state: DeliberativeLatentState): Result<String> {
             decodedStateIds += (state as FakeState).id
             return Result.success(reply)
+        }
+
+        override suspend fun release(state: DeliberativeLatentState) {
+            releaseCount += 1
         }
     }
 }
