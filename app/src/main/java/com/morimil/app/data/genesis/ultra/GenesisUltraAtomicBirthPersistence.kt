@@ -291,6 +291,17 @@ internal class GenesisUltraAtomicBirthStore(
         ) {
             return GenesisUltraPersistedBirthState.INCONSISTENT
         }
+        val artifactModels = artifacts.map { artifact -> artifact.toModel() }
+        if (
+            runCatching {
+                GenesisUltraAtomicBirthRecoveryVerifier.structuralLivingMemoryRoot(
+                    commit = commit,
+                    artifacts = artifactModels
+                )
+            }.isFailure
+        ) {
+            return GenesisUltraPersistedBirthState.INCONSISTENT
+        }
         val journal = dao.loadBirthJournal(commit.slotId)
         val journalModels = journal.map { entry -> entry.toModel() }
         val journalIssues = GenesisUltraBirthJournalValidator.validate(
@@ -305,6 +316,13 @@ internal class GenesisUltraAtomicBirthStore(
             journal.lastOrNull()?.commitMarkerDigest != commit.receiptDigest ||
             journal.any { entry -> GenesisUltraHashProfile.sha256(entry.sourceBytes) != entry.sourceDigest } ||
             journal.any { entry ->
+                runCatching {
+                    GenesisUltraAtomicBirthDocumentParser.parseJournalEntry(
+                        decodePersistedUtf8Strict(entry.sourceBytes)
+                    )
+                }.getOrNull() != entry.toModel()
+            } ||
+            journal.any { entry ->
                 entry.operationId != commit.birthId ||
                     entry.instanceId != commit.instanceId ||
                     entry.coordinatorBodyId != commit.initialBodyId ||
@@ -316,6 +334,86 @@ internal class GenesisUltraAtomicBirthStore(
         }
         return GenesisUltraPersistedBirthState.COMMITTED
     }
+
+    /**
+     * Returns the exact first signed event as the one canonical living-memory
+     * root. It is not copied into the legacy memory_events table.
+     */
+    suspend fun readLivingMemoryRoot(): GenesisUltraLivingMemoryRoot? {
+        return when (readState()) {
+            GenesisUltraPersistedBirthState.ABSENT -> null
+            GenesisUltraPersistedBirthState.INCONSISTENT -> {
+                throw IllegalStateException("genesis_ultra_birth_inconsistent")
+            }
+            GenesisUltraPersistedBirthState.COMMITTED -> {
+                val commit = requireNotNull(
+                    dao.loadBirthCommit(GenesisUltraBirthCommitEntity.PRIMARY_SLOT)
+                ) { "genesis_ultra_birth_commit_missing" }
+                GenesisUltraAtomicBirthRecoveryVerifier.structuralLivingMemoryRoot(
+                    commit = commit,
+                    artifacts = dao.loadBirthArtifacts(commit.slotId).map { artifact ->
+                        artifact.toModel()
+                    }
+                )
+            }
+        }
+    }
+
+    /**
+     * Reconstructs the exact committed evidence after restart and reruns every
+     * protocol signature check against caller-supplied trust anchors.
+     */
+    suspend fun recoverVerifiedBirth(
+        request: GenesisUltraAtomicBirthRecoveryRequest
+    ): GenesisUltraRecoveredAtomicBirth? {
+        return when (readState()) {
+            GenesisUltraPersistedBirthState.ABSENT -> null
+            GenesisUltraPersistedBirthState.INCONSISTENT -> {
+                throw IllegalStateException("genesis_ultra_birth_inconsistent")
+            }
+            GenesisUltraPersistedBirthState.COMMITTED -> {
+                val commit = requireNotNull(
+                    dao.loadBirthCommit(GenesisUltraBirthCommitEntity.PRIMARY_SLOT)
+                ) { "genesis_ultra_birth_commit_missing" }
+                val recovered = GenesisUltraAtomicBirthRecoveryVerifier.recover(
+                    artifacts = dao.loadBirthArtifacts(commit.slotId).map { artifact ->
+                        artifact.toModel()
+                    },
+                    journal = dao.loadBirthJournal(commit.slotId).map { entry ->
+                        entry.toEvidence()
+                    },
+                    request = request
+                )
+                GenesisUltraAtomicBirthRecoveryVerifier.requireCommitMatchesVerifiedBirth(
+                    commit = commit,
+                    verifiedBirth = recovered.verifiedBirth()
+                )
+                recovered
+            }
+        }
+    }
+}
+
+private fun decodePersistedUtf8Strict(bytes: ByteArray): String {
+    val decoder = StandardCharsets.UTF_8.newDecoder()
+        .onMalformedInput(CodingErrorAction.REPORT)
+        .onUnmappableCharacter(CodingErrorAction.REPORT)
+    return decoder.decode(ByteBuffer.wrap(bytes)).toString()
+}
+
+private fun GenesisUltraBirthArtifactEntity.toModel(): GenesisUltraBirthArtifact {
+    return GenesisUltraBirthArtifact(
+        relativePath = relativePath,
+        artifactKind = artifactKind,
+        payload = payload.copyOf()
+    )
+}
+
+private fun GenesisUltraBirthJournalEntity.toEvidence(): GenesisUltraBirthJournalEvidence {
+    return GenesisUltraBirthJournalEvidence(
+        entry = toModel(),
+        sourceBytes = sourceBytes.copyOf()
+    )
 }
 
 private fun GenesisUltraBirthJournalEntity.toModel(): GenesisUltraBirthJournalEntry {

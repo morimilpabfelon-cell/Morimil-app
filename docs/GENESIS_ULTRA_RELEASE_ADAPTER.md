@@ -124,7 +124,11 @@ transactional_birth_commit_not_integrated
 
 The pinned Genesis Ultra revision defines a normative `birth` operation, seven transaction phases, crash recovery, an immutable first memory event and a signed birth receipt. Morimil now contains an isolated Room schema and atomic store for the commit marker, exact input bytes and seven journal entries. The commit marker is written last in one SQLite transaction, and interruption tests require all earlier writes to roll back to `ABSENT`.
 
-That store is deliberately not connected to onboarding. Morimil now parses every normative birth document, requires the detached Seed signature as durable evidence, verifies every Guardian and Body Ed25519 envelope, validates all seven signed journal entries and returns a verified type-state only after the full graph agrees. That type-state is now the only input accepted by the atomic store; a raw persistence bundle has no application entry point. The remaining work is to initialize canonical living memory in the same operation and prove restart recovery from the committed evidence. The gate remains closed until Android can prove that complete operation.
+That store is deliberately not connected to onboarding. Morimil now parses every normative birth document, requires the detached Seed signature as durable evidence, verifies every Guardian and Body Ed25519 envelope, validates all seven signed journal entries and returns a verified type-state only after the full graph agrees. That type-state is now the only input accepted by the atomic store; a raw persistence bundle has no application entry point.
+
+The exact persisted `first_memory_event` artifact is the single canonical living-memory root and is never copied into the legacy memory table. After a process or database restart, the store structurally binds that root to the Seed, immutable Instance Identity, birth state, receipt and commit marker. For cryptographic recovery, the store reconstructs the exact release and evidence graph from durable bytes and reruns every Ed25519 check with caller-supplied Guardian trust and the Body public key. Any altered byte, broken graph link or invalid signature fails closed.
+
+The remaining work is the post-birth append bridge: it must use the current active Body and Key Epoch, produce protocol-correct Body Ed25519 signatures, and preserve sequence continuity without converting the first event into a second legacy copy. Onboarding must then invoke verification, atomic commit, recovery proof and activation as one controlled operation. The gate remains closed until Android can prove that complete operation.
 
 Before the gate can open, the Android adapter must implement the protocol's crash-recoverable birth transaction and atomically commit at least:
 
@@ -156,6 +160,9 @@ The managed Android suite runs the same instrumented boundary on API 30 and API 
 - rollback to `ABSENT` when persistence is interrupted before the commit marker;
 - enforcement that the atomic persistence entry point requires verified evidence;
 - rejection of a second birth without changing the original name;
+- structural recovery of the exact first living-memory event after database restart;
+- failure after memory bytes and their storage digest are altered together;
+- full persisted-evidence recovery and forged first-memory signature rejection;
 - rest-cycle scheduling instrumentation.
 
 This establishes protocol-compatible verification and Android runtime conformance for the implemented boundary. It does not claim that Morimil has completed a Genesis Ultra birth.

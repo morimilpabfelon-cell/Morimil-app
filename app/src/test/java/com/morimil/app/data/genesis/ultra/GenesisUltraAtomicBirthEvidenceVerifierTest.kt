@@ -1,6 +1,7 @@
 package com.morimil.app.data.genesis.ultra
 
 import org.json.JSONObject
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -98,6 +99,73 @@ class GenesisUltraAtomicBirthEvidenceVerifierTest {
 
         assertTrue(failure is IllegalArgumentException)
         assertTrue(failure?.message?.contains("atomic_birth_unexpected_or_missing_fields") == true)
+    }
+
+    @Test
+    fun recoversVerifiedBirthAndItsOneLivingMemoryRootFromExactPersistedEvidence() {
+        val fixture = fixture()
+
+        val recovered = GenesisUltraAtomicBirthRecoveryVerifier.recover(
+            artifacts = fixture.request.artifacts,
+            journal = fixture.request.journal,
+            request = GenesisUltraAtomicBirthRecoveryRequest(
+                guardianKeyEpochRegistry = fixture.request.guardianKeyEpochRegistry,
+                bodyRawPublicKey = fixture.request.bodyRawPublicKey
+            )
+        )
+        val expectedSource = fixture.request.artifacts.single { artifact ->
+            artifact.artifactKind == "first_memory_event"
+        }.payload
+
+        assertEquals(
+            recovered.verifiedBirth().copyPersistenceBundle().birthState.firstMemoryEventHash,
+            recovered.livingMemoryRoot.event.eventHash
+        )
+        assertArrayEquals(expectedSource, recovered.livingMemoryRoot.copySourceBytes())
+    }
+
+    @Test
+    fun recoveryRejectsForgedPersistedFirstMemorySignature() {
+        val fixture = fixture()
+        val artifacts = fixture.request.artifacts.map { artifact ->
+            if (artifact.artifactKind != "first_memory_event") return@map artifact
+            val root = JSONObject(artifact.payload.toString(StandardCharsets.UTF_8))
+            root.getJSONObject("signature").put("signature_value", "00".repeat(64))
+            artifact.copy(payload = root.toString().utf8())
+        }
+
+        val failure = runCatching {
+            GenesisUltraAtomicBirthRecoveryVerifier.recover(
+                artifacts = artifacts,
+                journal = fixture.request.journal,
+                request = GenesisUltraAtomicBirthRecoveryRequest(
+                    guardianKeyEpochRegistry = fixture.request.guardianKeyEpochRegistry,
+                    bodyRawPublicKey = fixture.request.bodyRawPublicKey
+                )
+            )
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalArgumentException)
+        assertTrue(failure?.message?.contains("first_memory_signature_invalid") == true)
+    }
+
+    @Test
+    fun livingMemoryRootNeverExposesMutablePersistedBytes() {
+        val fixture = fixture()
+        val root = GenesisUltraAtomicBirthRecoveryVerifier.recover(
+            artifacts = fixture.request.artifacts,
+            journal = fixture.request.journal,
+            request = GenesisUltraAtomicBirthRecoveryRequest(
+                guardianKeyEpochRegistry = fixture.request.guardianKeyEpochRegistry,
+                bodyRawPublicKey = fixture.request.bodyRawPublicKey
+            )
+        ).livingMemoryRoot
+        val original = root.copySourceBytes()
+        val mutated = root.copySourceBytes()
+
+        mutated[0] = (mutated[0].toInt() xor 0x01).toByte()
+
+        assertArrayEquals(original, root.copySourceBytes())
     }
 
     private fun fixture(): Fixture {

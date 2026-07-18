@@ -52,6 +52,10 @@ class GenesisUltraAtomicBirthStoreTest {
         assertEquals(bundle.birthReceipt.receiptDigest, commit.receiptDigest)
         assertEquals(bundle.artifacts.size.toLong(), commit.artifactCount)
         assertEquals(7L, commit.journalEntryCount)
+        assertEquals(
+            bundle.birthState.firstMemoryEventHash,
+            store.readLivingMemoryRoot()?.event?.eventHash
+        )
 
         val persisted = database.genesisUltraBirthDao().loadBirthCommit(commit.slotId)
         assertEquals("Genesis Libre", persisted?.companionName)
@@ -132,6 +136,75 @@ class GenesisUltraAtomicBirthStoreTest {
         assertTrue(issues.contains("seed_artifact_digest_mismatch:doctrine/free-birth.md"))
     }
 
+    @Test
+    fun committedLivingMemoryRootSurvivesARealDatabaseRestart() = runBlocking {
+        val databaseName = "genesis-ultra-birth-restart.db"
+        context.deleteDatabase(databaseName)
+        var fileDatabase: MorimilDatabase? = null
+        try {
+            fileDatabase = Room.databaseBuilder(context, MorimilDatabase::class.java, databaseName)
+                .allowMainThreadQueries()
+                .build()
+            val initialDatabase = requireNotNull(fileDatabase)
+            val bundle = validBundle()
+            GenesisUltraAtomicBirthStore(initialDatabase).persistVerified(
+                testOnlyVerifiedBirth(bundle),
+                persistedAtMillis = 1000L
+            )
+            initialDatabase.close()
+
+            fileDatabase = Room.databaseBuilder(context, MorimilDatabase::class.java, databaseName)
+                .allowMainThreadQueries()
+                .build()
+            val restartedStore = GenesisUltraAtomicBirthStore(requireNotNull(fileDatabase))
+
+            assertEquals(GenesisUltraPersistedBirthState.COMMITTED, restartedStore.readState())
+            assertEquals(
+                bundle.birthState.firstMemoryEventHash,
+                restartedStore.readLivingMemoryRoot()?.event?.eventHash
+            )
+        } finally {
+            fileDatabase?.close()
+            context.deleteDatabase(databaseName)
+        }
+    }
+
+    @Test
+    fun restartAuditRejectsAlteredMemoryEvenWhenRowDigestWasAlsoChanged() = runBlocking {
+        val bundle = validBundle()
+        val store = GenesisUltraAtomicBirthStore(database)
+        store.persistVerified(testOnlyVerifiedBirth(bundle), persistedAtMillis = 1000L)
+        val artifact = database.genesisUltraBirthDao()
+            .loadBirthArtifacts(GenesisUltraBirthCommitEntity.PRIMARY_SLOT)
+            .single { entity -> entity.artifactKind == "first_memory_event" }
+        val root = JSONObject(artifact.payload.toString(StandardCharsets.UTF_8))
+        val altered = GenesisUltraAtomicBirthDocumentParser.parseFirstMemoryEvent(
+            root.toString()
+        ).copy(eventType = "instance.reborn")
+        val alteredHash = GenesisUltraAtomicBirthHashProfile.firstMemoryEventHash(altered)
+        root.put("event_type", altered.eventType)
+            .put("event_hash", alteredHash)
+        root.getJSONObject("signature").put("signed_digest", alteredHash)
+        val alteredBytes = root.toString().utf8()
+
+        database.openHelper.writableDatabase.execSQL(
+            """
+            UPDATE genesis_ultra_birth_artifacts
+            SET payload = ?, contentDigest = ?, byteCount = ?
+            WHERE slotId = ? AND relativePath = ?
+            """.trimIndent(),
+            arrayOf(
+                alteredBytes,
+                GenesisUltraHashProfile.sha256(alteredBytes),
+                alteredBytes.size.toLong(),
+                artifact.slotId,
+                artifact.relativePath
+            )
+        )
+
+        assertEquals(GenesisUltraPersistedBirthState.INCONSISTENT, store.readState())
+    }
+
     private fun validBundle(companionName: String = "Genesis Libre"): GenesisUltraAtomicBirthPersistenceBundle {
         val seedIdentityBytes = "neutral seed identity".utf8()
         val doctrineBytes = "free birth doctrine".utf8()
@@ -172,6 +245,36 @@ class GenesisUltraAtomicBirthStoreTest {
         val identity = identityDraft.copy(
             identityDigest = GenesisUltraHashProfile.instanceIdentityDigest(identityDraft)
         )
+        val firstMemoryDraft = GenesisUltraFirstMemoryEvent(
+            schemaVersion = "genesis.memory.event.v0.1",
+            hashProfile = GenesisUltraHashProfile.FIELD_PROFILE,
+            eventId = "event_01HATOMICBIRTH00000001",
+            instanceId = identity.instanceId,
+            bodyId = BODY_ID,
+            sequence = 0L,
+            previousEventHash = "GENESIS",
+            eventType = "instance.birth",
+            actor = "system",
+            contentDigest = identity.identityDigest,
+            contentType = "application/vnd.genesis.birth+json",
+            contentRef = null,
+            observedAt = identity.bornAt,
+            provenanceDigest = manifest.rootHash,
+            provenanceRef = null,
+            privacy = "private_local",
+            eventHash = "evsha256:" + "0".repeat(64),
+            signature = placeholderEnvelope()
+        )
+        val firstMemoryHash = GenesisUltraAtomicBirthHashProfile.firstMemoryEventHash(
+            firstMemoryDraft
+        )
+        val firstMemory = firstMemoryDraft.copy(
+            eventHash = firstMemoryHash,
+            signature = firstMemoryDraft.signature.copy(
+                signedDomain = "genesis.memory.event.signature.v0.1",
+                signedDigest = firstMemoryHash
+            )
+        )
         val stateDraft = GenesisUltraBirthState(
             schemaVersion = "genesis.birth.state.v0.1",
             birthId = BIRTH_ID,
@@ -184,7 +287,7 @@ class GenesisUltraAtomicBirthStoreTest {
             initialBodyRegistryDigest = digest("body registry"),
             initialBodyKeyEpochDigest = digest("body key epoch"),
             initialBodyPossessionDigest = digest("body possession"),
-            firstMemoryEventHash = eventDigest("first memory"),
+            firstMemoryEventHash = firstMemory.eventHash,
             recoveryStateDigest = digest("recovery state"),
             bornAt = BORN_AT,
             activeWriterCount = 1,
@@ -230,11 +333,17 @@ class GenesisUltraAtomicBirthStoreTest {
             add(artifact("birth/initial-body-registry.json", "initial_body_registry"))
             add(artifact("birth/initial-body-key-epoch.json", "initial_body_key_epoch"))
             add(artifact("birth/initial-body-possession.json", "initial_body_possession"))
-            add(artifact("birth/first-memory-event.json", "first_memory_event"))
+            add(
+                artifact(
+                    "birth/first-memory-event.json",
+                    "first_memory_event",
+                    firstMemoryJson(firstMemory)
+                )
+            )
             add(artifact("birth/recovery-policy.json", "recovery_policy"))
             add(artifact("birth/birth-recovery-state.json", "birth_recovery_state"))
-            add(artifact("birth/birth-state.json", "birth_state"))
-            add(artifact("birth/birth-receipt.json", "birth_receipt"))
+            add(artifact("birth/birth-state.json", "birth_state", birthStateJson(state)))
+            add(artifact("birth/birth-receipt.json", "birth_receipt", birthReceiptJson(receipt)))
             add(artifact("doctrine/free-birth.md", "seed_doctrine", doctrineBytes))
             add(artifact("identity/seed.identity.json", "seed_identity", seedIdentityBytes))
         }
@@ -302,7 +411,7 @@ class GenesisUltraAtomicBirthStoreTest {
             previous = digest
             GenesisUltraBirthJournalEvidence(
                 entry = entry,
-                sourceBytes = "journal-entry-$index:$digest".utf8()
+                sourceBytes = journalJson(entry)
             )
         }
     }
@@ -345,6 +454,117 @@ class GenesisUltraAtomicBirthStoreTest {
             .utf8()
     }
 
+    private fun firstMemoryJson(event: GenesisUltraFirstMemoryEvent): ByteArray {
+        return JSONObject()
+            .put("schema_version", event.schemaVersion)
+            .put("hash_profile", event.hashProfile)
+            .put("event_id", event.eventId)
+            .put("instance_id", event.instanceId)
+            .put("body_id", event.bodyId)
+            .put("sequence", event.sequence)
+            .put("previous_event_hash", event.previousEventHash)
+            .put("event_type", event.eventType)
+            .put("actor", event.actor)
+            .put("content_digest", event.contentDigest)
+            .put("content_type", event.contentType)
+            .put("content_ref", event.contentRef ?: JSONObject.NULL)
+            .put("observed_at", event.observedAt)
+            .put("provenance_digest", event.provenanceDigest)
+            .put("provenance_ref", event.provenanceRef ?: JSONObject.NULL)
+            .put("privacy", event.privacy)
+            .put("event_hash", event.eventHash)
+            .put("signature", signatureJson(event.signature))
+            .toString()
+            .utf8()
+    }
+
+    private fun birthStateJson(state: GenesisUltraBirthState): ByteArray {
+        return JSONObject()
+            .put("schema_version", state.schemaVersion)
+            .put("birth_id", state.birthId)
+            .put("instance_id", state.instanceId)
+            .put("seed_id", state.seedId)
+            .put("seed_root_hash", state.seedRootHash)
+            .put("identity_digest", state.identityDigest)
+            .put("freedom_charter_digest", state.freedomCharterDigest)
+            .put("initial_body_id", state.initialBodyId)
+            .put("initial_body_registry_digest", state.initialBodyRegistryDigest)
+            .put("initial_body_key_epoch_digest", state.initialBodyKeyEpochDigest)
+            .put("initial_body_possession_digest", state.initialBodyPossessionDigest)
+            .put("first_memory_event_hash", state.firstMemoryEventHash)
+            .put("recovery_state_digest", state.recoveryStateDigest)
+            .put("born_at", state.bornAt)
+            .put("active_writer_count", state.activeWriterCount)
+            .put("state_digest", state.stateDigest)
+            .toString()
+            .utf8()
+    }
+
+    private fun birthReceiptJson(receipt: GenesisUltraBirthReceipt): ByteArray {
+        return JSONObject()
+            .put("schema_version", receipt.schemaVersion)
+            .put("birth_id", receipt.birthId)
+            .put("instance_id", receipt.instanceId)
+            .put("journal_id", receipt.journalId)
+            .put("birth_state_digest", receipt.birthStateDigest)
+            .put("seed_root_hash", receipt.seedRootHash)
+            .put("identity_digest", receipt.identityDigest)
+            .put("freedom_charter_digest", receipt.freedomCharterDigest)
+            .put("initial_body_registry_digest", receipt.initialBodyRegistryDigest)
+            .put("initial_body_key_epoch_digest", receipt.initialBodyKeyEpochDigest)
+            .put("initial_body_possession_digest", receipt.initialBodyPossessionDigest)
+            .put("first_memory_event_hash", receipt.firstMemoryEventHash)
+            .put("recovery_state_digest", receipt.recoveryStateDigest)
+            .put("born_at", receipt.bornAt)
+            .put("birth_status", receipt.birthStatus)
+            .put("active_writer_body_id", receipt.activeWriterBodyId)
+            .put("active_writer_count", receipt.activeWriterCount)
+            .put("guardian_role", receipt.guardianRole)
+            .put("ownership_conferred", receipt.ownershipConferred)
+            .put("receipt_digest", receipt.receiptDigest)
+            .put("body_acknowledgement", signatureJson(receipt.bodyAcknowledgement))
+            .put("guardian_witness", signatureJson(receipt.guardianWitness))
+            .toString()
+            .utf8()
+    }
+
+    private fun signatureJson(signature: GenesisUltraSignatureEnvelope): JSONObject {
+        return JSONObject()
+            .put("schema_version", signature.schemaVersion)
+            .put("signature_profile", signature.signatureProfile)
+            .put("signer_type", signature.signerType)
+            .put("signer_id", signature.signerId)
+            .put("key_epoch_id", signature.keyEpochId)
+            .put("signed_domain", signature.signedDomain)
+            .put("signed_digest", signature.signedDigest)
+            .put("signature_value", signature.signatureValue)
+            .put("created_at", signature.createdAt)
+            .put("public_key_ref", signature.publicKeyRef)
+    }
+
+    private fun journalJson(entry: GenesisUltraBirthJournalEntry): ByteArray {
+        return JSONObject()
+            .put("schema_version", entry.schemaVersion)
+            .put("journal_id", entry.journalId)
+            .put("sequence", entry.sequence)
+            .put("previous_journal_digest", entry.previousJournalDigest)
+            .put("operation_kind", entry.operationKind)
+            .put("operation_id", entry.operationId)
+            .put("instance_id", entry.instanceId)
+            .put("coordinator_body_id", entry.coordinatorBodyId)
+            .put("phase", entry.phase)
+            .put("status", entry.status)
+            .put("previous_state_digest", entry.previousStateDigest)
+            .put("candidate_state_digest", entry.candidateStateDigest ?: JSONObject.NULL)
+            .put("finalization_digest", entry.finalizationDigest ?: JSONObject.NULL)
+            .put("commit_marker_digest", entry.commitMarkerDigest ?: JSONObject.NULL)
+            .put("updated_at", entry.updatedAt)
+            .put("journal_digest", entry.journalDigest)
+            .put("signature", signatureJson(entry.signature))
+            .toString()
+            .utf8()
+    }
+
     private fun artifact(path: String, kind: String, payload: ByteArray = "{}".utf8()): GenesisUltraBirthArtifact {
         return GenesisUltraBirthArtifact(relativePath = path, artifactKind = kind, payload = payload)
     }
@@ -365,8 +585,6 @@ class GenesisUltraAtomicBirthStoreTest {
     }
 
     private fun digest(value: String): String = GenesisUltraHashProfile.sha256(value.utf8())
-
-    private fun eventDigest(value: String): String = "evsha256:" + digest(value).removePrefix("sha256:")
 
     private fun String.utf8(): ByteArray = toByteArray(StandardCharsets.UTF_8)
 
