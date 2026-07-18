@@ -11,10 +11,10 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-val morimilCanvasVersion = "0.3.0"
-val morimilCanvasSourceCommit = "7d1e83b0a7b8e9c40fccebcf89e09d89fd329a9b"
+val morimilCanvasVersion = "0.3.1"
+val morimilCanvasSourceCommit = "2a312c11062e7e21f4f2173a8191c2e3954fde56"
 val morimilCanvasBundleUrl = "https://raw.githubusercontent.com/morimilpabfelon-cell/Morimil-excalidraw/bundle/morimil-canvas.zip"
-val morimilCanvasBundleSha256 = "2bdb4cf95c4165b2e01864d4ce20d35f89e418ebba596ec5e9d8a55f4fc67a51"
+val morimilCanvasBundleSha256 = "73b061406d9fff999a859025f497bece4680a896ad19eccb6a391cdb50cd0507"
 val morimilCanvasArchive = layout.buildDirectory.file("downloads/morimil-canvas-$morimilCanvasVersion.zip")
 val morimilCanvasGeneratedAssets = layout.buildDirectory.dir("generated/morimilCanvasAssets")
 
