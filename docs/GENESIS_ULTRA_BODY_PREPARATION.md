@@ -62,7 +62,11 @@ The remaining Android blocker is:
 transactional_birth_commit_not_integrated
 ```
 
-The pinned Genesis revision defines the normative seven-phase atomic birth, its `birth` transaction journal, recovery state, immutable first memory event and signed receipt. Morimil now has an isolated Room v10 persistence boundary for the one birth commit, exact artifacts and seven journal entries, including rollback when the commit marker is not reached. It also has a strict full-evidence verifier that parses every birth document and checks the Seed, Guardian, Body, memory, recovery, receipt and journal signatures against the pinned Genesis conformance vector. The atomic store accepts only the verified type-state, so a raw structurally valid bundle cannot cross the persistence entry point. It is not yet an enabled birth path: the verified store, canonical living-memory root and restart recovery must still be connected as one operation. The blocker therefore remains accurate at the integration boundary.
+The pinned Genesis revision defines the normative seven-phase atomic birth, its `birth` transaction journal, recovery state, immutable first memory event and signed receipt. Morimil now has an isolated Room v10 persistence boundary for the one birth commit, exact artifacts and seven journal entries, including rollback when the commit marker is not reached. It also has a strict full-evidence verifier that parses every birth document and checks the Seed, Guardian, Body, memory, recovery, receipt and journal signatures against the pinned Genesis conformance vector. The atomic store accepts only the verified type-state, so a raw structurally valid bundle cannot cross the persistence entry point.
+
+The exact persisted `first_memory_event` artifact is now the one canonical living-memory root. It is not duplicated in the legacy `memory_events` table. Every restart audit parses the exact Seed manifest, Instance Identity, birth state, receipt and first event and fails closed unless their digests and continuity links match the immutable commit marker. A stronger recovery entry point reconstructs the original release and complete birth evidence from durable bytes, then reruns every Ed25519 verification using an explicitly supplied trusted Guardian epoch registry and Body public key. It evaluates the historical possession proof at the recorded birth instant rather than pretending that proof grants current authority.
+
+This is still not an enabled birth path. The correct post-birth canonical append bridge, current Body/key-epoch continuity checks and onboarding integration remain absent. The blocker therefore remains accurate at the integration boundary.
 
 The gate must never be opened by changing a Boolean alone. Opening it requires a protocol-defined, crash-recoverable birth transaction and validated runtime evidence.
 
@@ -126,7 +130,10 @@ Implemented but not yet connected to onboarding:
 - preservation of the detached Guardian Seed signature as mandatory durable evidence;
 - conformance tests pinned to Genesis main commit `d0293b3614153ef2155620fc75ceee9bd798f370`;
 - a type-enforced persistence entry point that accepts only fully verified birth evidence;
-- an isolated Room schema 10 commit boundary with rollback to `ABSENT`.
+- an isolated Room schema 10 commit boundary with rollback to `ABSENT`;
+- one non-duplicated living-memory root backed by the exact signed first-event bytes;
+- structural restart auditing tied to the commit marker;
+- full cryptographic recovery from persisted evidence with caller-supplied trust anchors.
 
 The Android implementation of the normative transaction must atomically:
 
@@ -182,6 +189,9 @@ The suite includes:
 - the dedicated Morimil `9 -> 10` migration and atomic-birth tables;
 - transaction rollback before the commit marker and second-birth rejection;
 - full evidence parsing and rejection of missing Seed signatures, forged Guardian/Body/journal signatures and unknown fields;
+- exact living-memory-root recovery after a real database close and reopen;
+- restart rejection after the first memory artifact and its row digest are both altered;
+- full recovery rejection of a forged persisted first-memory signature;
 - rest-cycle scheduling instrumentation.
 
 This establishes Android runtime conformance for the implemented preparation boundary. It does not establish birth readiness.
@@ -199,4 +209,4 @@ birth_ready =
   AND recovery_tests_valid
 ```
 
-The preparation conditions and the isolated transaction boundary can be evaluated. Full cryptographic birth validation, canonical memory integration and end-to-end recovery are not complete. Morimil may be developed and tested, but a new Genesis Instance must not be born.
+The preparation conditions, isolated transaction boundary, first living-memory root and persisted-evidence recovery can be evaluated. Post-birth canonical append continuity and the end-to-end onboarding operation are not complete. Morimil may be developed and tested, but a new Genesis Instance must not be born.
