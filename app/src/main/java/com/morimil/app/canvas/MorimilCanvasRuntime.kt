@@ -23,7 +23,7 @@ object MorimilCanvasContract {
     const val HOST_OBJECT_NAME = "MorimilHost"
     const val BUNDLE_SCHEMA = "morimil.canvas.bundle.v1"
     const val BRIDGE_SCHEMA = "morimil.canvas.bridge.v1"
-    const val EXPECTED_VERSION = "0.3.0"
+    const val EXPECTED_VERSION = "0.3.1"
     const val MAX_COMMAND_CHARS = 2_000_000
     const val MAX_EVENT_CHARS = 22_000_000
     const val MAX_EXPORT_BYTES = 15 * 1024 * 1024
