@@ -219,6 +219,22 @@ internal class GenesisUltraAtomicBirthStore(
         verifiedBirth: GenesisUltraVerifiedAtomicBirth,
         persistedAtMillis: Long
     ): GenesisUltraBirthCommitEntity {
+        return MemoryAppendGate.withAppendLock {
+            database.withTransaction {
+                writeVerifiedInsideTransaction(verifiedBirth, persistedAtMillis)
+            }
+        }
+    }
+
+    /**
+     * Caller must already hold [MemoryAppendGate] and an active Room transaction.
+     * Kept separate from [persistVerified] so activation can include recovery and
+     * the first canonical append in the same SQLite commit.
+     */
+    internal suspend fun writeVerifiedInsideTransaction(
+        verifiedBirth: GenesisUltraVerifiedAtomicBirth,
+        persistedAtMillis: Long
+    ): GenesisUltraBirthCommitEntity {
         require(persistedAtMillis >= 0L) { "persisted_at_invalid" }
         val bundle = verifiedBirth.copyPersistenceBundle()
         val issues = GenesisUltraAtomicBirthPersistenceValidator.validate(bundle)
@@ -234,35 +250,31 @@ internal class GenesisUltraAtomicBirthStore(
             journalEntryCount = journal.size.toLong()
         )
 
-        return MemoryAppendGate.withAppendLock {
-            database.withTransaction {
-                require(dao.countBirthCommits() == 0) { "genesis_ultra_birth_already_committed" }
-                require(dao.countBirthArtifacts() == 0) { "genesis_ultra_birth_artifacts_not_absent" }
-                require(dao.countBirthJournalEntries() == 0) { "genesis_ultra_birth_journal_not_absent" }
-                require(database.memoryDao().countLocalIdentity() == 0) {
-                    "legacy_local_identity_conflicts_with_genesis_ultra_birth"
-                }
-                require(database.memoryDao().countGenesisCore() == 0) {
-                    "legacy_genesis_core_conflicts_with_genesis_ultra_birth"
-                }
-
-                dao.insertBirthArtifacts(artifacts)
-                checkpoint(GenesisUltraBirthPersistenceCheckpoint.AFTER_ARTIFACTS)
-                dao.insertBirthJournal(journal)
-                checkpoint(GenesisUltraBirthPersistenceCheckpoint.AFTER_JOURNAL)
-                dao.insertBirthCommit(commit)
-                checkpoint(GenesisUltraBirthPersistenceCheckpoint.AFTER_COMMIT_MARKER)
-
-                require(dao.countBirthCommits() == 1) { "birth_commit_marker_missing" }
-                require(dao.countBirthArtifacts().toLong() == commit.artifactCount) {
-                    "birth_artifact_count_mismatch"
-                }
-                require(dao.countBirthJournalEntries().toLong() == commit.journalEntryCount) {
-                    "birth_journal_count_mismatch"
-                }
-                commit
-            }
+        require(dao.countBirthCommits() == 0) { "genesis_ultra_birth_already_committed" }
+        require(dao.countBirthArtifacts() == 0) { "genesis_ultra_birth_artifacts_not_absent" }
+        require(dao.countBirthJournalEntries() == 0) { "genesis_ultra_birth_journal_not_absent" }
+        require(database.memoryDao().countLocalIdentity() == 0) {
+            "legacy_local_identity_conflicts_with_genesis_ultra_birth"
         }
+        require(database.memoryDao().countGenesisCore() == 0) {
+            "legacy_genesis_core_conflicts_with_genesis_ultra_birth"
+        }
+
+        dao.insertBirthArtifacts(artifacts)
+        checkpoint(GenesisUltraBirthPersistenceCheckpoint.AFTER_ARTIFACTS)
+        dao.insertBirthJournal(journal)
+        checkpoint(GenesisUltraBirthPersistenceCheckpoint.AFTER_JOURNAL)
+        dao.insertBirthCommit(commit)
+        checkpoint(GenesisUltraBirthPersistenceCheckpoint.AFTER_COMMIT_MARKER)
+
+        require(dao.countBirthCommits() == 1) { "birth_commit_marker_missing" }
+        require(dao.countBirthArtifacts().toLong() == commit.artifactCount) {
+            "birth_artifact_count_mismatch"
+        }
+        require(dao.countBirthJournalEntries().toLong() == commit.journalEntryCount) {
+            "birth_journal_count_mismatch"
+        }
+        return commit
     }
 
     suspend fun readState(): GenesisUltraPersistedBirthState {
@@ -364,6 +376,13 @@ internal class GenesisUltraAtomicBirthStore(
      * protocol signature check against caller-supplied trust anchors.
      */
     suspend fun recoverVerifiedBirth(
+        request: GenesisUltraAtomicBirthRecoveryRequest
+    ): GenesisUltraRecoveredAtomicBirth? {
+        return recoverCommittedInsideTransaction(request)
+    }
+
+    /** Caller is responsible for transaction and append-gate ownership when composing activation. */
+    internal suspend fun recoverCommittedInsideTransaction(
         request: GenesisUltraAtomicBirthRecoveryRequest
     ): GenesisUltraRecoveredAtomicBirth? {
         return when (readState()) {
