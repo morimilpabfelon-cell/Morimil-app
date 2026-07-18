@@ -113,11 +113,15 @@ fun MemoryScreen(viewModel: MemoryViewModel) {
             onRefresh = viewModel::refreshOrganismHealth,
             onRunIntegrityAudit = viewModel::runMemoryIntegrityAudit
         )
-        ProjectCard("Conversation memory", "${messages.size} mensajes persistidos.", "connected")
+        ProjectCard(
+            "Historial de conversación",
+            "${messages.size} turnos operativos; no forman parte de la memoria canónica.",
+            "separated"
+        )
         snapshot?.let { liveSnapshot ->
             ProjectCard(
                 "Living snapshot",
-                "${liveSnapshot.eventCount} eventos / ${liveSnapshot.messageCount} mensajes. ${liveSnapshot.summary.take(260)}",
+                "${liveSnapshot.eventCount} eventos de memoria viva. ${liveSnapshot.summary.take(260)}",
                 "updated=${liveSnapshot.updatedAtMillis}"
             )
         } ?: ProjectCard("Living snapshot", "Todavia no existe snapshot vivo.", "pending")
