@@ -24,6 +24,10 @@ class GenesisUltraVerifiedAtomicBirth private constructor(
 
     internal fun copyPersistenceBundle(): GenesisUltraAtomicBirthPersistenceBundle = snapshot.snapshot()
 
+    internal fun copyLivingMemoryRoot(): GenesisUltraLivingMemoryRoot {
+        return GenesisUltraAtomicBirthRecoveryVerifier.livingMemoryRoot(snapshot.snapshot())
+    }
+
     internal companion object {
         fun verify(request: GenesisUltraAtomicBirthEvidenceRequest): GenesisUltraVerifiedAtomicBirth {
             return GenesisUltraVerifiedAtomicBirth(
@@ -162,11 +166,17 @@ object GenesisUltraAtomicBirthEvidenceVerifier {
         require(
             firstMemory.sequence == 0L &&
                 firstMemory.previousEventHash == "GENESIS" &&
-                firstMemory.eventType == "instance.birth"
+                firstMemory.eventType == "instance.birth" &&
+                firstMemory.actor == "system"
         ) { "first_memory_chain_invalid" }
         require(
             firstMemory.contentDigest == identity.identityDigest &&
-                firstMemory.provenanceDigest == manifest.rootHash
+                firstMemory.contentType == "application/vnd.genesis.birth+json" &&
+                firstMemory.contentRef == null &&
+                firstMemory.observedAt == identity.bornAt &&
+                firstMemory.provenanceDigest == manifest.rootHash &&
+                firstMemory.provenanceRef == null &&
+                firstMemory.privacy == "private_local"
         ) { "first_memory_content_invalid" }
         verifyEnvelope(
             firstMemory.signature,
