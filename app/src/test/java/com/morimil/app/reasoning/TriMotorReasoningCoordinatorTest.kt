@@ -10,24 +10,30 @@ import org.junit.Test
 
 class TriMotorReasoningCoordinatorTest {
     @Test
-    fun lightTaskActivatesOnlyIntuitiveMotor() = runBlocking {
+    fun emptyIntrinsicRegistryDoesNotInventAnApiBackedMotor() = runBlocking {
+        val coordinator = IntrinsicTriMotorCoordinator()
+
+        val result = coordinator.reason(request(ReasoningTaskComplexity.LIGHT_LOCAL))
+
+        assertTrue(coordinator.availableRoles().isEmpty())
+        assertTrue(result.isFailure)
+    }
+
+    @Test
+    fun lightTaskActivatesOnlyIntrinsicIntuitiveMotor() = runBlocking {
         val calls = mutableListOf<ReasoningMotorRole>()
-        val coordinator = TriMotorReasoningCoordinator(
+        val coordinator = IntrinsicTriMotorCoordinator(
             motors = allMotors(calls)
         )
 
         val result = coordinator.reason(
-            complexity = ReasoningTaskComplexity.LIGHT_LOCAL,
-            request = request()
+            request(ReasoningTaskComplexity.LIGHT_LOCAL)
         ).getOrThrow()
 
         assertEquals("intuitive reply", result.reply)
         assertEquals(listOf(ReasoningMotorRole.INTUITIVE), calls)
         assertEquals(listOf(ReasoningMotorRole.INTUITIVE), result.activatedRoles)
-        assertEquals(
-            ReasoningMotorBinding.MORIMIL_INTRINSIC,
-            result.activatedBindings.single().binding
-        )
+        assertEquals("intuitive-v1", result.activatedVersions[ReasoningMotorRole.INTUITIVE])
         assertFalse(result.requestedRoles.contains(ReasoningMotorRole.METACOGNITIVE))
     }
 
@@ -35,21 +41,21 @@ class TriMotorReasoningCoordinatorTest {
     fun criticalTaskUsesDeliberativeThenMetacognitiveMotor() = runBlocking {
         val calls = mutableListOf<ReasoningMotorRole>()
         var candidateSeenByVerifier: String? = null
-        val coordinator = TriMotorReasoningCoordinator(
+        val coordinator = IntrinsicTriMotorCoordinator(
             motors = listOf(
                 fakeMotor(ReasoningMotorRole.INTUITIVE, calls, "intuitive reply"),
                 fakeMotor(ReasoningMotorRole.DELIBERATIVE, calls, "deliberative draft"),
-                object : SpecializedReasoningMotor {
+                object : IntrinsicReasoningMotor {
                     override val role = ReasoningMotorRole.METACOGNITIVE
-                    override val binding = ReasoningMotorBinding.MORIMIL_INTRINSIC
+                    override val capabilityVersion = "metacognitive-v1"
 
                     override suspend fun compute(
-                        request: SpecializedReasoningRequest
-                    ): Result<SpecializedReasoningResponse> {
+                        request: IntrinsicReasoningRequest
+                    ): Result<IntrinsicReasoningResponse> {
                         calls += role
                         candidateSeenByVerifier = request.candidateReply
                         return Result.success(
-                            SpecializedReasoningResponse(
+                            IntrinsicReasoningResponse(
                                 content = "verified reply",
                                 findings = listOf("claim_checked")
                             )
@@ -60,8 +66,7 @@ class TriMotorReasoningCoordinatorTest {
         )
 
         val result = coordinator.reason(
-            complexity = ReasoningTaskComplexity.ARCHITECTURE_CRITICAL,
-            request = request()
+            request(ReasoningTaskComplexity.ARCHITECTURE_CRITICAL)
         ).getOrThrow()
 
         assertEquals("deliberative draft", candidateSeenByVerifier)
@@ -74,20 +79,19 @@ class TriMotorReasoningCoordinatorTest {
     }
 
     @Test
-    fun missingDeepMotorsDegradesToAvailableIntuitiveMotor() = runBlocking {
+    fun missingDeepMotorsDegradesWithinIntrinsicRegistry() = runBlocking {
         val calls = mutableListOf<ReasoningMotorRole>()
-        val coordinator = TriMotorReasoningCoordinator(
+        val coordinator = IntrinsicTriMotorCoordinator(
             motors = listOf(
-                fakeMotor(ReasoningMotorRole.INTUITIVE, calls, "safe local fallback")
+                fakeMotor(ReasoningMotorRole.INTUITIVE, calls, "safe intrinsic fallback")
             )
         )
 
         val result = coordinator.reason(
-            complexity = ReasoningTaskComplexity.DEEP_ANALYSIS,
-            request = request()
+            request(ReasoningTaskComplexity.DEEP_ANALYSIS)
         ).getOrThrow()
 
-        assertEquals("safe local fallback", result.reply)
+        assertEquals("safe intrinsic fallback", result.reply)
         assertEquals(listOf(ReasoningMotorRole.INTUITIVE), result.activatedRoles)
         assertTrue(result.unavailableRoles.contains(ReasoningMotorRole.DELIBERATIVE))
         assertTrue(result.unavailableRoles.contains(ReasoningMotorRole.METACOGNITIVE))
@@ -96,7 +100,7 @@ class TriMotorReasoningCoordinatorTest {
     @Test
     fun failedPreferredMotorFallsBackWithoutLosingReply() = runBlocking {
         val calls = mutableListOf<ReasoningMotorRole>()
-        val coordinator = TriMotorReasoningCoordinator(
+        val coordinator = IntrinsicTriMotorCoordinator(
             motors = listOf(
                 fakeMotor(ReasoningMotorRole.DELIBERATIVE, calls, failure = true),
                 fakeMotor(ReasoningMotorRole.INTUITIVE, calls, "fallback reply")
@@ -104,8 +108,7 @@ class TriMotorReasoningCoordinatorTest {
         )
 
         val result = coordinator.reason(
-            complexity = ReasoningTaskComplexity.CODE_REVIEW,
-            request = request()
+            request(ReasoningTaskComplexity.CODE_REVIEW)
         ).getOrThrow()
 
         assertEquals("fallback reply", result.reply)
@@ -117,22 +120,37 @@ class TriMotorReasoningCoordinatorTest {
     }
 
     @Test
-    fun motorContractsExposeNoPersistenceCapability() {
-        val forbidden = listOf("Repository", "Dao", "MemoryUseCase", "IdentityWriter", "Lifecycle")
-        val parameterNames = SpecializedReasoningMotor::class.java.methods
-            .flatMap { method -> method.parameterTypes.toList() }
+    fun intrinsicContractContainsNoApiOrPersistenceCapability() {
+        val forbidden = listOf(
+            ReasoningProviderConfig::class.java.name,
+            TemporaryExternalReasoningProvider::class.java.name,
+            "Repository",
+            "Dao",
+            "MemoryUseCase",
+            "RuntimeAccess",
+            "Endpoint",
+            "IdentityWriter",
+            "Lifecycle"
+        )
+        val exposedTypeNames = IntrinsicReasoningMotor::class.java.methods
+            .flatMap { method -> method.parameterTypes.toList() + method.returnType }
             .map { type -> type.name }
 
-        assertTrue(parameterNames.isNotEmpty())
+        assertTrue(exposedTypeNames.isNotEmpty())
         assertTrue(
-            parameterNames.none { name -> forbidden.any { token -> name.contains(token) } }
+            exposedTypeNames.none { name -> forbidden.any { token -> name.contains(token) } }
+        )
+        assertTrue(
+            IntrinsicReasoningRequest::class.java.declaredFields.none { field ->
+                forbidden.any { token -> field.type.name.contains(token) }
+            }
         )
     }
 
     @Test(expected = IllegalArgumentException::class)
     fun duplicateMotorRolesAreRejected() {
         val calls = mutableListOf<ReasoningMotorRole>()
-        TriMotorReasoningCoordinator(
+        IntrinsicTriMotorCoordinator(
             motors = listOf(
                 fakeMotor(ReasoningMotorRole.INTUITIVE, calls, "first"),
                 fakeMotor(ReasoningMotorRole.INTUITIVE, calls, "duplicate")
@@ -140,30 +158,25 @@ class TriMotorReasoningCoordinatorTest {
         )
     }
 
-    @Test
-    fun auxiliaryAdapterIsNeverReportedAsIntrinsic() = runBlocking {
-        val coordinator = TriMotorReasoningCoordinator(
+    @Test(expected = IllegalArgumentException::class)
+    fun intrinsicMotorWithoutCapabilityVersionIsRejected() {
+        IntrinsicTriMotorCoordinator(
             motors = listOf(
-                AuxiliaryReasoningMotorAdapter(
-                    delegate = AuxiliaryReasoningMotor {
-                        Result.success("temporary reply")
+                object : IntrinsicReasoningMotor {
+                    override val role = ReasoningMotorRole.INTUITIVE
+                    override val capabilityVersion = ""
+
+                    override suspend fun compute(
+                        request: IntrinsicReasoningRequest
+                    ): Result<IntrinsicReasoningResponse> {
+                        return Result.success(IntrinsicReasoningResponse("reply"))
                     }
-                )
+                }
             )
-        )
-
-        val result = coordinator.reason(
-            complexity = ReasoningTaskComplexity.LIGHT_LOCAL,
-            request = request()
-        ).getOrThrow()
-
-        assertEquals(
-            ReasoningMotorBinding.TEMPORARY_AUXILIARY,
-            result.activatedBindings.single().binding
         )
     }
 
-    private fun allMotors(calls: MutableList<ReasoningMotorRole>): List<SpecializedReasoningMotor> {
+    private fun allMotors(calls: MutableList<ReasoningMotorRole>): List<IntrinsicReasoningMotor> {
         return listOf(
             fakeMotor(ReasoningMotorRole.INTUITIVE, calls, "intuitive reply"),
             fakeMotor(ReasoningMotorRole.DELIBERATIVE, calls, "deliberative reply"),
@@ -176,30 +189,29 @@ class TriMotorReasoningCoordinatorTest {
         calls: MutableList<ReasoningMotorRole>,
         reply: String = "",
         failure: Boolean = false
-    ): SpecializedReasoningMotor {
-        return object : SpecializedReasoningMotor {
+    ): IntrinsicReasoningMotor {
+        return object : IntrinsicReasoningMotor {
             override val role = motorRole
-            override val binding = ReasoningMotorBinding.MORIMIL_INTRINSIC
+            override val capabilityVersion = "${motorRole.name.lowercase()}-v1"
 
             override suspend fun compute(
-                request: SpecializedReasoningRequest
-            ): Result<SpecializedReasoningResponse> {
+                request: IntrinsicReasoningRequest
+            ): Result<IntrinsicReasoningResponse> {
                 calls += role
                 return if (failure) {
                     Result.failure(IllegalStateException("motor unavailable"))
                 } else {
-                    Result.success(SpecializedReasoningResponse(content = reply))
+                    Result.success(IntrinsicReasoningResponse(content = reply))
                 }
             }
         }
     }
 
-    private fun request(): AuxiliaryReasoningRequest {
-        return AuxiliaryReasoningRequest(
-            config = ReasoningProviderConfig.default(),
-            runtimeAccess = "",
+    private fun request(complexity: ReasoningTaskComplexity): IntrinsicReasoningRequest {
+        return IntrinsicReasoningRequest(
             systemPrompt = "system",
-            history = emptyList()
+            history = emptyList(),
+            taskComplexity = complexity
         )
     }
 }
