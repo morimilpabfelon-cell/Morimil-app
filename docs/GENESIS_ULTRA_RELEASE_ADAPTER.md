@@ -124,7 +124,7 @@ transactional_birth_commit_not_integrated
 
 The pinned Genesis Ultra revision defines a normative `birth` operation, seven transaction phases, crash recovery, an immutable first memory event and a signed birth receipt. Morimil now contains an isolated Room schema and atomic store for the commit marker, exact input bytes and seven journal entries. The commit marker is written last in one SQLite transaction, and interruption tests require all earlier writes to roll back to `ABSENT`.
 
-That store is deliberately not connected to onboarding. Full Ed25519 verification of every birth envelope, parsing of every persisted evidence document, canonical living-memory integration and restart recovery evidence are still required. The gate remains closed until Android can prove that complete operation rather than merely persist a structurally linked candidate.
+That store is deliberately not connected to onboarding. Morimil now parses every normative birth document, requires the detached Seed signature as durable evidence, verifies every Guardian and Body Ed25519 envelope, validates all seven signed journal entries and returns a verified type-state only after the full graph agrees. The remaining work is to make that verified type-state the only input accepted by the atomic store, initialize canonical living memory in the same operation and prove restart recovery from the committed evidence. The gate remains closed until Android can prove that complete operation.
 
 Before the gate can open, the Android adapter must implement the protocol's crash-recoverable birth transaction and atomically commit at least:
 
@@ -141,7 +141,7 @@ Until the remaining validation and integration exist, every `GenesisUltraBirthCa
 
 ## Conformance coverage
 
-The JVM tests reproduce Genesis Ultra golden vectors for framing, Seed root, Instance Identity, Body Registry, Key Epoch, Body Possession and Ed25519 signature verification. Negative tests cover altered payloads, unexpected files, extra JSON fields, duplicate keys, unsafe paths, non-NFC identity text, multiple active writers, untrusted signer identity, signature mutation, expired possession proofs, mutable input bytes and cross-Body evidence.
+The JVM tests reproduce Genesis Ultra golden vectors for framing, Seed root, Instance Identity, Body Registry, Key Epoch, Body Possession, the full atomic-birth evidence graph and Ed25519 signature verification. Negative tests cover altered payloads, missing detached Seed signatures, forged Freedom Charter and journal signatures, unexpected files and fields, duplicate keys, unsafe paths, non-NFC identity text, multiple active writers, untrusted signer identity, expired possession proofs, mutable input bytes and cross-Body evidence.
 
 The managed Android suite runs the same instrumented boundary on API 30 and API 35. Android runtime coverage includes:
 

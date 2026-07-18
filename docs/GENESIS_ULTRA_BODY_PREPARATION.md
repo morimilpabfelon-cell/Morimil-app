@@ -62,7 +62,7 @@ The remaining Android blocker is:
 transactional_birth_commit_not_integrated
 ```
 
-The pinned Genesis revision defines the normative seven-phase atomic birth, its `birth` transaction journal, recovery state, immutable first memory event and signed receipt. Morimil now has an isolated Room v10 persistence boundary for the one birth commit, exact artifacts and seven journal entries, including rollback when the commit marker is not reached. It is not yet an enabled birth path: complete signature verification, evidence parsing, living-memory integration and restart recovery must still be connected. The blocker therefore remains accurate at the integration boundary.
+The pinned Genesis revision defines the normative seven-phase atomic birth, its `birth` transaction journal, recovery state, immutable first memory event and signed receipt. Morimil now has an isolated Room v10 persistence boundary for the one birth commit, exact artifacts and seven journal entries, including rollback when the commit marker is not reached. It also has a strict full-evidence verifier that parses every birth document and checks the Seed, Guardian, Body, memory, recovery, receipt and journal signatures against the pinned Genesis conformance vector. It is not yet an enabled birth path: the verified type-state, atomic store, living-memory root and restart recovery must still be connected as one operation. The blocker therefore remains accurate at the integration boundary.
 
 The gate must never be opened by changing a Boolean alone. Opening it requires a protocol-defined, crash-recoverable birth transaction and validated runtime evidence.
 
@@ -119,6 +119,14 @@ Completed for the signed-release boundary of the pinned protocol revision:
 
 Not complete.
 
+Implemented but not yet connected to onboarding:
+
+- strict parsers for every normative birth evidence document;
+- exact verification of all required Ed25519 envelopes and cross-document links;
+- preservation of the detached Guardian Seed signature as mandatory durable evidence;
+- conformance tests pinned to Genesis main commit `d0293b3614153ef2155620fc75ceee9bd798f370`;
+- an isolated Room schema 10 commit boundary with rollback to `ABSENT`.
+
 The Android implementation of the normative transaction must atomically:
 
 - commit original Seed bytes and root;
@@ -172,6 +180,7 @@ The suite includes:
 - the dedicated Morimil `8 -> 9` migration;
 - the dedicated Morimil `9 -> 10` migration and atomic-birth tables;
 - transaction rollback before the commit marker and second-birth rejection;
+- full evidence parsing and rejection of missing Seed signatures, forged Guardian/Body/journal signatures and unknown fields;
 - rest-cycle scheduling instrumentation.
 
 This establishes Android runtime conformance for the implemented preparation boundary. It does not establish birth readiness.
