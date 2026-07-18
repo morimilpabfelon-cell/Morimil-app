@@ -1,5 +1,6 @@
 package com.morimil.app.reasoning
 
+import com.morimil.app.ai.ChatTurn
 import com.morimil.app.reasoning.model.ReasoningTaskComplexity
 
 /** Stable reasoning roles. Providers and model families remain replaceable. */
@@ -9,46 +10,28 @@ enum class ReasoningMotorRole {
     METACOGNITIVE
 }
 
-enum class ReasoningMotorBinding {
-    MORIMIL_INTRINSIC,
-    TEMPORARY_AUXILIARY
-}
-
-data class SpecializedReasoningRequest(
-    val base: AuxiliaryReasoningRequest,
+data class IntrinsicReasoningRequest(
+    val systemPrompt: String,
+    val history: List<ChatTurn>,
+    val taskComplexity: ReasoningTaskComplexity,
     val candidateReply: String? = null
 )
 
-data class SpecializedReasoningResponse(
+data class IntrinsicReasoningResponse(
     val content: String,
     val findings: List<String> = emptyList()
 )
 
 /**
- * A computation-only capability. Implementations receive transient inputs and
- * expose no memory, identity, lifecycle or persistence writer.
+ * One of Morimil's own computation-only motors. Its capability version can grow
+ * through a separately verified learning pipeline, while runtime inference
+ * exposes no API configuration, memory, identity, lifecycle or persistence writer.
  */
-interface SpecializedReasoningMotor {
+interface IntrinsicReasoningMotor {
     val role: ReasoningMotorRole
-    val binding: ReasoningMotorBinding
+    val capabilityVersion: String
 
-    suspend fun compute(request: SpecializedReasoningRequest): Result<SpecializedReasoningResponse>
-}
-
-/** Keeps the current temporary helper usable as the first intuitive motor. */
-class AuxiliaryReasoningMotorAdapter(
-    private val delegate: AuxiliaryReasoningMotor,
-    override val role: ReasoningMotorRole = ReasoningMotorRole.INTUITIVE
-) : SpecializedReasoningMotor {
-    override val binding: ReasoningMotorBinding = ReasoningMotorBinding.TEMPORARY_AUXILIARY
-
-    override suspend fun compute(
-        request: SpecializedReasoningRequest
-    ): Result<SpecializedReasoningResponse> {
-        return delegate.compute(request.base).map { reply ->
-            SpecializedReasoningResponse(content = reply)
-        }
-    }
+    suspend fun compute(request: IntrinsicReasoningRequest): Result<IntrinsicReasoningResponse>
 }
 
 data class TriMotorActivationPlan(
@@ -107,38 +90,34 @@ data class TriMotorReasoningResult(
     val reply: String,
     val requestedRoles: List<ReasoningMotorRole>,
     val activatedRoles: List<ReasoningMotorRole>,
-    val activatedBindings: List<ReasoningMotorActivation>,
+    val activatedVersions: Map<ReasoningMotorRole, String>,
     val unavailableRoles: List<ReasoningMotorRole>,
     val failedRoles: List<ReasoningMotorRole>,
     val findings: List<String>
 )
 
-data class ReasoningMotorActivation(
-    val role: ReasoningMotorRole,
-    val binding: ReasoningMotorBinding
-)
-
-class TriMotorReasoningCoordinator(
-    motors: List<SpecializedReasoningMotor>
+class IntrinsicTriMotorCoordinator(
+    motors: List<IntrinsicReasoningMotor> = emptyList()
 ) {
-    private val motorsByRole: Map<ReasoningMotorRole, SpecializedReasoningMotor>
+    private val motorsByRole: Map<ReasoningMotorRole, IntrinsicReasoningMotor>
 
     init {
-        require(motors.isNotEmpty()) { "At least one reasoning motor is required." }
         require(motors.size <= ReasoningMotorRole.entries.size) {
             "At most three reasoning motors are allowed."
         }
         require(motors.map { it.role }.distinct().size == motors.size) {
             "Each reasoning motor role must be unique."
         }
+        require(motors.all { it.capabilityVersion.isNotBlank() }) {
+            "Each intrinsic motor must expose a non-empty capability version."
+        }
         motorsByRole = motors.associateBy { it.role }
     }
 
-    suspend fun reason(
-        complexity: ReasoningTaskComplexity,
-        request: AuxiliaryReasoningRequest
-    ): Result<TriMotorReasoningResult> {
-        val plan = TriMotorActivationPolicy.plan(complexity)
+    fun availableRoles(): Set<ReasoningMotorRole> = motorsByRole.keys
+
+    suspend fun reason(request: IntrinsicReasoningRequest): Result<TriMotorReasoningResult> {
+        val plan = TriMotorActivationPolicy.plan(request.taskComplexity)
         val unavailable = linkedSetOf<ReasoningMotorRole>()
         val failed = linkedSetOf<ReasoningMotorRole>()
 
@@ -149,9 +128,7 @@ class TriMotorReasoningCoordinator(
             failed = failed
         ).getOrElse { error -> return Result.failure(error) }
 
-        val activated = mutableListOf(
-            ReasoningMotorActivation(primary.role, primary.motor.binding)
-        )
+        val activated = linkedMapOf(primary.role to primary.motor.capabilityVersion)
         val findings = primary.response.findings.toMutableList()
         var finalReply = primary.response.content
 
@@ -161,18 +138,12 @@ class TriMotorReasoningCoordinator(
                 unavailable += ReasoningMotorRole.METACOGNITIVE
             } else {
                 verifier.compute(
-                    SpecializedReasoningRequest(
-                        base = request,
-                        candidateReply = finalReply
-                    )
+                    request.copy(candidateReply = finalReply)
                 ).onSuccess { verification ->
                     if (verification.content.isNotBlank()) {
                         finalReply = verification.content
                     }
-                    activated += ReasoningMotorActivation(
-                        role = ReasoningMotorRole.METACOGNITIVE,
-                        binding = verifier.binding
-                    )
+                    activated[ReasoningMotorRole.METACOGNITIVE] = verifier.capabilityVersion
                     findings += verification.findings
                 }.onFailure {
                     failed += ReasoningMotorRole.METACOGNITIVE
@@ -184,8 +155,8 @@ class TriMotorReasoningCoordinator(
             TriMotorReasoningResult(
                 reply = finalReply,
                 requestedRoles = plan.requestedRoles,
-                activatedRoles = activated.map { it.role }.distinct(),
-                activatedBindings = activated.distinct(),
+                activatedRoles = activated.keys.toList(),
+                activatedVersions = activated.toMap(),
                 unavailableRoles = unavailable.toList(),
                 failedRoles = failed.toList(),
                 findings = findings.distinct()
@@ -195,7 +166,7 @@ class TriMotorReasoningCoordinator(
 
     private suspend fun runPrimary(
         plan: TriMotorActivationPlan,
-        request: AuxiliaryReasoningRequest,
+        request: IntrinsicReasoningRequest,
         unavailable: MutableSet<ReasoningMotorRole>,
         failed: MutableSet<ReasoningMotorRole>
     ): Result<PrimaryComputation> {
@@ -205,7 +176,7 @@ class TriMotorReasoningCoordinator(
                 unavailable += role
                 continue
             }
-            val result = motor.compute(SpecializedReasoningRequest(base = request))
+            val result = motor.compute(request.copy(candidateReply = null))
             val response = result.getOrNull()
             if (response != null && response.content.isNotBlank()) {
                 return Result.success(
@@ -223,7 +194,7 @@ class TriMotorReasoningCoordinator(
 
     private data class PrimaryComputation(
         val role: ReasoningMotorRole,
-        val motor: SpecializedReasoningMotor,
-        val response: SpecializedReasoningResponse
+        val motor: IntrinsicReasoningMotor,
+        val response: IntrinsicReasoningResponse
     )
 }
