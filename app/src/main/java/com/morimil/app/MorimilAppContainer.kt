@@ -21,11 +21,10 @@ import com.morimil.app.data.repository.RestCycleRepository
 import com.morimil.app.domain.usecase.AppendLivingMemoryUseCase
 import com.morimil.app.domain.usecase.ProposeCognitiveMigrationUseCase
 import com.morimil.app.domain.usecase.RunRestCycleUseCase
+import com.morimil.app.reasoning.IntrinsicTriMotorCoordinator
+import com.morimil.app.reasoning.ReasoningClientTemporaryExternalProvider
 import com.morimil.app.reasoning.ReasoningKernel
-import com.morimil.app.reasoning.AuxiliaryReasoningMotorAdapter
-import com.morimil.app.reasoning.ReasoningClientAuxiliaryMotor
 import com.morimil.app.reasoning.RepositoryReasoningContextReader
-import com.morimil.app.reasoning.TriMotorReasoningCoordinator
 import com.morimil.app.security.AndroidKeyStoreMemoryEventSigner
 import com.morimil.app.security.SecretVault
 import com.morimil.app.security.SharedPreferencesMemorySignatureEpochPolicy
@@ -165,13 +164,8 @@ class MorimilAppContainer(context: Context) {
                 memoryRepository = memoryRepository,
                 memoryOrganRepository = memoryOrganRepository
             ),
-            motorCoordinator = TriMotorReasoningCoordinator(
-                motors = listOf(
-                    AuxiliaryReasoningMotorAdapter(
-                        delegate = ReasoningClientAuxiliaryMotor(reasoningClient)
-                    )
-                )
-            )
+            intrinsicCoordinator = IntrinsicTriMotorCoordinator(),
+            temporaryExternalProvider = ReasoningClientTemporaryExternalProvider(reasoningClient)
         )
     }
 
