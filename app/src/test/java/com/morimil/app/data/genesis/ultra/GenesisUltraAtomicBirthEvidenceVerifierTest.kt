@@ -65,7 +65,9 @@ class GenesisUltraAtomicBirthEvidenceVerifierTest {
             root.getJSONObject("signature").put("signature_value", "00".repeat(64))
             val source = root.toString().utf8()
             evidence.copy(
-                entry = GenesisUltraAtomicBirthDocumentParser.parseJournalEntry(source),
+                entry = GenesisUltraAtomicBirthDocumentParser.parseJournalEntry(
+                    source.toString(StandardCharsets.UTF_8)
+                ),
                 sourceBytes = source
             )
         }
