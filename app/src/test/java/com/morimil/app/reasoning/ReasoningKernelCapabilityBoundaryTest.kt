@@ -13,7 +13,7 @@ class ReasoningKernelCapabilityBoundaryTest {
         val constructor = ReasoningKernel::class.java.declaredConstructors.single()
 
         assertEquals(
-            listOf(ReasoningContextReader::class.java, AuxiliaryReasoningMotor::class.java),
+            listOf(ReasoningContextReader::class.java, TriMotorReasoningCoordinator::class.java),
             constructor.parameterTypes.toList()
         )
         assertTrue(
@@ -42,10 +42,16 @@ class ReasoningKernelCapabilityBoundaryTest {
                     return "local knowledge"
                 }
             },
-            auxiliaryMotor = AuxiliaryReasoningMotor {
-                motorCalls += 1
-                Result.success("temporary computed reply")
-            }
+            motorCoordinator = TriMotorReasoningCoordinator(
+                motors = listOf(
+                    AuxiliaryReasoningMotorAdapter(
+                        delegate = AuxiliaryReasoningMotor {
+                            motorCalls += 1
+                            Result.success("temporary computed reply")
+                        }
+                    )
+                )
+            )
         )
 
         val result = kernel.reason(
