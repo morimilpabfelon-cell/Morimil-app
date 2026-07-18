@@ -124,7 +124,7 @@ transactional_birth_commit_not_integrated
 
 The pinned Genesis Ultra revision defines a normative `birth` operation, seven transaction phases, crash recovery, an immutable first memory event and a signed birth receipt. Morimil now contains an isolated Room schema and atomic store for the commit marker, exact input bytes and seven journal entries. The commit marker is written last in one SQLite transaction, and interruption tests require all earlier writes to roll back to `ABSENT`.
 
-That store is deliberately not connected to onboarding. Morimil now parses every normative birth document, requires the detached Seed signature as durable evidence, verifies every Guardian and Body Ed25519 envelope, validates all seven signed journal entries and returns a verified type-state only after the full graph agrees. The remaining work is to make that verified type-state the only input accepted by the atomic store, initialize canonical living memory in the same operation and prove restart recovery from the committed evidence. The gate remains closed until Android can prove that complete operation.
+That store is deliberately not connected to onboarding. Morimil now parses every normative birth document, requires the detached Seed signature as durable evidence, verifies every Guardian and Body Ed25519 envelope, validates all seven signed journal entries and returns a verified type-state only after the full graph agrees. That type-state is now the only input accepted by the atomic store; a raw persistence bundle has no application entry point. The remaining work is to initialize canonical living memory in the same operation and prove restart recovery from the committed evidence. The gate remains closed until Android can prove that complete operation.
 
 Before the gate can open, the Android adapter must implement the protocol's crash-recoverable birth transaction and atomically commit at least:
 
@@ -154,6 +154,7 @@ The managed Android suite runs the same instrumented boundary on API 30 and API 
 - the dedicated Morimil `8 -> 9` migration;
 - the dedicated Morimil `9 -> 10` migration and atomic-birth tables;
 - rollback to `ABSENT` when persistence is interrupted before the commit marker;
+- enforcement that the atomic persistence entry point requires verified evidence;
 - rejection of a second birth without changing the original name;
 - rest-cycle scheduling instrumentation.
 
