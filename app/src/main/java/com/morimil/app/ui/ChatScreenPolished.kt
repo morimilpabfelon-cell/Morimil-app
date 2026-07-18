@@ -64,7 +64,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.morimil.app.data.local.MemoryMessageEntity
+import com.morimil.app.data.local.ReasoningTurnEntity
 import com.morimil.app.reasoning.model.ModelBackendDecision
 import com.morimil.app.reasoning.model.ReasoningBackendStatusStore
 import com.morimil.app.reasoning.model.ReasoningEscalationDecision
@@ -227,7 +227,7 @@ private fun PolishedHealthDot(health: OrganismHealthUiState, onClick: () -> Unit
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PolishedMessageBubble(message: MemoryMessageEntity) {
+private fun PolishedMessageBubble(message: ReasoningTurnEntity) {
     val isUser = message.author == "user"
     var showTime by remember(message.id, message.createdAtMillis) { mutableStateOf(false) }
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
