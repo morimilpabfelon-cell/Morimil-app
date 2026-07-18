@@ -14,7 +14,7 @@ class GenesisUltraAtomicBirthEvidenceVerifierTest {
         val verified = GenesisUltraAtomicBirthEvidenceVerifier.verify(fixture.request)
         val persistence = verified.copyPersistenceBundle()
 
-        assertEquals("Genesis Libre", persistence.instanceIdentity.companionName)
+        assertEquals("Genesis Free 01", persistence.instanceIdentity.companionName)
         assertEquals(13, GenesisUltraAtomicBirthPersistenceValidator.mandatoryArtifactKinds.size)
         assertTrue(GenesisUltraAtomicBirthPersistenceValidator.validate(persistence).isEmpty())
     }
