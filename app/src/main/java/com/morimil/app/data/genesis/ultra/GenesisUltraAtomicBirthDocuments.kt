@@ -49,6 +49,11 @@ object GenesisUltraAtomicBirthDocumentParser {
     }
 
     fun parseFirstMemoryEvent(jsonText: String): GenesisUltraFirstMemoryEvent {
+        return parseMemoryEvent(jsonText)
+    }
+
+    /** Parses both the birth root and every later event in the same neutral stream. */
+    fun parseMemoryEvent(jsonText: String): GenesisUltraFirstMemoryEvent {
         val root = GenesisUltraStrictJson.parseObject(jsonText)
         root.requireExactKeys(FIRST_MEMORY_EVENT_KEYS)
         val event = GenesisUltraFirstMemoryEvent(

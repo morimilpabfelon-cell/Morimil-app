@@ -130,10 +130,13 @@ Implemented but not yet connected to onboarding:
 - preservation of the detached Guardian Seed signature as mandatory durable evidence;
 - conformance tests pinned to Genesis main commit `d0293b3614153ef2155620fc75ceee9bd798f370`;
 - a type-enforced persistence entry point that accepts only fully verified birth evidence;
-- an isolated Room schema 10 commit boundary with rollback to `ABSENT`;
+- an isolated Room schema 11 boundary with atomic birth rollback to `ABSENT`;
 - one non-duplicated living-memory root backed by the exact signed first-event bytes;
 - structural restart auditing tied to the commit marker;
 - full cryptographic recovery from persisted evidence with caller-supplied trust anchors.
+- a separate post-birth canonical-memory table that begins at sequence `1` without duplicating the birth root;
+- mandatory Body Ed25519 append and restart verification through a provider-independent signer boundary;
+- fail-closed rollback when signing is unavailable or any stored chain/signature evidence is inconsistent.
 
 The Android implementation of the normative transaction must atomically:
 
@@ -148,9 +151,10 @@ The Android implementation of the normative transaction must atomically:
 
 ### Phase 4 — Canonical memory
 
-- Add explicit sequence numbers and unique constraints.
-- Enforce key epochs and mandatory signatures.
-- Separate canonical events from rebuildable projections.
+- Implemented in the isolated boundary: explicit sequence numbers and unique event constraints.
+- Implemented for the initial active Body epoch: mandatory Ed25519 signatures with no unsigned fallback.
+- Implemented: canonical Genesis events remain separate from legacy Morimil memory and rebuildable projections.
+- Pending: production Android secure-key composition and signed key rotation history.
 - Encrypt sensitive local data.
 - Declare gaps, corruption and recovery honestly.
 
@@ -183,15 +187,17 @@ The suite includes:
 - valid and altered Ed25519 vectors;
 - duplicate JSON-key rejection;
 - strict Boolean and integer type rejection;
-- Morimil migration chains through schema version 10;
+- Morimil migration chains through schema version 11;
 - Memory Organ migration chains through schema version 7;
 - the dedicated Morimil `8 -> 9` migration;
 - the dedicated Morimil `9 -> 10` migration and atomic-birth tables;
+- the dedicated Morimil `10 -> 11` migration and canonical-memory table;
 - transaction rollback before the commit marker and second-birth rejection;
 - full evidence parsing and rejection of missing Seed signatures, forged Guardian/Body/journal signatures and unknown fields;
 - exact living-memory-root recovery after a real database close and reopen;
 - restart rejection after the first memory artifact and its row digest are both altered;
 - full recovery rejection of a forged persisted first-memory signature;
+- post-birth sequence continuity, mandatory signing, rollback and coordinated-tamper rejection;
 - rest-cycle scheduling instrumentation.
 
 This establishes Android runtime conformance for the implemented preparation boundary. It does not establish birth readiness.

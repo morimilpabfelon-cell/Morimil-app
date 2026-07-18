@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.google.crypto.tink.subtle.Ed25519Sign
 import com.morimil.app.data.local.GenesisUltraBirthCommitEntity
 import com.morimil.app.data.local.MorimilDatabase
 import kotlinx.coroutines.runBlocking
@@ -205,6 +206,95 @@ class GenesisUltraAtomicBirthStoreTest {
         assertEquals(GenesisUltraPersistedBirthState.INCONSISTENT, store.readState())
     }
 
+    @Test
+    fun canonicalAppendContinuesAtOneWithoutDuplicatingBirthRootOrLegacyMemory() = runBlocking {
+        val bundle = validBundle()
+        GenesisUltraAtomicBirthStore(database).persistVerified(
+            testOnlyVerifiedBirth(bundle),
+            persistedAtMillis = 1000L
+        )
+        val recovered = testOnlyRecoveredBirth(bundle)
+        val memoryStore = GenesisUltraCanonicalMemoryStore(database)
+
+        val first = memoryStore.append(recovered, bodyMemorySigner(), appendRequest(1))
+        val second = memoryStore.append(recovered, bodyMemorySigner(), appendRequest(2))
+        val stream = memoryStore.recoverStream(recovered, bodyMemoryKey())
+
+        assertEquals(1L, first.event.sequence)
+        assertEquals(bundle.birthState.firstMemoryEventHash, first.event.previousEventHash)
+        assertEquals(2L, second.event.sequence)
+        assertEquals(first.event.eventHash, second.event.previousEventHash)
+        assertEquals(2, stream.postBirthEventCount)
+        assertEquals(2, database.genesisUltraMemoryDao().countAll())
+        assertEquals(0, database.memoryDao().countMemoryEvents())
+        assertEquals(
+            bundle.birthState.firstMemoryEventHash,
+            stream.livingRoot.event.eventHash
+        )
+    }
+
+    @Test
+    fun signingFailureRollsBackWithoutUnsignedFallback() = runBlocking {
+        val bundle = validBundle()
+        GenesisUltraAtomicBirthStore(database).persistVerified(
+            testOnlyVerifiedBirth(bundle),
+            persistedAtMillis = 1000L
+        )
+        val failingSigner = object : GenesisUltraBodyMemorySigner {
+            override val key = bodyMemoryKey()
+            override fun sign(signingBytes: ByteArray): ByteArray = error("keystore_unavailable")
+        }
+
+        val failure = runCatching {
+            GenesisUltraCanonicalMemoryStore(database).append(
+                testOnlyRecoveredBirth(bundle),
+                failingSigner,
+                appendRequest(1)
+            )
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertTrue(failure?.message?.contains("body_memory_signing_failed") == true)
+        assertEquals(0, database.genesisUltraMemoryDao().countAll())
+    }
+
+    @Test
+    fun coordinatedStoredSignatureTamperIsRejectedDuringRecovery() = runBlocking {
+        val bundle = validBundle()
+        GenesisUltraAtomicBirthStore(database).persistVerified(
+            testOnlyVerifiedBirth(bundle),
+            persistedAtMillis = 1000L
+        )
+        val recovered = testOnlyRecoveredBirth(bundle)
+        val memoryStore = GenesisUltraCanonicalMemoryStore(database)
+        memoryStore.append(recovered, bodyMemorySigner(), appendRequest(1))
+        val entity = database.genesisUltraMemoryDao().loadAscending(INSTANCE_ID).single()
+        val root = JSONObject(entity.sourceBytes.toString(StandardCharsets.UTF_8))
+        root.getJSONObject("signature").put("signature_value", "00".repeat(64))
+        val alteredSource = root.toString().utf8()
+        database.openHelper.writableDatabase.execSQL(
+            """
+            UPDATE genesis_ultra_memory_events
+            SET signatureValue = ?, sourceDigest = ?, sourceBytes = ?
+            WHERE instanceId = ? AND sequence = ?
+            """.trimIndent(),
+            arrayOf(
+                "00".repeat(64),
+                GenesisUltraHashProfile.sha256(alteredSource),
+                alteredSource,
+                entity.instanceId,
+                entity.sequence
+            )
+        )
+
+        val failure = runCatching {
+            memoryStore.recoverStream(recovered, bodyMemoryKey())
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalArgumentException)
+        assertTrue(failure?.message?.contains("canonical_memory_signature_invalid:1") == true)
+    }
+
     private fun validBundle(companionName: String = "Genesis Libre"): GenesisUltraAtomicBirthPersistenceBundle {
         val seedIdentityBytes = "neutral seed identity".utf8()
         val doctrineBytes = "free birth doctrine".utf8()
@@ -244,6 +334,23 @@ class GenesisUltraAtomicBirthStoreTest {
         )
         val identity = identityDraft.copy(
             identityDigest = GenesisUltraHashProfile.instanceIdentityDigest(identityDraft)
+        )
+        val keyDraft = GenesisUltraKeyEpoch(
+            schemaVersion = "genesis.key.epoch.v0.1",
+            keyEpochId = BODY_KEY_EPOCH_ID,
+            instanceId = identity.instanceId,
+            bodyId = BODY_ID,
+            epochNumber = 0L,
+            publicKeyFingerprint = bodyMemoryKey().publicKeyRef,
+            createdAt = "2026-07-15T23:59:56Z",
+            status = "active",
+            previousEpochId = null,
+            rotationAuthorizationRef = null,
+            epochDigest = "sha256:" + "0".repeat(64),
+            signature = null
+        )
+        val keyEpoch = keyDraft.copy(
+            epochDigest = GenesisUltraHashProfile.keyEpochDigest(keyDraft)
         )
         val firstMemoryDraft = GenesisUltraFirstMemoryEvent(
             schemaVersion = "genesis.memory.event.v0.1",
@@ -285,7 +392,7 @@ class GenesisUltraAtomicBirthStoreTest {
             freedomCharterDigest = digest("freedom charter"),
             initialBodyId = BODY_ID,
             initialBodyRegistryDigest = digest("body registry"),
-            initialBodyKeyEpochDigest = digest("body key epoch"),
+            initialBodyKeyEpochDigest = keyEpoch.epochDigest,
             initialBodyPossessionDigest = digest("body possession"),
             firstMemoryEventHash = firstMemory.eventHash,
             recoveryStateDigest = digest("recovery state"),
@@ -331,7 +438,13 @@ class GenesisUltraAtomicBirthStoreTest {
             add(artifact("birth/freedom-charter.json", "freedom_charter"))
             add(artifact("birth/initial-body-record.json", "initial_body_record"))
             add(artifact("birth/initial-body-registry.json", "initial_body_registry"))
-            add(artifact("birth/initial-body-key-epoch.json", "initial_body_key_epoch"))
+            add(
+                artifact(
+                    "birth/initial-body-key-epoch.json",
+                    "initial_body_key_epoch",
+                    keyEpochJson(keyEpoch)
+                )
+            )
             add(artifact("birth/initial-body-possession.json", "initial_body_possession"))
             add(
                 artifact(
@@ -370,6 +483,18 @@ class GenesisUltraAtomicBirthStoreTest {
         )
         constructor.isAccessible = true
         return constructor.newInstance(bundle)
+    }
+
+    private fun testOnlyRecoveredBirth(
+        bundle: GenesisUltraAtomicBirthPersistenceBundle
+    ): GenesisUltraRecoveredAtomicBirth {
+        val verified = testOnlyVerifiedBirth(bundle)
+        val constructor = GenesisUltraRecoveredAtomicBirth::class.java.getDeclaredConstructor(
+            GenesisUltraVerifiedAtomicBirth::class.java,
+            GenesisUltraLivingMemoryRoot::class.java
+        )
+        constructor.isAccessible = true
+        return constructor.newInstance(verified, verified.copyLivingMemoryRoot())
     }
 
     private fun journal(
@@ -478,6 +603,24 @@ class GenesisUltraAtomicBirthStoreTest {
             .utf8()
     }
 
+    private fun keyEpochJson(epoch: GenesisUltraKeyEpoch): ByteArray {
+        return JSONObject()
+            .put("schema_version", epoch.schemaVersion)
+            .put("key_epoch_id", epoch.keyEpochId)
+            .put("instance_id", epoch.instanceId)
+            .put("body_id", epoch.bodyId)
+            .put("epoch_number", epoch.epochNumber)
+            .put("public_key_fingerprint", epoch.publicKeyFingerprint)
+            .put("created_at", epoch.createdAt)
+            .put("status", epoch.status)
+            .put("previous_epoch_id", JSONObject.NULL)
+            .put("rotation_authorization_ref", JSONObject.NULL)
+            .put("epoch_digest", epoch.epochDigest)
+            .put("signature", JSONObject.NULL)
+            .toString()
+            .utf8()
+    }
+
     private fun birthStateJson(state: GenesisUltraBirthState): ByteArray {
         return JSONObject()
             .put("schema_version", state.schemaVersion)
@@ -575,13 +718,48 @@ class GenesisUltraAtomicBirthStoreTest {
             signatureProfile = "genesis.signature.ed25519.v0.1",
             signerType = "body",
             signerId = BODY_ID,
-            keyEpochId = "epoch_01HATOMICBIRTH000000001",
+            keyEpochId = BODY_KEY_EPOCH_ID,
             signedDomain = "test.only",
             signedDigest = digest("placeholder"),
             signatureValue = "0".repeat(128),
             createdAt = BORN_AT,
-            publicKeyRef = digest("body public key")
+            publicKeyRef = bodyMemoryKey().publicKeyRef
         )
+    }
+
+    private fun appendRequest(index: Int): GenesisUltraCanonicalMemoryAppendRequest {
+        return GenesisUltraCanonicalMemoryAppendRequest(
+            eventId = "event_01HPOSTBIRTH000000000$index",
+            eventType = "memory.observation",
+            actor = "instance",
+            contentDigest = digest("content-$index"),
+            contentType = "application/vnd.genesis.memory+json",
+            observedAt = "2026-07-16T00:00:0${index}Z",
+            provenanceDigest = digest("provenance-$index")
+        )
+    }
+
+    private fun bodyMemorySigner(): GenesisUltraBodyMemorySigner {
+        val pair = bodyKeyPair()
+        return GenesisUltraTinkBodyMemorySigner(
+            key = bodyMemoryKey(),
+            signer = Ed25519Sign(pair.privateKey)
+        )
+    }
+
+    private fun bodyMemoryKey(): GenesisUltraBodyMemoryKey {
+        val publicKey = bodyKeyPair().publicKey
+        return GenesisUltraBodyMemoryKey(
+            instanceId = INSTANCE_ID,
+            bodyId = BODY_ID,
+            keyEpochId = BODY_KEY_EPOCH_ID,
+            publicKeyRef = GenesisUltraHashProfile.sha256(publicKey),
+            rawPublicKey = publicKey
+        )
+    }
+
+    private fun bodyKeyPair(): Ed25519Sign.KeyPair {
+        return Ed25519Sign.KeyPair.newKeyPairFromSeed(ByteArray(32) { 0x42.toByte() })
     }
 
     private fun digest(value: String): String = GenesisUltraHashProfile.sha256(value.utf8())
@@ -593,6 +771,7 @@ class GenesisUltraAtomicBirthStoreTest {
         const val INSTANCE_ID = "inst_01HATOMICBIRTH000000001"
         const val GUARDIAN_ID = "guardian_01HATOMICBIRTH000001"
         const val BODY_ID = "body_01HATOMICBIRTH000000001"
+        const val BODY_KEY_EPOCH_ID = "epoch_01HATOMICBIRTH000000001"
         const val BIRTH_ID = "birth_01HATOMICBIRTH00000001"
         const val JOURNAL_ID = "journal_01HATOMICBIRTH000001"
         const val BORN_AT = "2026-07-16T00:00:00Z"

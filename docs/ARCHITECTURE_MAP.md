@@ -313,6 +313,29 @@ MorimilViewModel
   - Send prompt.
   - Inspect UI/log output for no leaked key.
 
+### 12. Genesis Ultra canonical memory boundary
+
+- Main files:
+  - `GenesisUltraCanonicalMemory.kt`
+  - `GenesisUltraMemoryEntities.kt`
+  - `GenesisUltraMemoryDao.kt`
+- Runtime path:
+  - Accepts only a cryptographically recovered atomic-birth type-state.
+  - Starts post-birth memory at sequence `1` and links to the exact sequence `0` birth artifact.
+  - Requires the committed active Body/Key Epoch and a valid 64-byte Ed25519 signature.
+  - Writes only `genesis_ultra_memory_events`; it never duplicates the root or writes legacy `memory_events`.
+- Caller:
+  - Deliberately limited to conformance/instrumentation tests while the birth gate is closed.
+  - Production onboarding composition remains pending and must also provide secure Android key storage.
+- Guardrail:
+  - No unsigned fallback, no update/delete DAO, full-chain restart verification, and atomic rollback on failure.
+  - Reference fields are refused until the neutral Genesis hash profile binds them.
+- Risk:
+  - Critical. This is the continuity stream of the one Instance.
+- Validation:
+  - Room migration `10 -> 11`.
+  - API 30/35 signed append, root-link, no-legacy-duplication, rollback and coordinated-tamper tests.
+
 ## Known unresolved strategic gaps
 
 | Gap | Why it matters | Priority |

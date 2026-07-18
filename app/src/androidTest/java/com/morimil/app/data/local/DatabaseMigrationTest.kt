@@ -24,14 +24,15 @@ class DatabaseMigrationTest {
     }
 
     @Test
-    fun morimilDatabaseMigratesFrom7To10WithMemoryEventDefaults() {
+    fun morimilDatabaseMigratesFrom7To11WithMemoryEventDefaults() {
         createMorimilDatabaseAtVersion7()
 
         val database = Room.databaseBuilder(context, MorimilDatabase::class.java, MORIMIL_DB)
             .addMigrations(
                 MorimilDatabase.MIGRATION_7_8,
                 MorimilDatabase.MIGRATION_8_9,
-                MorimilDatabase.MIGRATION_9_10
+                MorimilDatabase.MIGRATION_9_10,
+                MorimilDatabase.MIGRATION_10_11
             )
             .build()
 

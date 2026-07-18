@@ -24,7 +24,7 @@ class FullChainDatabaseMigrationTest {
     }
 
     @Test
-    fun morimilDatabaseMigratesFrom1To10ThroughFullChain() {
+    fun morimilDatabaseMigratesFrom1To11ThroughFullChain() {
         createMorimilDatabaseAtVersion1()
 
         val database = Room.databaseBuilder(context, MorimilDatabase::class.java, MORIMIL_DB)
@@ -37,7 +37,8 @@ class FullChainDatabaseMigrationTest {
                 MorimilDatabase.MIGRATION_6_7,
                 MorimilDatabase.MIGRATION_7_8,
                 MorimilDatabase.MIGRATION_8_9,
-                MorimilDatabase.MIGRATION_9_10
+                MorimilDatabase.MIGRATION_9_10,
+                MorimilDatabase.MIGRATION_10_11
             )
             .build()
 
@@ -55,7 +56,8 @@ class FullChainDatabaseMigrationTest {
                     "memory_snapshots",
                     "genesis_ultra_birth_commit",
                     "genesis_ultra_birth_artifacts",
-                    "genesis_ultra_birth_journal"
+                    "genesis_ultra_birth_journal",
+                    "genesis_ultra_memory_events"
                 )
             )
         )
