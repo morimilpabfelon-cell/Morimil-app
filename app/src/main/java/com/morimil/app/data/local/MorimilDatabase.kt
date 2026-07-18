@@ -20,14 +20,16 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ImprovementDecisionHistoryEntity::class,
         GenesisUltraBirthCommitEntity::class,
         GenesisUltraBirthArtifactEntity::class,
-        GenesisUltraBirthJournalEntity::class
+        GenesisUltraBirthJournalEntity::class,
+        GenesisUltraMemoryEventEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = true
 )
 abstract class MorimilDatabase : RoomDatabase() {
     abstract fun memoryDao(): MemoryDao
     abstract fun genesisUltraBirthDao(): GenesisUltraBirthDao
+    abstract fun genesisUltraMemoryDao(): GenesisUltraMemoryDao
 
     companion object {
         @Volatile
@@ -344,6 +346,55 @@ abstract class MorimilDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS genesis_ultra_memory_events (
+                        instanceId TEXT NOT NULL,
+                        sequence INTEGER NOT NULL,
+                        schemaVersion TEXT NOT NULL,
+                        hashProfile TEXT NOT NULL,
+                        eventId TEXT NOT NULL,
+                        bodyId TEXT NOT NULL,
+                        previousEventHash TEXT NOT NULL,
+                        eventType TEXT NOT NULL,
+                        actor TEXT NOT NULL,
+                        contentDigest TEXT NOT NULL,
+                        contentType TEXT NOT NULL,
+                        contentRef TEXT,
+                        observedAt TEXT NOT NULL,
+                        provenanceDigest TEXT NOT NULL,
+                        provenanceRef TEXT,
+                        privacy TEXT NOT NULL,
+                        eventHash TEXT NOT NULL,
+                        signatureSchemaVersion TEXT NOT NULL,
+                        signatureProfile TEXT NOT NULL,
+                        signerType TEXT NOT NULL,
+                        signerId TEXT NOT NULL,
+                        keyEpochId TEXT NOT NULL,
+                        signedDomain TEXT NOT NULL,
+                        signedDigest TEXT NOT NULL,
+                        signatureValue TEXT NOT NULL,
+                        signatureCreatedAt TEXT NOT NULL,
+                        publicKeyRef TEXT NOT NULL,
+                        sourceDigest TEXT NOT NULL,
+                        sourceBytes BLOB NOT NULL,
+                        PRIMARY KEY(instanceId, sequence)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_genesis_ultra_memory_events_eventId " +
+                        "ON genesis_ultra_memory_events(eventId)"
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_genesis_ultra_memory_events_eventHash " +
+                        "ON genesis_ultra_memory_events(eventHash)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): MorimilDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -360,7 +411,8 @@ abstract class MorimilDatabase : RoomDatabase() {
                         MIGRATION_6_7,
                         MIGRATION_7_8,
                         MIGRATION_8_9,
-                        MIGRATION_9_10
+                        MIGRATION_9_10,
+                        MIGRATION_10_11
                     )
                     .build()
                     .also { instance = it }

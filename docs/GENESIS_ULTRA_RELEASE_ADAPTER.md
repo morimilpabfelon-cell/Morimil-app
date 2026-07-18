@@ -128,7 +128,9 @@ That store is deliberately not connected to onboarding. Morimil now parses every
 
 The exact persisted `first_memory_event` artifact is the single canonical living-memory root and is never copied into the legacy memory table. After a process or database restart, the store structurally binds that root to the Seed, immutable Instance Identity, birth state, receipt and commit marker. For cryptographic recovery, the store reconstructs the exact release and evidence graph from durable bytes and reruns every Ed25519 check with caller-supplied Guardian trust and the Body public key. Any altered byte, broken graph link or invalid signature fails closed.
 
-The remaining work is the post-birth append bridge: it must use the current active Body and Key Epoch, produce protocol-correct Body Ed25519 signatures, and preserve sequence continuity without converting the first event into a second legacy copy. Onboarding must then invoke verification, atomic commit, recovery proof and activation as one controlled operation. The gate remains closed until Android can prove that complete operation.
+The isolated post-birth append bridge now starts at sequence `1`, links directly to the exact birth root, requires the committed active Body and Key Epoch, signs the neutral envelope through a provider-independent Ed25519 boundary, verifies that signature before insertion and audits the full stored chain after restart. It has no unsigned fallback and never writes the legacy Morimil memory table. Optional reference fields remain disabled because the current Genesis hash profile does not bind them.
+
+The remaining work is to compose that boundary with a production Android secure-key provider and then make onboarding invoke verification, atomic commit, recovery proof, first signed append and activation as one controlled operation. The gate remains closed until Android can prove that complete operation.
 
 Before the gate can open, the Android adapter must implement the protocol's crash-recoverable birth transaction and atomically commit at least:
 
@@ -153,16 +155,20 @@ The managed Android suite runs the same instrumented boundary on API 30 and API 
 - altered Ed25519 signature rejection;
 - duplicate JSON-key rejection;
 - rejection of strings masquerading as Boolean or integer values;
-- Morimil migration chains through schema version 10;
+- Morimil migration chains through schema version 11;
 - Memory Organ migration chains through schema version 7;
 - the dedicated Morimil `8 -> 9` migration;
 - the dedicated Morimil `9 -> 10` migration and atomic-birth tables;
+- the dedicated Morimil `10 -> 11` migration and isolated canonical-memory table;
 - rollback to `ABSENT` when persistence is interrupted before the commit marker;
 - enforcement that the atomic persistence entry point requires verified evidence;
 - rejection of a second birth without changing the original name;
 - structural recovery of the exact first living-memory event after database restart;
 - failure after memory bytes and their storage digest are altered together;
 - full persisted-evidence recovery and forged first-memory signature rejection;
+- signed sequence `1` and `2` appends linked to the one birth root without legacy duplication;
+- rollback on Body signing failure with no unsigned fallback;
+- recovery rejection after a stored post-birth signature and its source digest are altered together;
 - rest-cycle scheduling instrumentation.
 
 This establishes protocol-compatible verification and Android runtime conformance for the implemented boundary. It does not claim that Morimil has completed a Genesis Ultra birth.
