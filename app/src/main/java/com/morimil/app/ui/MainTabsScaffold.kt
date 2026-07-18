@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 private enum class MorimilTab(val label: String, val glyph: String) {
     Chat("Chat", "Aa"),
     Memory("Memoria", "&"),
+    Canvas("Lienzo", "◇"),
     Motor("Motor", "⌘"),
     System("Sistema", "*")
 }
@@ -45,6 +46,7 @@ fun MainTabsScaffold(viewModel: MorimilViewModel) {
                 when (selectedTab) {
                     MorimilTab.Chat -> ChatScreenPolished(viewModel.chatViewModel)
                     MorimilTab.Memory -> MemoryScreen(viewModel.memoryViewModel)
+                    MorimilTab.Canvas -> MorimilCanvasScreen()
                     MorimilTab.Motor -> MotorScreen(viewModel.motorViewModel)
                     MorimilTab.System -> SystemHubScreen(viewModel)
                 }
@@ -62,7 +64,7 @@ private fun MorimilFloatingNavBar(selected: MorimilTab, onSelect: (MorimilTab) -
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
+            .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 16.dp),
         horizontalArrangement = Arrangement.Center
     ) {
         Surface(
@@ -73,7 +75,7 @@ private fun MorimilFloatingNavBar(selected: MorimilTab, onSelect: (MorimilTab) -
         ) {
             Row(
                 modifier = Modifier.padding(5.dp),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                horizontalArrangement = Arrangement.spacedBy(1.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 MorimilTab.entries.forEach { tab ->
@@ -85,7 +87,7 @@ private fun MorimilFloatingNavBar(selected: MorimilTab, onSelect: (MorimilTab) -
                                 if (active) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
                             )
                             .clickable { onSelect(tab) }
-                            .padding(horizontal = 14.dp, vertical = 7.dp),
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
