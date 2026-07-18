@@ -536,7 +536,6 @@ class RestCycleRepository(
     private suspend fun rebuildLivingMemorySnapshot() {
         val events = memoryDao.loadMemoryContext(limit = 24)
         val eventCount = memoryDao.countMemoryEvents()
-        val messageCount = memoryDao.countMessages()
         val prioritized = events
             .sortedWith(
                 compareByDescending<MemoryEventEntity> { it.memoryKind == "rest_cycle" }
@@ -556,7 +555,8 @@ class RestCycleRepository(
                 genesisCoreId = "primary_genesis",
                 summary = prioritized,
                 eventCount = eventCount,
-                messageCount = messageCount,
+                // Operational reasoning turns are not living memory.
+                messageCount = 0,
                 updatedAtMillis = System.currentTimeMillis()
             )
         )
