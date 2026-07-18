@@ -36,6 +36,27 @@ class ToolCapabilityRegistryTest {
     }
 
     @Test
+    fun canvasApplyRequiresHumanApprovalAndAuthorizedDevice() {
+        val result = ToolCapabilityRegistry.evaluateAction(ToolCapabilityRegistry.ACTION_CANVAS_APPLY)
+
+        assertEquals(ToolCapabilityDecision.APPROVAL_REQUIRED, result.decision)
+        assertEquals("high", result.riskLevel)
+        assertTrue("human_approval" in result.requiredControls)
+        assertTrue("authorized_device" in result.requiredControls)
+    }
+
+    @Test
+    fun canvasAgentUsesOnlyRegisteredCapabilities() {
+        val result = ToolCapabilityRegistry.validateActionIds(
+            ToolCapabilityRegistry.actionsForAgent("canvas_agent")
+        )
+
+        assertEquals(ToolCapabilityDecision.ALLOW, result.decision)
+        assertEquals("high", result.riskLevel)
+        assertTrue("registered_tool_actions" in result.reasons)
+    }
+
+    @Test
     fun secretActionRequiresHumanAndCredentialApproval() {
         val result = ToolCapabilityRegistry.evaluateAction(ToolCapabilityRegistry.ACTION_SECRET_REASONING_RUNTIME_KEY)
 
