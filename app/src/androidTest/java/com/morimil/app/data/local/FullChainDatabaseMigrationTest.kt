@@ -24,7 +24,7 @@ class FullChainDatabaseMigrationTest {
     }
 
     @Test
-    fun morimilDatabaseMigratesFrom1To11ThroughFullChain() {
+    fun morimilDatabaseMigratesFrom1To12ThroughFullChain() {
         createMorimilDatabaseAtVersion1()
 
         val database = Room.databaseBuilder(context, MorimilDatabase::class.java, MORIMIL_DB)
@@ -38,7 +38,8 @@ class FullChainDatabaseMigrationTest {
                 MorimilDatabase.MIGRATION_7_8,
                 MorimilDatabase.MIGRATION_8_9,
                 MorimilDatabase.MIGRATION_9_10,
-                MorimilDatabase.MIGRATION_10_11
+                MorimilDatabase.MIGRATION_10_11,
+                MorimilDatabase.MIGRATION_11_12
             )
             .build()
 
@@ -46,7 +47,7 @@ class FullChainDatabaseMigrationTest {
         assertTrue(
             migrated.tableNames().containsAll(
                 listOf(
-                    "memory_messages",
+                    "reasoning_turns",
                     "decision_log",
                     "project_state",
                     "user_workspace",
@@ -61,7 +62,12 @@ class FullChainDatabaseMigrationTest {
                 )
             )
         )
-        assertEquals(1, migrated.singleInt("SELECT COUNT(*) FROM memory_messages"))
+        assertEquals(1, migrated.singleInt("SELECT COUNT(*) FROM reasoning_turns"))
+        assertEquals(
+            "seed message survives migration",
+            migrated.singleString("SELECT body FROM reasoning_turns WHERE id = 1")
+        )
+        assertTrue(!migrated.tableNames().contains("memory_messages"))
         assertEquals(1, migrated.singleInt("SELECT COUNT(*) FROM decision_log"))
         assertEquals(1, migrated.singleInt("SELECT COUNT(*) FROM project_state"))
         assertTrue(
@@ -295,6 +301,13 @@ class FullChainDatabaseMigrationTest {
         return query(sql).use { cursor ->
             assertTrue(cursor.moveToFirst())
             cursor.getInt(0)
+        }
+    }
+
+    private fun SupportSQLiteDatabase.singleString(sql: String): String {
+        return query(sql).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            cursor.getString(0)
         }
     }
 
