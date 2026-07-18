@@ -6,11 +6,19 @@ data class ReasoningTraceEvent(
     val createdAtMillis: Long = System.currentTimeMillis()
 )
 
+enum class ReasoningExecutionOrigin {
+    PENDING,
+    MORIMIL_INTRINSIC,
+    TEMPORARY_EXTERNAL,
+    DETERMINISTIC_FALLBACK
+}
+
 data class ReasoningState(
     val input: String,
     val mode: ReasoningMode,
     val intent: ReasoningIntent,
     val modelBackendLabel: String,
+    val executionOrigin: ReasoningExecutionOrigin,
     val memoryContextSummary: String,
     val capsuleContextSummary: String,
     val policyDecision: String,

@@ -26,24 +26,25 @@ class RepositoryReasoningContextReader(
 }
 
 /**
- * Temporary auxiliary computation capability. It can return text to Morimil's
- * kernel but exposes no transcript, memory, identity or lifecycle writer.
+ * Temporary external reasoning capability. It can return text to Morimil's
+ * kernel but is not one of Morimil's intrinsic motors and exposes no transcript,
+ * memory, identity or lifecycle writer.
  */
-fun interface AuxiliaryReasoningMotor {
-    suspend fun compute(request: AuxiliaryReasoningRequest): Result<String>
+fun interface TemporaryExternalReasoningProvider {
+    suspend fun compute(request: TemporaryExternalReasoningRequest): Result<String>
 }
 
-data class AuxiliaryReasoningRequest(
+data class TemporaryExternalReasoningRequest(
     val config: ReasoningProviderConfig,
     val runtimeAccess: String,
     val systemPrompt: String,
     val history: List<ChatTurn>
 )
 
-class ReasoningClientAuxiliaryMotor(
+class ReasoningClientTemporaryExternalProvider(
     private val client: ReasoningClient
-) : AuxiliaryReasoningMotor {
-    override suspend fun compute(request: AuxiliaryReasoningRequest): Result<String> {
+) : TemporaryExternalReasoningProvider {
+    override suspend fun compute(request: TemporaryExternalReasoningRequest): Result<String> {
         return client.sendMessage(
             config = request.config,
             runtimeKey = request.runtimeAccess,

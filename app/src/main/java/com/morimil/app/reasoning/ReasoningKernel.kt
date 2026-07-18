@@ -12,7 +12,8 @@ import com.morimil.app.web.NativeWebContextStore
 
 class ReasoningKernel(
     private val contextReader: ReasoningContextReader,
-    private val auxiliaryMotor: AuxiliaryReasoningMotor
+    private val intrinsicCoordinator: IntrinsicTriMotorCoordinator,
+    private val temporaryExternalProvider: TemporaryExternalReasoningProvider
 ) {
     suspend fun reason(request: ReasoningKernelRequest): ReasoningKernelResult {
         val cleanInput = request.input.trim()
@@ -26,24 +27,26 @@ class ReasoningKernel(
         )
         ReasoningBackendStatusStore.update(backend)
         ReasoningRuntimeState.set(request.runtimeConfig)
+        val intrinsicRoles = intrinsicCoordinator.availableRoles()
 
         var state = ReasoningState(
             input = cleanInput,
             mode = backend.mode,
             intent = intent,
             modelBackendLabel = "${backend.label}:${backend.kind}",
+            executionOrigin = ReasoningExecutionOrigin.PENDING,
             memoryContextSummary = "pending",
             capsuleContextSummary = "pending",
-            policyDecision = if (backend.usable) {
-                "configured_motor_allowed"
-            } else {
-                "model_unavailable_degraded"
+            policyDecision = when {
+                intrinsicRoles.isNotEmpty() -> "intrinsic_reasoning_first"
+                backend.usable -> "temporary_external_available"
+                else -> "intrinsic_unavailable_deterministic_fallback"
             },
             criticFindings = emptyList(),
             trace = listOf(
                 ReasoningTraceEvent(
                     "kernel_start",
-                    "mode=${backend.mode} intent=$intent backend=${backend.kind} complexity=${backend.taskComplexity} hint=${backend.routingHint} reason=${backend.reason}"
+                    "mode=${backend.mode} intent=$intent backend=${backend.kind} intrinsic_roles=$intrinsicRoles complexity=${backend.taskComplexity} hint=${backend.routingHint} reason=${backend.reason}"
                 )
             )
         )
@@ -82,32 +85,82 @@ class ReasoningKernel(
                 "memory_chars=${localMemoryContext.length} combined_chars=${memoryContext.length} capsule_chars=${capsuleContext.length} web_chars=${nativeWebContext.length}"
             )
 
-            val reply = when {
-                !backend.usable -> degradedReply(cleanInput, intent, memoryContext, capsuleContext, backend.reason)
-                else -> {
-                    val systemPrompt = SystemPromptBuilder.build(
-                        genesis = request.genesis,
-                        alias = request.alias,
-                        doctrineText = request.doctrineText,
-                        policyText = request.policyText,
-                        livingMemoryContext = memoryContext,
-                        knowledgeCapsuleContext = capsuleContext
-                    )
-                    val recentHistory = request.priorHistory
-                        .takeLast(ReasoningClient.MAX_HISTORY_MESSAGES - 1) +
-                        ChatTurn(role = "user", content = cleanInput)
+            val systemPrompt = SystemPromptBuilder.build(
+                genesis = request.genesis,
+                alias = request.alias,
+                doctrineText = request.doctrineText,
+                policyText = request.policyText,
+                livingMemoryContext = memoryContext,
+                knowledgeCapsuleContext = capsuleContext
+            )
+            val recentHistory = request.priorHistory
+                .takeLast(ReasoningClient.MAX_HISTORY_MESSAGES - 1) +
+                ChatTurn(role = "user", content = cleanInput)
 
-                    state = state.withTrace("model_call", "backend=${backend.kind} endpoint=${backend.endpoint.take(80)} model=${backend.model} complexity=${backend.taskComplexity}")
-                    auxiliaryMotor.compute(
-                        AuxiliaryReasoningRequest(
+            state = state.withTrace(
+                "intrinsic_motor_plan",
+                "complexity=${backend.taskComplexity} available=$intrinsicRoles"
+            )
+            val reply = intrinsicCoordinator.reason(
+                IntrinsicReasoningRequest(
+                    systemPrompt = systemPrompt,
+                    history = recentHistory,
+                    taskComplexity = backend.taskComplexity
+                )
+            ).map { motorResult ->
+                state = state.copy(
+                    criticFindings = motorResult.findings,
+                    executionOrigin = ReasoningExecutionOrigin.MORIMIL_INTRINSIC,
+                    modelBackendLabel = "morimil_intrinsic:${motorResult.activatedVersions}"
+                ).withTrace(
+                    "intrinsic_motor_result",
+                    "requested=${motorResult.requestedRoles} activated=${motorResult.activatedVersions} unavailable=${motorResult.unavailableRoles} failed=${motorResult.failedRoles}"
+                )
+                motorResult.reply
+            }.getOrElse { intrinsicError ->
+                state = state.withTrace(
+                    "intrinsic_motor_unavailable",
+                    intrinsicError.message ?: intrinsicError::class.java.simpleName
+                )
+                if (!backend.usable) {
+                    state = state.copy(
+                        executionOrigin = ReasoningExecutionOrigin.DETERMINISTIC_FALLBACK
+                    )
+                    degradedReply(cleanInput, intent, memoryContext, capsuleContext, backend.reason)
+                } else {
+                    state = state.withTrace(
+                        "temporary_external_call",
+                        "backend=${backend.kind} endpoint=${backend.endpoint.take(80)} model=${backend.model} complexity=${backend.taskComplexity}"
+                    )
+                    temporaryExternalProvider.compute(
+                        TemporaryExternalReasoningRequest(
                             config = request.runtimeConfig,
                             runtimeAccess = request.runtimeAccess,
                             systemPrompt = systemPrompt,
                             history = recentHistory
                         )
-                    ).getOrElse { error ->
-                        state = state.withTrace("model_failed", error.message ?: error::class.java.simpleName)
-                        degradedReply(cleanInput, intent, memoryContext, capsuleContext, error.message ?: error::class.java.simpleName)
+                    ).map { externalReply ->
+                        state = state.copy(
+                            executionOrigin = ReasoningExecutionOrigin.TEMPORARY_EXTERNAL
+                        ).withTrace(
+                            "temporary_external_result",
+                            "reply_is_advisory; intrinsic_motor_state_unchanged"
+                        )
+                        externalReply
+                    }.getOrElse { externalError ->
+                        state = state.copy(
+                            executionOrigin = ReasoningExecutionOrigin.DETERMINISTIC_FALLBACK
+                        ).withTrace(
+                            "temporary_external_failed",
+                            externalError.message ?: externalError::class.java.simpleName
+                        )
+                        degradedReply(
+                            cleanInput,
+                            intent,
+                            memoryContext,
+                            capsuleContext,
+                            externalError.message ?: externalError::class.java.simpleName
+                        )
                     }
                 }
             }
