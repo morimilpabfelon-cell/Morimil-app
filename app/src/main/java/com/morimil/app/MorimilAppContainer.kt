@@ -16,12 +16,14 @@ import com.morimil.app.data.repository.MemoryRepository
 import com.morimil.app.data.repository.MigrationRecordRepository
 import com.morimil.app.data.repository.ProjectVaultRepository
 import com.morimil.app.data.repository.RecallScheduleRepository
+import com.morimil.app.data.repository.ReasoningTranscriptRepository
 import com.morimil.app.data.repository.RestCycleRepository
 import com.morimil.app.domain.usecase.AppendLivingMemoryUseCase
 import com.morimil.app.domain.usecase.ProposeCognitiveMigrationUseCase
 import com.morimil.app.domain.usecase.RunRestCycleUseCase
 import com.morimil.app.reasoning.ReasoningKernel
-import com.morimil.app.reasoning.trace.KernelTraceRepository
+import com.morimil.app.reasoning.ReasoningClientAuxiliaryMotor
+import com.morimil.app.reasoning.RepositoryReasoningContextReader
 import com.morimil.app.security.AndroidKeyStoreMemoryEventSigner
 import com.morimil.app.security.SecretVault
 import com.morimil.app.security.SharedPreferencesMemorySignatureEpochPolicy
@@ -60,6 +62,10 @@ class MorimilAppContainer(context: Context) {
             memoryIntegrityCore = memoryIntegrityCore,
             memoryEventSigner = memoryEventSigner
         )
+    }
+
+    val reasoningTranscriptRepository: ReasoningTranscriptRepository by lazy {
+        ReasoningTranscriptRepository(memoryDatabase)
     }
 
     val restCycleRepository: RestCycleRepository by lazy {
@@ -127,10 +133,6 @@ class MorimilAppContainer(context: Context) {
         AppendLivingMemoryUseCase(memoryRepository)
     }
 
-    val kernelTraceRepository: KernelTraceRepository by lazy {
-        KernelTraceRepository(appendLivingMemoryUseCase)
-    }
-
     val runRestCycleUseCase: RunRestCycleUseCase by lazy {
         RunRestCycleUseCase(restCycleRepository)
     }
@@ -157,14 +159,11 @@ class MorimilAppContainer(context: Context) {
 
     val reasoningKernel: ReasoningKernel by lazy {
         ReasoningKernel(
-            memoryRepository = memoryRepository,
-            memoryOrganRepository = memoryOrganRepository,
-            memoryLinkRepository = memoryLinkRepository,
-            appendLivingMemoryUseCase = appendLivingMemoryUseCase,
-            runRestCycleUseCase = runRestCycleUseCase,
-            recallScheduleRepository = recallScheduleRepository,
-            reasoningClient = reasoningClient,
-            kernelTraceRepository = kernelTraceRepository
+            contextReader = RepositoryReasoningContextReader(
+                memoryRepository = memoryRepository,
+                memoryOrganRepository = memoryOrganRepository
+            ),
+            auxiliaryMotor = ReasoningClientAuxiliaryMotor(reasoningClient)
         )
     }
 

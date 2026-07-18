@@ -12,7 +12,6 @@ import com.morimil.app.data.local.GenesisCoreEntity
 import com.morimil.app.data.local.LocalInstanceIdentityEntity
 import com.morimil.app.data.local.MemoryDao
 import com.morimil.app.data.local.MemoryEventEntity
-import com.morimil.app.data.local.MemoryMessageEntity
 import com.morimil.app.data.local.MemorySnapshotEntity
 import com.morimil.app.data.local.MorimilDatabase
 import com.morimil.app.data.local.ProjectStateEntity
@@ -48,7 +47,6 @@ class MemoryRepository(
 ) {
     private val memoryDao: MemoryDao = database.memoryDao()
 
-    val messages: Flow<List<MemoryMessageEntity>> = memoryDao.observeMessages()
     val decisions: Flow<List<DecisionLogEntity>> = memoryDao.observeDecisions()
     val projects: Flow<List<ProjectStateEntity>> = memoryDao.observeProjects()
     val activeWorkspace: Flow<UserWorkspaceEntity?> = memoryDao.observeActiveWorkspace()
@@ -56,46 +54,6 @@ class MemoryRepository(
     val genesisCore: Flow<GenesisCoreEntity?> = memoryDao.observeGenesisCore()
     val recentMemoryEvents: Flow<List<MemoryEventEntity>> = memoryDao.observeRecentMemoryEvents()
     val livingMemorySnapshot: Flow<MemorySnapshotEntity?> = memoryDao.observeLivingMemorySnapshot()
-
-    suspend fun addUserMessage(body: String): AppendedMemoryEventReference? {
-        return MemoryAppendGate.withAppendLock {
-            database.withTransaction {
-                memoryDao.insertMessage(
-                    MemoryMessageEntity(
-                        author = "user",
-                        body = body,
-                        createdAtMillis = System.currentTimeMillis()
-                    )
-                )
-                appendMemoryEvent(
-                    eventType = "conversation.user_message",
-                    actor = "user",
-                    body = body,
-                    importance = scoreImportance(body)
-                )
-            }
-        }
-    }
-
-    suspend fun addAssistantMessage(body: String) {
-        MemoryAppendGate.withAppendLock {
-            database.withTransaction {
-                memoryDao.insertMessage(
-                    MemoryMessageEntity(
-                        author = "morimil",
-                        body = body,
-                        createdAtMillis = System.currentTimeMillis()
-                    )
-                )
-                appendMemoryEvent(
-                    eventType = "conversation.assistant_message",
-                    actor = "morimil",
-                    body = body,
-                    importance = scoreImportance(body)
-                )
-            }
-        }
-    }
 
     suspend fun renameWorkspace(displayName: String): List<String> {
         return listOf("El nombre solo se define una vez.")
@@ -201,11 +159,6 @@ class MemoryRepository(
     suspend fun seedInitialStateIfNeeded() {
         if (memoryDao.countGenesisCore() == 0) return
 
-        if (memoryDao.countMessages() == 0) {
-            addAssistantMessage("Genesis movil v1 activo. Memoria local Room/SQLite conectada.")
-            addAssistantMessage("Voz manual activa. Sin sincronizacion externa ni ejecucion de PC.")
-        }
-
         memoryDao.upsertProject(
             ProjectStateEntity(
                 projectId = "morimil_app",
@@ -226,7 +179,7 @@ class MemoryRepository(
                                 createdAtMillis = System.currentTimeMillis()
                             )
                         )
-                        appendMemoryEvent(
+                        insertMemoryEventAndRebuildSnapshot(
                             eventType = "decision.local_memory_enabled",
                             actor = "system",
                             body = "Room/SQLite local memory enabled as persistent phone memory.",
@@ -337,25 +290,6 @@ class MemoryRepository(
         }
     }
 
-    private suspend fun appendMemoryEvent(
-        eventType: String,
-        actor: String,
-        body: String,
-        importance: Int
-    ): AppendedMemoryEventReference? {
-        if (body.isBlank()) return null
-        val genesisCore = requireNotNull(memoryDao.loadGenesisCore()) {
-            "Cannot append living memory without a local Genesis Core."
-        }
-        val eventHash = insertMemoryEventAndRebuildSnapshot(eventType, actor, body, importance)
-        return AppendedMemoryEventReference(
-            eventHash = eventHash,
-            genesisCoreId = genesisCore.coreId,
-            genesisCoreHash = genesisCore.contentSha256,
-            instanceId = genesisCore.instanceId
-        )
-    }
-
     private suspend fun insertMemoryEventAndRebuildSnapshot(
         eventType: String,
         actor: String,
@@ -439,7 +373,6 @@ class MemoryRepository(
         val events = memoryDao.loadMemoryContext(limit = 50)
             .filter { event -> event.memoryKind != "chat_noise" || event.userConfirmed || event.importance >= 40 }
         val eventCount = memoryDao.countMemoryEvents()
-        val messageCount = memoryDao.countMessages()
         val prioritized = events
             .sortedWith(
                 compareByDescending<MemoryEventEntity> { it.userConfirmed }
@@ -458,14 +391,12 @@ class MemoryRepository(
                 genesisCoreId = "primary_genesis",
                 summary = prioritized,
                 eventCount = eventCount,
-                messageCount = messageCount,
+                // Kept at zero for schema compatibility. Reasoning transcript
+                // turns are deliberately outside living memory.
+                messageCount = 0,
                 updatedAtMillis = System.currentTimeMillis()
             )
         )
-    }
-
-    private fun scoreImportance(body: String): Int {
-        return MemoryEventClassifier.scoreImportance(body)
     }
 
     private fun formatMemoryEvent(event: MemoryEventEntity): String {
@@ -619,10 +550,3 @@ class MemoryRepository(
         private const val PRIVATE_LOCAL = "private_local"
     }
 }
-
-data class AppendedMemoryEventReference(
-    val eventHash: String,
-    val genesisCoreId: String,
-    val genesisCoreHash: String,
-    val instanceId: String
-)

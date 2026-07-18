@@ -83,7 +83,7 @@ Morimil uses two local Room databases.
 MorimilDatabase:
   local_instance_identity
   genesis_core
-  memory_messages
+  reasoning_turns (operational transcript; not memory)
   memory_events
   memory_snapshots
   decision_log
@@ -98,7 +98,7 @@ MemoryOrganDatabase:
   migration_records
 ```
 
-The phone-local databases are the runtime memory body. Reasoning providers do not own memory, identity, doctrine, or continuity.
+The phone-local databases are the runtime body. Morimil's own reasoning kernel coordinates each turn. Auxiliary reasoning providers receive temporary computation requests and have no memory writer; they do not own memory, identity, doctrine, or continuity. Chat transcript rows are operational history and never extend either memory chain.
 
 `MorimilDatabase` and `MemoryOrganDatabase` are currently separate SQLite files. This keeps the first living-memory chain isolated from higher-level organs while the app is still evolving, but it also means Room cannot make one atomic transaction across events, capsules, links, recalls, and migration records. Cross-database references are therefore treated as append-only references plus reconciliation, not as foreign-key-enforced invariants.
 

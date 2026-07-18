@@ -71,10 +71,10 @@ The following are implemented runtime pieces, not merely planned organs:
 
 ## Database Contract
 
-`MorimilDatabase` is version 8 and owns the primary local memory ledger:
+`MorimilDatabase` is version 12 and owns identity, the operational transcript, and the primary local memory ledger:
 
 ```text
-memory_messages
+reasoning_turns (operational transcript, not memory)
 decision_log
 project_state
 user_workspace
@@ -83,6 +83,8 @@ genesis_core
 memory_events
 memory_snapshots
 ```
+
+`ReasoningKernel` is Morimil's own orchestration engine. Configured local or remote models are temporary auxiliary computation motors. They receive no DAO, repository, memory append use case, identity writer, or lifecycle writer.
 
 `MemoryOrganDatabase` is version 5 and owns higher memory organs:
 

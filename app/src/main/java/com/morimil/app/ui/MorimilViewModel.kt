@@ -16,7 +16,7 @@ import com.morimil.app.data.local.KnowledgeCapsuleEntity
 import com.morimil.app.data.local.LocalInstanceIdentityEntity
 import com.morimil.app.data.local.MemoryEventEntity
 import com.morimil.app.data.local.MemoryLinkEntity
-import com.morimil.app.data.local.MemoryMessageEntity
+import com.morimil.app.data.local.ReasoningTurnEntity
 import com.morimil.app.data.local.MemorySnapshotEntity
 import com.morimil.app.data.local.MigrationRecordEntity
 import com.morimil.app.data.local.ProjectStateEntity
@@ -50,6 +50,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     private val container = MorimilAppContainer.from(application)
     private val memoryDatabase = container.memoryDatabase
     private val repository = container.memoryRepository
+    private val reasoningTranscriptRepository = container.reasoningTranscriptRepository
     private val memoryOrganRepository = container.memoryOrganRepository
     private val memoryLinkRepository = container.memoryLinkRepository
     private val migrationRecordRepository = container.migrationRecordRepository
@@ -70,7 +71,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     val motorViewModel: MotorViewModel by lazy { MotorViewModel(this) }
     val pcHandoffViewModel: PcHandoffViewModel by lazy { PcHandoffViewModel(this) }
 
-    val messages: StateFlow<List<MemoryMessageEntity>> = repository.messages.stateIn(
+    val messages: StateFlow<List<ReasoningTurnEntity>> = reasoningTranscriptRepository.turns.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList()
@@ -232,6 +233,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                     RestCycleScheduler.schedule(application)
                     refreshRestCycleScheduleStatusOnWorker(application)
                     repository.seedInitialStateIfNeeded()
+                    reasoningTranscriptRepository.seedIntroTurnsIfNeeded()
                     agentOrchestrationRepository.seedDefaultOrchestrationIfNeeded()
                     runObservedInternalTask("rest_cycle.startup") { runRestCycleUseCase() }
                     runObservedInternalTask("recall.startup") { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
@@ -695,7 +697,8 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
             try {
                 repository.birthLocalIdentity(alias, genesis, sourceOrigin, genesisCoreHash, cachedDoctrineText, cachedPolicyText)
                 repository.seedInitialStateIfNeeded()
-            agentOrchestrationRepository.seedDefaultOrchestrationIfNeeded()
+                reasoningTranscriptRepository.seedIntroTurnsIfNeeded()
+                agentOrchestrationRepository.seedDefaultOrchestrationIfNeeded()
                 runObservedInternalTask("rest_cycle.birth") { runRestCycleUseCase() }
                 runObservedInternalTask("recall.birth") { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
                 Unit
@@ -745,6 +748,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                     .map { ChatTurn(role = if (it.author == "user") "user" else "assistant", content = it.body) }
 
                 val result = withContext(Dispatchers.IO) {
+                    reasoningTranscriptRepository.appendUserTurn(cleanBody)
                     reasoningKernel.reason(
                         ReasoningKernelRequest(
                             input = cleanBody,
@@ -753,12 +757,17 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
                             doctrineText = cachedDoctrineText,
                             policyText = cachedPolicyText,
                             priorHistory = priorHistory,
-                            fallbackGenesisCoreId = genesisCore.value?.coreId,
                             runtimeLabel = runtimeLabel,
                             runtimeConfig = runtimeConfig,
                             runtimeAccess = runtimeAccess
                         )
                     )
+                }
+
+                result.reply?.let { reply ->
+                    withContext(Dispatchers.IO) {
+                        reasoningTranscriptRepository.appendMorimilTurn(reply)
+                    }
                 }
 
                 if (result.errorMessage != null) {

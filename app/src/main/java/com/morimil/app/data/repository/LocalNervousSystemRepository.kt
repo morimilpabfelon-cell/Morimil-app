@@ -27,7 +27,6 @@ class LocalNervousSystemRepository(
         val genesisCoreCount = memoryDao.countGenesisCore()
         val localIdentityCount = memoryDao.countLocalIdentity()
         val memoryEventCount = memoryDao.countMemoryEvents()
-        val messageCount = memoryDao.countMessages()
         val livingSnapshotCount = memoryDao.countLivingMemorySnapshot()
         val recentContextCount = memoryDao.loadMemoryContext(20).size
         val healthCheckLatencyMillis = System.currentTimeMillis() - startedAtMillis
@@ -37,7 +36,8 @@ class LocalNervousSystemRepository(
                 genesisCoreCount = genesisCoreCount,
                 localIdentityCount = localIdentityCount,
                 memoryEventCount = memoryEventCount,
-                messageCount = messageCount,
+                // Legacy health field: the reasoning transcript is not memory.
+                messageCount = 0,
                 livingSnapshotCount = livingSnapshotCount,
                 recentContextCount = recentContextCount,
                 memoryChainVerified = memoryChainVerified,

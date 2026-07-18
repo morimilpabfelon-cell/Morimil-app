@@ -24,7 +24,7 @@ class DatabaseMigrationTest {
     }
 
     @Test
-    fun morimilDatabaseMigratesFrom7To11WithMemoryEventDefaults() {
+    fun morimilDatabaseMigratesFrom7To12WithMemoryEventDefaults() {
         createMorimilDatabaseAtVersion7()
 
         val database = Room.databaseBuilder(context, MorimilDatabase::class.java, MORIMIL_DB)
@@ -32,7 +32,8 @@ class DatabaseMigrationTest {
                 MorimilDatabase.MIGRATION_7_8,
                 MorimilDatabase.MIGRATION_8_9,
                 MorimilDatabase.MIGRATION_9_10,
-                MorimilDatabase.MIGRATION_10_11
+                MorimilDatabase.MIGRATION_10_11,
+                MorimilDatabase.MIGRATION_11_12
             )
             .build()
 
@@ -52,6 +53,8 @@ class DatabaseMigrationTest {
         }
 
         assertTrue(migrated.indexNames("memory_events").containsAll(MORIMIL_MEMORY_EVENT_INDEXES))
+        assertTrue(migrated.tableNames().contains("reasoning_turns"))
+        assertTrue(!migrated.tableNames().contains("memory_messages"))
         database.close()
     }
 
@@ -339,6 +342,14 @@ class DatabaseMigrationTest {
         return query("PRAGMA table_info($tableName)").use { cursor ->
             buildSet {
                 while (cursor.moveToNext()) add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+            }
+        }
+    }
+
+    private fun SupportSQLiteDatabase.tableNames(): Set<String> {
+        return query("SELECT name FROM sqlite_master WHERE type = 'table'").use { cursor ->
+            buildSet {
+                while (cursor.moveToNext()) add(cursor.getString(0))
             }
         }
     }

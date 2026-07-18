@@ -23,17 +23,17 @@ class MorimilDatabaseMigrationTest {
     }
 
     @Test
-    fun migratesLegacyV1ToCurrentV11WithoutDroppingCoreMemory() {
+    fun migratesLegacyV1ToCurrentV12WithoutTreatingChatAsMemory() {
         createVersion1Database()
 
         val database = openMigratedDatabase()
         val migrated = database.openHelper.writableDatabase
 
-        assertEquals(11, migrated.userVersion())
+        assertEquals(12, migrated.userVersion())
         assertTrue(
             migrated.tableNames().containsAll(
                 listOf(
-                    "memory_messages",
+                    "reasoning_turns",
                     "decision_log",
                     "project_state",
                     "user_workspace",
@@ -48,7 +48,8 @@ class MorimilDatabaseMigrationTest {
                 )
             )
         )
-        assertEquals("seed message survives migration", migrated.singleString("SELECT body FROM memory_messages WHERE id = 1"))
+        assertEquals("seed message survives migration", migrated.singleString("SELECT body FROM reasoning_turns WHERE id = 1"))
+        assertTrue(!migrated.tableNames().contains("memory_messages"))
         assertEquals("Keep local memory", migrated.singleString("SELECT title FROM decision_log WHERE id = 1"))
         assertEquals("Morimil App", migrated.singleString("SELECT title FROM project_state WHERE projectId = 'morimil-app'"))
         assertTrue(migrated.columnNames("memory_events").containsAll(MEMORY_EVENT_COLUMNS))
@@ -57,7 +58,7 @@ class MorimilDatabaseMigrationTest {
     }
 
     @Test
-    fun migratesV7ToV11WithMemoryEventDefaultsAndIndexes() {
+    fun migratesV7ToV12WithMemoryEventDefaultsAndIndexes() {
         createVersion7DatabaseWithMemoryEvent()
 
         val database = Room.databaseBuilder(context, MorimilDatabase::class.java, MORIMIL_DB)
@@ -65,12 +66,13 @@ class MorimilDatabaseMigrationTest {
                 MorimilDatabase.MIGRATION_7_8,
                 MorimilDatabase.MIGRATION_8_9,
                 MorimilDatabase.MIGRATION_9_10,
-                MorimilDatabase.MIGRATION_10_11
+                MorimilDatabase.MIGRATION_10_11,
+                MorimilDatabase.MIGRATION_11_12
             )
             .build()
         val migrated = database.openHelper.writableDatabase
 
-        assertEquals(11, migrated.userVersion())
+        assertEquals(12, migrated.userVersion())
         assertTrue(migrated.columnNames("memory_events").containsAll(MEMORY_EVENT_V8_COLUMNS))
         migrated.query(
             "SELECT memoryKind, tagsJson, evidenceJson, confidence, userConfirmed FROM memory_events WHERE id = 1"
@@ -98,12 +100,13 @@ class MorimilDatabaseMigrationTest {
                 MorimilDatabase.MIGRATION_7_8,
                 MorimilDatabase.MIGRATION_8_9,
                 MorimilDatabase.MIGRATION_9_10,
-                MorimilDatabase.MIGRATION_10_11
+                MorimilDatabase.MIGRATION_10_11,
+                MorimilDatabase.MIGRATION_11_12
             )
             .build()
         val migrated = database.openHelper.writableDatabase
 
-        assertEquals(11, migrated.userVersion())
+        assertEquals(12, migrated.userVersion())
         assertTrue(
             migrated.columnNames("local_instance_identity").containsAll(
                 listOf("localMemoryOwner", "localMemoryName", "localMemoryUri")
@@ -136,7 +139,8 @@ class MorimilDatabaseMigrationTest {
                 MorimilDatabase.MIGRATION_7_8,
                 MorimilDatabase.MIGRATION_8_9,
                 MorimilDatabase.MIGRATION_9_10,
-                MorimilDatabase.MIGRATION_10_11
+                MorimilDatabase.MIGRATION_10_11,
+                MorimilDatabase.MIGRATION_11_12
             )
             .build()
     }

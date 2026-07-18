@@ -6,26 +6,13 @@ import com.morimil.app.ai.ReasoningProviderConfig
 import com.morimil.app.ai.ReasoningRuntimeState
 import com.morimil.app.ai.SystemPromptBuilder
 import com.morimil.app.data.genesis.GenesisIdentity
-import com.morimil.app.data.repository.MemoryLinkRepository
-import com.morimil.app.data.repository.MemoryOrganRepository
-import com.morimil.app.data.repository.MemoryRepository
-import com.morimil.app.data.repository.RecallScheduleRepository
-import com.morimil.app.domain.usecase.AppendLivingMemoryUseCase
-import com.morimil.app.domain.usecase.RunRestCycleUseCase
 import com.morimil.app.reasoning.model.ModelBackendRouter
 import com.morimil.app.reasoning.model.ReasoningBackendStatusStore
-import com.morimil.app.reasoning.trace.KernelTraceRepository
 import com.morimil.app.web.NativeWebContextStore
 
 class ReasoningKernel(
-    private val memoryRepository: MemoryRepository,
-    private val memoryOrganRepository: MemoryOrganRepository,
-    private val memoryLinkRepository: MemoryLinkRepository,
-    private val appendLivingMemoryUseCase: AppendLivingMemoryUseCase,
-    private val runRestCycleUseCase: RunRestCycleUseCase,
-    private val recallScheduleRepository: RecallScheduleRepository,
-    private val reasoningClient: ReasoningClient,
-    private val kernelTraceRepository: KernelTraceRepository
+    private val contextReader: ReasoningContextReader,
+    private val auxiliaryMotor: AuxiliaryReasoningMotor
 ) {
     suspend fun reason(request: ReasoningKernelRequest): ReasoningKernelResult {
         val cleanInput = request.input.trim()
@@ -64,15 +51,6 @@ class ReasoningKernel(
         if (cleanInput.isBlank()) {
             val error = "Mensaje vacio."
             val errorState = state.withError(error)
-            runCatching {
-                kernelTraceRepository.recordTurnTrace(
-                    state = errorState,
-                    backend = backend,
-                    reply = null,
-                    errorMessage = error,
-                    fallbackUsed = !backend.usable
-                )
-            }
             return ReasoningKernelResult(
                 state = errorState,
                 reply = null,
@@ -81,34 +59,7 @@ class ReasoningKernel(
         }
 
         return runCatching {
-            val userMemoryEvent = appendLivingMemoryUseCase.appendUserMessage(cleanInput)
-            state = state.withTrace("memory_append", "user_event=${userMemoryEvent?.eventHash ?: "none"}")
-
-            val activeGenesisCoreId = userMemoryEvent?.genesisCoreId
-                ?: request.fallbackGenesisCoreId
-                ?: "primary_genesis"
-
-            val capturedCapsule = memoryOrganRepository.captureKnowledgeCapsuleFromText(
-                genesisCoreId = activeGenesisCoreId,
-                text = cleanInput,
-                sourceEventHash = userMemoryEvent?.eventHash
-            )
-            if (capturedCapsule != null && userMemoryEvent != null) {
-                memoryLinkRepository.createMemoryLink(
-                    instanceId = userMemoryEvent.instanceId,
-                    genesisCoreHash = userMemoryEvent.genesisCoreHash,
-                    sourceId = capturedCapsule.capsuleId,
-                    sourceType = MemoryLinkRepository.KNOWLEDGE_CAPSULE_NODE_TYPE,
-                    targetId = userMemoryEvent.eventHash,
-                    targetType = MemoryLinkRepository.MEMORY_EVENT_NODE_TYPE,
-                    relation = MemoryLinkRepository.RELATION_DERIVED_FROM,
-                    strength = 0.96,
-                    reason = "kernel_capsule_source_event:${capturedCapsule.capsuleHash.take(19)}"
-                )
-                state = state.withTrace("capsule_capture", "capsule=${capturedCapsule.capsuleId}")
-            }
-
-            val localMemoryContext = memoryRepository.buildLivingMemoryContext(cleanInput)
+            val localMemoryContext = contextReader.readLivingMemory(cleanInput)
             val webBudget = webPromptBudgetFor(localMemoryContext)
             val nativeWebContext = NativeWebContextStore.consumePromptContext(
                 query = cleanInput,
@@ -122,7 +73,7 @@ class ReasoningKernel(
                     appendLine(nativeWebContext)
                 }
             }.take(MAX_COMBINED_MEMORY_CONTEXT_CHARS)
-            val capsuleContext = memoryOrganRepository.buildKnowledgeCapsuleContext()
+            val capsuleContext = contextReader.readKnowledgeCapsules()
             state = state.copy(
                 memoryContextSummary = summarizeContext(memoryContext),
                 capsuleContextSummary = summarizeContext(capsuleContext)
@@ -131,7 +82,6 @@ class ReasoningKernel(
                 "memory_chars=${localMemoryContext.length} combined_chars=${memoryContext.length} capsule_chars=${capsuleContext.length} web_chars=${nativeWebContext.length}"
             )
 
-            var fallbackUsed = !backend.usable
             val reply = when {
                 !backend.usable -> degradedReply(cleanInput, intent, memoryContext, capsuleContext, backend.reason)
                 else -> {
@@ -148,38 +98,25 @@ class ReasoningKernel(
                         ChatTurn(role = "user", content = cleanInput)
 
                     state = state.withTrace("model_call", "backend=${backend.kind} endpoint=${backend.endpoint.take(80)} model=${backend.model} complexity=${backend.taskComplexity}")
-                    reasoningClient.sendMessage(
-                        request.runtimeConfig,
-                        request.runtimeAccess,
-                        systemPrompt,
-                        recentHistory
+                    auxiliaryMotor.compute(
+                        AuxiliaryReasoningRequest(
+                            config = request.runtimeConfig,
+                            runtimeAccess = request.runtimeAccess,
+                            systemPrompt = systemPrompt,
+                            history = recentHistory
+                        )
                     ).getOrElse { error ->
-                        fallbackUsed = true
                         state = state.withTrace("model_failed", error.message ?: error::class.java.simpleName)
                         degradedReply(cleanInput, intent, memoryContext, capsuleContext, error.message ?: error::class.java.simpleName)
                     }
                 }
             }
 
-            appendLivingMemoryUseCase.appendAssistantMessage(reply)
             state = state.withFinalReply(reply)
-            runCatching {
-                kernelTraceRepository.recordTurnTrace(
-                    state = state,
-                    backend = backend,
-                    reply = reply,
-                    errorMessage = null,
-                    fallbackUsed = fallbackUsed
-                )
-            }
-
-            runCatching { runRestCycleUseCase() }
-                .onSuccess { ran -> state = state.withTrace("rest_cycle", "ran=$ran") }
-                .onFailure { error -> state = state.withTrace("rest_cycle_failed", error.message ?: error::class.java.simpleName) }
-
-            runCatching { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
-                .onSuccess { created -> state = state.withTrace("recall_schedule", "created=$created") }
-                .onFailure { error -> state = state.withTrace("recall_schedule_failed", error.message ?: error::class.java.simpleName) }
+            state = state.withTrace(
+                "persistence_boundary",
+                "reply_is_transient; memory_write_capability=absent"
+            )
 
             ReasoningKernelResult(
                 state = state,
@@ -189,15 +126,6 @@ class ReasoningKernel(
         }.getOrElse { error ->
             val message = error.message ?: error::class.java.simpleName
             val errorState = state.withError(message)
-            runCatching {
-                kernelTraceRepository.recordTurnTrace(
-                    state = errorState,
-                    backend = backend,
-                    reply = null,
-                    errorMessage = message,
-                    fallbackUsed = !backend.usable
-                )
-            }
             ReasoningKernelResult(
                 state = errorState,
                 reply = null,
@@ -252,6 +180,5 @@ data class ReasoningKernelRequest(
     val priorHistory: List<ChatTurn>,
     val runtimeConfig: ReasoningProviderConfig,
     val runtimeAccess: String,
-    val runtimeLabel: String,
-    val fallbackGenesisCoreId: String? = null
+    val runtimeLabel: String
 )
