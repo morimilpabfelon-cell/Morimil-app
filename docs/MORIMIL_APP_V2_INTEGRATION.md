@@ -60,8 +60,8 @@ organs:
 Primary memory ledger:
 
 ```text
-MorimilDatabase v8:
-  memory_messages
+MorimilDatabase v12:
+  reasoning_turns (operational transcript, not memory)
   decision_log
   project_state
   user_workspace
