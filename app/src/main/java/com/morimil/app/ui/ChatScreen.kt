@@ -66,7 +66,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.morimil.app.data.local.MemoryMessageEntity
+import com.morimil.app.data.local.ReasoningTurnEntity
 import com.morimil.app.reasoning.model.ModelBackendDecision
 import com.morimil.app.reasoning.model.ReasoningBackendStatusStore
 import com.morimil.app.reasoning.model.ReasoningEscalationDecision
@@ -280,7 +280,7 @@ private fun HealthStatusDot(health: OrganismHealthUiState, onClick: () -> Unit) 
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ChatMessageBubble(message: MemoryMessageEntity) {
+private fun ChatMessageBubble(message: ReasoningTurnEntity) {
     val isUser = message.author == "user"
     var showTime by remember(message.id, message.createdAtMillis) { mutableStateOf(false) }
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
@@ -596,7 +596,7 @@ private fun sendOrQueueNativeWeb(message: String, viewModel: ChatViewModel) {
     }
 }
 
-private fun shouldShowDaySeparator(messages: List<MemoryMessageEntity>, index: Int): Boolean {
+private fun shouldShowDaySeparator(messages: List<ReasoningTurnEntity>, index: Int): Boolean {
     if (index == 0) return true
     return dayLabel(messages[index].createdAtMillis) != dayLabel(messages[index - 1].createdAtMillis)
 }
