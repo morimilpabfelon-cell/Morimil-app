@@ -16,7 +16,7 @@ Included:
   memory organs and recall schedule runtime
   voice controls
   bundled Genesis seed reader/verifier
-  neutral Motor/API screen with up to 10 reasoning API slots
+  Morimil-owned reasoning kernel with temporary auxiliary Motor/API slots
   model discovery through compatible model catalogs
 
 Not included yet:
@@ -35,7 +35,8 @@ Morimil:
 
 Rule:
   Morimil-app does not mutate the Morimil Genesis repository.
-  Reasoning APIs are transport only; memory and identity remain local.
+  Reasoning APIs are temporary computation only. They cannot write memory or identity;
+  Morimil's own kernel keeps control of the turn and the signed local continuity.
 ```
 
 ## Android Studio Build Setup
