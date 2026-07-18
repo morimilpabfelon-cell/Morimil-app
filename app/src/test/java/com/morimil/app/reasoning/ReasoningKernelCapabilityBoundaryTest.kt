@@ -13,7 +13,11 @@ class ReasoningKernelCapabilityBoundaryTest {
         val constructor = ReasoningKernel::class.java.declaredConstructors.single()
 
         assertEquals(
-            listOf(ReasoningContextReader::class.java, TriMotorReasoningCoordinator::class.java),
+            listOf(
+                ReasoningContextReader::class.java,
+                IntrinsicTriMotorCoordinator::class.java,
+                TemporaryExternalReasoningProvider::class.java
+            ),
             constructor.parameterTypes.toList()
         )
         assertTrue(
@@ -42,16 +46,11 @@ class ReasoningKernelCapabilityBoundaryTest {
                     return "local knowledge"
                 }
             },
-            motorCoordinator = TriMotorReasoningCoordinator(
-                motors = listOf(
-                    AuxiliaryReasoningMotorAdapter(
-                        delegate = AuxiliaryReasoningMotor {
-                            motorCalls += 1
-                            Result.success("temporary computed reply")
-                        }
-                    )
-                )
-            )
+            intrinsicCoordinator = IntrinsicTriMotorCoordinator(),
+            temporaryExternalProvider = TemporaryExternalReasoningProvider {
+                motorCalls += 1
+                Result.success("temporary computed reply")
+            }
         )
 
         val result = kernel.reason(
@@ -72,11 +71,73 @@ class ReasoningKernelCapabilityBoundaryTest {
         assertEquals(1, livingMemoryReads)
         assertEquals(1, capsuleReads)
         assertEquals(1, motorCalls)
+        assertEquals(ReasoningExecutionOrigin.TEMPORARY_EXTERNAL, result.state.executionOrigin)
+        assertTrue(
+            result.state.trace.any { trace ->
+                trace.stage == "intrinsic_motor_unavailable"
+            }
+        )
+        assertTrue(
+            result.state.trace.any { trace ->
+                trace.stage == "temporary_external_result" &&
+                    trace.detail.contains("intrinsic_motor_state_unchanged")
+            }
+        )
         assertTrue(
             result.state.trace.any { trace ->
                 trace.stage == "persistence_boundary" &&
                     trace.detail.contains("memory_write_capability=absent")
             }
+        )
+    }
+
+    @Test
+    fun intrinsicMotorRunsBeforeTemporaryExternalProvider() = runBlocking {
+        var externalCalls = 0
+        val intrinsicMotor = object : IntrinsicReasoningMotor {
+            override val role = ReasoningMotorRole.INTUITIVE
+            override val capabilityVersion = "intuitive-v1"
+
+            override suspend fun compute(
+                request: IntrinsicReasoningRequest
+            ): Result<IntrinsicReasoningResponse> {
+                return Result.success(IntrinsicReasoningResponse("intrinsic reply"))
+            }
+        }
+        val kernel = ReasoningKernel(
+            contextReader = object : ReasoningContextReader {
+                override suspend fun readLivingMemory(query: String) = ""
+                override suspend fun readKnowledgeCapsules() = ""
+            },
+            intrinsicCoordinator = IntrinsicTriMotorCoordinator(listOf(intrinsicMotor)),
+            temporaryExternalProvider = TemporaryExternalReasoningProvider {
+                externalCalls += 1
+                Result.success("external reply")
+            }
+        )
+
+        val result = kernel.reason(
+            ReasoningKernelRequest(
+                input = "Hola",
+                alias = "Morimil",
+                genesis = testGenesis(),
+                doctrineText = null,
+                policyText = null,
+                priorHistory = emptyList(),
+                runtimeConfig = ReasoningProviderConfig.default(),
+                runtimeAccess = "",
+                runtimeLabel = "temporary external provider"
+            )
+        )
+
+        assertEquals("intrinsic reply", result.reply)
+        assertEquals(0, externalCalls)
+        assertEquals(ReasoningExecutionOrigin.MORIMIL_INTRINSIC, result.state.executionOrigin)
+        assertTrue(
+            result.state.trace.any { trace -> trace.stage == "intrinsic_motor_result" }
+        )
+        assertTrue(
+            result.state.trace.none { trace -> trace.stage == "temporary_external_call" }
         )
     }
 
