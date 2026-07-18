@@ -22,9 +22,9 @@ data class GenesisUltraBirthJournalEvidence(
 )
 
 /**
- * Persistence boundary only. Construction of this value does not prove the
- * Ed25519 signatures; callers must pass it through the full cryptographic birth
- * validator before this store is ever connected to UI or onboarding.
+ * Persistence model only. Construction of this value does not prove the
+ * Ed25519 signatures, and the atomic store deliberately does not accept it as
+ * an input. Only [GenesisUltraVerifiedAtomicBirth] crosses that boundary.
  */
 data class GenesisUltraAtomicBirthPersistenceBundle(
     val seedManifest: GenesisUltraSeedManifest,
@@ -215,11 +215,12 @@ internal class GenesisUltraAtomicBirthStore(
 ) {
     private val dao = database.genesisUltraBirthDao()
 
-    suspend fun persistPrevalidated(
-        bundle: GenesisUltraAtomicBirthPersistenceBundle,
+    suspend fun persistVerified(
+        verifiedBirth: GenesisUltraVerifiedAtomicBirth,
         persistedAtMillis: Long
     ): GenesisUltraBirthCommitEntity {
         require(persistedAtMillis >= 0L) { "persisted_at_invalid" }
+        val bundle = verifiedBirth.copyPersistenceBundle()
         val issues = GenesisUltraAtomicBirthPersistenceValidator.validate(bundle)
         require(issues.isEmpty()) { "atomic_birth_persistence_invalid:$issues" }
 
