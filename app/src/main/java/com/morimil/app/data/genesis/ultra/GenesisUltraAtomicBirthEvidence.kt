@@ -25,14 +25,22 @@ class GenesisUltraVerifiedAtomicBirth private constructor(
     internal fun copyPersistenceBundle(): GenesisUltraAtomicBirthPersistenceBundle = snapshot.snapshot()
 
     internal companion object {
-        fun fromVerified(bundle: GenesisUltraAtomicBirthPersistenceBundle): GenesisUltraVerifiedAtomicBirth {
-            return GenesisUltraVerifiedAtomicBirth(bundle)
+        fun verify(request: GenesisUltraAtomicBirthEvidenceRequest): GenesisUltraVerifiedAtomicBirth {
+            return GenesisUltraVerifiedAtomicBirth(
+                GenesisUltraAtomicBirthEvidenceVerifier.verifyBundle(request)
+            )
         }
     }
 }
 
 object GenesisUltraAtomicBirthEvidenceVerifier {
     fun verify(request: GenesisUltraAtomicBirthEvidenceRequest): GenesisUltraVerifiedAtomicBirth {
+        return GenesisUltraVerifiedAtomicBirth.verify(request)
+    }
+
+    internal fun verifyBundle(
+        request: GenesisUltraAtomicBirthEvidenceRequest
+    ): GenesisUltraAtomicBirthPersistenceBundle {
         require(request.bodyRawPublicKey.size == ED25519_PUBLIC_KEY_BYTES) {
             "birth_body_ed25519_key_size_invalid"
         }
@@ -247,7 +255,7 @@ object GenesisUltraAtomicBirthEvidenceVerifier {
             )
         }
 
-        return GenesisUltraVerifiedAtomicBirth.fromVerified(persistenceBundle)
+        return persistenceBundle
     }
 
     private fun validateFreedomCharter(
