@@ -9,7 +9,7 @@ import com.morimil.app.data.local.DelegatedTaskEntity
 import com.morimil.app.data.local.KnowledgeCapsuleEntity
 import com.morimil.app.data.local.MemoryEventEntity
 import com.morimil.app.data.local.MemoryLinkEntity
-import com.morimil.app.data.local.MemoryMessageEntity
+import com.morimil.app.data.local.ReasoningTurnEntity
 import com.morimil.app.data.local.MemorySnapshotEntity
 import com.morimil.app.data.local.MigrationRecordEntity
 import com.morimil.app.data.local.OrchestratorDeviceEntity
@@ -30,7 +30,7 @@ import kotlinx.coroutines.launch
 import androidx.lifecycle.viewModelScope
 
 data class ChatUiState(
-    val messages: List<MemoryMessageEntity> = emptyList(),
+    val messages: List<ReasoningTurnEntity> = emptyList(),
     val isSending: Boolean = false,
     val error: String? = null,
     val organismStatus: ChatOrganismStatusUiState = ChatOrganismStatusUiState(),
@@ -39,7 +39,7 @@ data class ChatUiState(
 
 data class MemoryUiState(
     val decisions: List<DecisionLogEntity> = emptyList(),
-    val messages: List<MemoryMessageEntity> = emptyList(),
+    val messages: List<ReasoningTurnEntity> = emptyList(),
     val projects: List<ProjectStateEntity> = emptyList(),
     val snapshot: MemorySnapshotEntity? = null,
     val events: List<MemoryEventEntity> = emptyList(),
@@ -70,11 +70,11 @@ data class HealthUiState(
 
 data class MotorUiState(
     val title: String = "Motor/API",
-    val boundary: String = "La API razona con contexto temporal; identidad y memoria viven localmente."
+    val boundary: String = "El núcleo propio de Morimil dirige; la API sólo calcula temporalmente y no puede escribir memoria."
 )
 
 class ChatViewModel internal constructor(private val owner: MorimilViewModel) {
-    val messages: StateFlow<List<MemoryMessageEntity>> = owner.messages
+    val messages: StateFlow<List<ReasoningTurnEntity>> = owner.messages
     val isSending: StateFlow<Boolean> = owner.isSending
     val chatError: StateFlow<String?> = owner.chatError
     val chatOrganismStatus: StateFlow<ChatOrganismStatusUiState> = owner.chatOrganismStatus
@@ -104,7 +104,7 @@ class ChatViewModel internal constructor(private val owner: MorimilViewModel) {
 
 class MemoryViewModel internal constructor(private val owner: MorimilViewModel) {
     val decisions: StateFlow<List<DecisionLogEntity>> = owner.decisions
-    val messages: StateFlow<List<MemoryMessageEntity>> = owner.messages
+    val messages: StateFlow<List<ReasoningTurnEntity>> = owner.messages
     val projects: StateFlow<List<ProjectStateEntity>> = owner.projects
     val livingMemorySnapshot: StateFlow<MemorySnapshotEntity?> = owner.livingMemorySnapshot
     val recentMemoryEvents: StateFlow<List<MemoryEventEntity>> = owner.recentMemoryEvents
@@ -140,7 +140,7 @@ class MemoryViewModel internal constructor(private val owner: MorimilViewModel) 
     val uiState: StateFlow<MemoryUiState> = combine(memoryStateInputs) { values ->
         MemoryUiState(
             decisions = values[0] as List<DecisionLogEntity>,
-            messages = values[1] as List<MemoryMessageEntity>,
+            messages = values[1] as List<ReasoningTurnEntity>,
             projects = values[2] as List<ProjectStateEntity>,
             snapshot = values[3] as MemorySnapshotEntity?,
             events = values[4] as List<MemoryEventEntity>,
