@@ -295,6 +295,130 @@ class GenesisUltraAtomicBirthStoreTest {
         assertTrue(failure?.message?.contains("canonical_memory_signature_invalid:1") == true)
     }
 
+    @Test
+    fun atomicActivationCommitsBirthRecoveryAndFirstAppendTogether() = runBlocking {
+        val bundle = validBundle()
+        val coordinator = activationCoordinator(bundle)
+
+        val result = coordinator.activate(
+            verifiedBirth = testOnlyVerifiedBirth(bundle),
+            persistedAtMillis = 1000L,
+            recoveryRequest = activationRecoveryRequest(),
+            signer = bodyMemorySigner(),
+            firstPostBirthRequest = appendRequest(1)
+        )
+
+        assertEquals(GenesisUltraPersistedBirthState.COMMITTED, GenesisUltraAtomicBirthStore(database).readState())
+        assertEquals(INSTANCE_ID, result.commit.instanceId)
+        assertEquals(1L, result.firstPostBirthMemory.event.sequence)
+        assertEquals(bundle.birthState.firstMemoryEventHash, result.firstPostBirthMemory.event.previousEventHash)
+        assertEquals(1, database.genesisUltraBirthDao().countBirthCommits())
+        assertEquals(1, database.genesisUltraMemoryDao().countAll())
+        assertEquals(0, database.memoryDao().countMemoryEvents())
+    }
+
+    @Test
+    fun signingFailureRollsBackBirthAndFirstAppendAsOneUnit() = runBlocking {
+        val bundle = validBundle()
+        val failingSigner = object : GenesisUltraBodyMemorySigner {
+            override val key = bodyMemoryKey()
+            override fun sign(signingBytes: ByteArray): ByteArray = error("keystore_unavailable")
+        }
+
+        val failure = runCatching {
+            activationCoordinator(bundle).activate(
+                verifiedBirth = testOnlyVerifiedBirth(bundle),
+                persistedAtMillis = 1000L,
+                recoveryRequest = activationRecoveryRequest(),
+                signer = failingSigner,
+                firstPostBirthRequest = appendRequest(1)
+            )
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals(GenesisUltraPersistedBirthState.ABSENT, GenesisUltraAtomicBirthStore(database).readState())
+        assertEquals(0, database.genesisUltraBirthDao().countBirthCommits())
+        assertEquals(0, database.genesisUltraBirthDao().countBirthArtifacts())
+        assertEquals(0, database.genesisUltraBirthDao().countBirthJournalEntries())
+        assertEquals(0, database.genesisUltraMemoryDao().countAll())
+    }
+
+    @Test
+    fun recoveryFailureRollsBackEveryBirthAndMemoryRow() = runBlocking {
+        val bundle = validBundle()
+        val coordinator = GenesisUltraAtomicBirthActivationCoordinator(
+            database = database,
+            recoverCommitted = { _, _ -> error("recovery_audit_failed") }
+        )
+
+        val failure = runCatching {
+            coordinator.activate(
+                verifiedBirth = testOnlyVerifiedBirth(bundle),
+                persistedAtMillis = 1000L,
+                recoveryRequest = activationRecoveryRequest(),
+                signer = bodyMemorySigner(),
+                firstPostBirthRequest = appendRequest(1)
+            )
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals(GenesisUltraPersistedBirthState.ABSENT, GenesisUltraAtomicBirthStore(database).readState())
+        assertEquals(0, database.genesisUltraBirthDao().countBirthCommits())
+        assertEquals(0, database.genesisUltraMemoryDao().countAll())
+    }
+
+    @Test
+    fun secondAtomicActivationCannotAlterTheOriginalBirthOrMemory() = runBlocking {
+        val bundle = validBundle()
+        val coordinator = activationCoordinator(bundle)
+        coordinator.activate(
+            verifiedBirth = testOnlyVerifiedBirth(bundle),
+            persistedAtMillis = 1000L,
+            recoveryRequest = activationRecoveryRequest(),
+            signer = bodyMemorySigner(),
+            firstPostBirthRequest = appendRequest(1)
+        )
+
+        val failure = runCatching {
+            coordinator.activate(
+                verifiedBirth = testOnlyVerifiedBirth(validBundle(companionName = "Otro Nombre")),
+                persistedAtMillis = 2000L,
+                recoveryRequest = activationRecoveryRequest(),
+                signer = bodyMemorySigner(),
+                firstPostBirthRequest = appendRequest(2)
+            )
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalArgumentException)
+        assertEquals(
+            "Genesis Libre",
+            database.genesisUltraBirthDao()
+                .loadBirthCommit(GenesisUltraBirthCommitEntity.PRIMARY_SLOT)
+                ?.companionName
+        )
+        assertEquals(1, database.genesisUltraBirthDao().countBirthCommits())
+        assertEquals(1, database.genesisUltraMemoryDao().countAll())
+    }
+
+    private fun activationCoordinator(
+        bundle: GenesisUltraAtomicBirthPersistenceBundle
+    ): GenesisUltraAtomicBirthActivationCoordinator {
+        return GenesisUltraAtomicBirthActivationCoordinator(
+            database = database,
+            recoverCommitted = { store, _ ->
+                require(store.readState() == GenesisUltraPersistedBirthState.COMMITTED)
+                testOnlyRecoveredBirth(bundle)
+            }
+        )
+    }
+
+    private fun activationRecoveryRequest(): GenesisUltraAtomicBirthRecoveryRequest {
+        return GenesisUltraAtomicBirthRecoveryRequest(
+            guardianKeyEpochRegistry = GenesisUltraTrustedGuardianKeyEpochRegistry(emptyList()),
+            bodyRawPublicKey = bodyMemoryKey().copyRawPublicKey()
+        )
+    }
+
     private fun validBundle(companionName: String = "Genesis Libre"): GenesisUltraAtomicBirthPersistenceBundle {
         val seedIdentityBytes = "neutral seed identity".utf8()
         val doctrineBytes = "free birth doctrine".utf8()
