@@ -12,7 +12,7 @@ import com.morimil.app.web.NativeWebContextStore
 
 class ReasoningKernel(
     private val contextReader: ReasoningContextReader,
-    private val auxiliaryMotor: AuxiliaryReasoningMotor
+    private val motorCoordinator: TriMotorReasoningCoordinator
 ) {
     suspend fun reason(request: ReasoningKernelRequest): ReasoningKernelResult {
         val cleanInput = request.input.trim()
@@ -97,16 +97,28 @@ class ReasoningKernel(
                         .takeLast(ReasoningClient.MAX_HISTORY_MESSAGES - 1) +
                         ChatTurn(role = "user", content = cleanInput)
 
-                    state = state.withTrace("model_call", "backend=${backend.kind} endpoint=${backend.endpoint.take(80)} model=${backend.model} complexity=${backend.taskComplexity}")
-                    auxiliaryMotor.compute(
-                        AuxiliaryReasoningRequest(
+                    state = state.withTrace(
+                        "motor_plan",
+                        "complexity=${backend.taskComplexity} backend=${backend.kind} endpoint=${backend.endpoint.take(80)} model=${backend.model}"
+                    )
+                    motorCoordinator.reason(
+                        complexity = backend.taskComplexity,
+                        request = AuxiliaryReasoningRequest(
                             config = request.runtimeConfig,
                             runtimeAccess = request.runtimeAccess,
                             systemPrompt = systemPrompt,
                             history = recentHistory
                         )
-                    ).getOrElse { error ->
-                        state = state.withTrace("model_failed", error.message ?: error::class.java.simpleName)
+                    ).map { motorResult ->
+                        state = state.copy(
+                            criticFindings = motorResult.findings
+                        ).withTrace(
+                            "motor_result",
+                            "requested=${motorResult.requestedRoles} activated=${motorResult.activatedBindings} unavailable=${motorResult.unavailableRoles} failed=${motorResult.failedRoles}"
+                        )
+                        motorResult.reply
+                    }.getOrElse { error ->
+                        state = state.withTrace("motor_failed", error.message ?: error::class.java.simpleName)
                         degradedReply(cleanInput, intent, memoryContext, capsuleContext, error.message ?: error::class.java.simpleName)
                     }
                 }
