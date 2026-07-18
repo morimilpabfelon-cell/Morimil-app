@@ -107,37 +107,51 @@ internal class GenesisUltraCanonicalMemoryStore(
         signer: GenesisUltraBodyMemorySigner,
         request: GenesisUltraCanonicalMemoryAppendRequest
     ): GenesisUltraCanonicalMemoryAppendResult {
+        return MemoryAppendGate.withAppendLock {
+            database.withTransaction {
+                appendInsideTransaction(recoveredBirth, signer, request)
+            }
+        }
+    }
+
+    /**
+     * Caller must already hold [MemoryAppendGate] and an active Room transaction.
+     * This boundary exists so birth and its first post-birth event can commit or
+     * roll back as one indivisible operation without recursively locking the
+     * non-reentrant append gate.
+     */
+    internal suspend fun appendInsideTransaction(
+        recoveredBirth: GenesisUltraRecoveredAtomicBirth,
+        signer: GenesisUltraBodyMemorySigner,
+        request: GenesisUltraCanonicalMemoryAppendRequest
+    ): GenesisUltraCanonicalMemoryAppendResult {
         require(request.contentRef == null && request.provenanceRef == null) {
             "memory_unsigned_reference_fields_forbidden"
         }
         require(request.privacy == "private_local") { "memory_privacy_must_be_private_local" }
 
-        return MemoryAppendGate.withAppendLock {
-            database.withTransaction {
-                val context = requireRecoveredBirth(recoveredBirth, signer.key)
-                val existing = requireValidPostBirthChain(context, signer.key)
-                val previous = existing.lastOrNull() ?: context.root.event
-                require(request.observedAt >= previous.observedAt) { "memory_observed_at_regressed" }
-                require(previous.sequence < MAX_SAFE_INTEGER) { "memory_sequence_exhausted" }
+        val context = requireRecoveredBirth(recoveredBirth, signer.key)
+        val existing = requireValidPostBirthChain(context, signer.key)
+        val previous = existing.lastOrNull() ?: context.root.event
+        require(request.observedAt >= previous.observedAt) { "memory_observed_at_regressed" }
+        require(previous.sequence < MAX_SAFE_INTEGER) { "memory_sequence_exhausted" }
 
-                val event = buildSignedEvent(
-                    context = context,
-                    previous = previous,
-                    signer = signer,
-                    request = request
-                )
-                val source = serializeMemoryEvent(event)
-                val parsed = GenesisUltraAtomicBirthDocumentParser.parseMemoryEvent(decodeUtf8Strict(source))
-                require(parsed == event) { "memory_serialization_round_trip_mismatch" }
+        val event = buildSignedEvent(
+            context = context,
+            previous = previous,
+            signer = signer,
+            request = request
+        )
+        val source = serializeMemoryEvent(event)
+        val parsed = GenesisUltraAtomicBirthDocumentParser.parseMemoryEvent(decodeUtf8Strict(source))
+        require(parsed == event) { "memory_serialization_round_trip_mismatch" }
 
-                memoryDao.insert(event.toEntity(source))
-                val verified = requireValidPostBirthChain(context, signer.key)
-                require(verified.size == existing.size + 1 && verified.last() == event) {
-                    "memory_append_commit_verification_failed"
-                }
-                GenesisUltraCanonicalMemoryAppendResult(event, source)
-            }
+        memoryDao.insert(event.toEntity(source))
+        val verified = requireValidPostBirthChain(context, signer.key)
+        require(verified.size == existing.size + 1 && verified.last() == event) {
+            "memory_append_commit_verification_failed"
         }
+        return GenesisUltraCanonicalMemoryAppendResult(event, source)
     }
 
     suspend fun recoverStream(
