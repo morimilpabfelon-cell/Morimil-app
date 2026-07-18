@@ -6,6 +6,8 @@ import com.morimil.app.data.genesis.ultra.GenesisUltraSignatureEnvelope
 import com.morimil.app.reasoning.growth.IntrinsicMotorTechnique
 import com.morimil.app.reasoning.growth.MorimilIntrinsicMotorBlueprints
 import com.morimil.app.reasoning.ReasoningMotorRole
+import java.io.File
+import java.io.FileInputStream
 import java.io.InputStream
 import java.security.MessageDigest
 import java.time.Instant
@@ -30,6 +32,32 @@ interface LocalDeliberativeArtifact {
     val sizeBytes: Long
 
     fun openReadOnly(): InputStream
+}
+
+/**
+ * An already-local, canonical file handle. It deliberately has no remote URL,
+ * download operation, installer or persistence writer.
+ */
+class ReadOnlyFileDeliberativeArtifact private constructor(
+    internal val canonicalFile: File,
+    override val sizeBytes: Long
+) : LocalDeliberativeArtifact {
+    override fun openReadOnly(): InputStream = FileInputStream(canonicalFile)
+
+    companion object {
+        fun open(file: File): ReadOnlyFileDeliberativeArtifact {
+            val canonical = file.canonicalFile
+            require(canonical.isFile) { "artifact_local_file_missing" }
+            require(canonical.canRead()) { "artifact_local_file_unreadable" }
+            require(!canonical.canWrite()) { "artifact_local_file_not_read_only" }
+            val size = canonical.length()
+            require(size > 0L) { "artifact_local_file_empty" }
+            return ReadOnlyFileDeliberativeArtifact(
+                canonicalFile = canonical,
+                sizeBytes = size
+            )
+        }
+    }
 }
 
 data class DeliberativeArtifactVerificationPolicy(
@@ -99,6 +127,12 @@ class VerifiedDeliberativeArtifact private constructor(
                 localArtifact = localArtifact
             )
         }
+    }
+
+    internal fun requireCanonicalLocalFile(): File {
+        val fileArtifact = localArtifact as? ReadOnlyFileDeliberativeArtifact
+            ?: throw IllegalArgumentException("artifact_file_backing_required")
+        return fileArtifact.canonicalFile
     }
 }
 
