@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
-        MemoryMessageEntity::class,
+        ReasoningTurnEntity::class,
         DecisionLogEntity::class,
         ProjectStateEntity::class,
         UserWorkspaceEntity::class,
@@ -23,11 +23,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         GenesisUltraBirthJournalEntity::class,
         GenesisUltraMemoryEventEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = true
 )
 abstract class MorimilDatabase : RoomDatabase() {
     abstract fun memoryDao(): MemoryDao
+    abstract fun reasoningTranscriptDao(): ReasoningTranscriptDao
     abstract fun genesisUltraBirthDao(): GenesisUltraBirthDao
     abstract fun genesisUltraMemoryDao(): GenesisUltraMemoryDao
 
@@ -395,6 +396,30 @@ abstract class MorimilDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS reasoning_turns (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        author TEXT NOT NULL,
+                        body TEXT NOT NULL,
+                        createdAtMillis INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO reasoning_turns (id, author, body, createdAtMillis)
+                    SELECT id, author, body, createdAtMillis
+                    FROM memory_messages
+                    ORDER BY createdAtMillis ASC, id ASC
+                    """.trimIndent()
+                )
+                db.execSQL("DROP TABLE memory_messages")
+            }
+        }
+
         fun getInstance(context: Context): MorimilDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -412,7 +437,8 @@ abstract class MorimilDatabase : RoomDatabase() {
                         MIGRATION_7_8,
                         MIGRATION_8_9,
                         MIGRATION_9_10,
-                        MIGRATION_10_11
+                        MIGRATION_10_11,
+                        MIGRATION_11_12
                     )
                     .build()
                     .also { instance = it }
