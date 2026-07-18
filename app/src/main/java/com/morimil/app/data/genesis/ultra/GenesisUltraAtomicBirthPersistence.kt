@@ -44,6 +44,7 @@ enum class GenesisUltraPersistedBirthState {
 object GenesisUltraAtomicBirthPersistenceValidator {
     val mandatoryArtifactKinds: Set<String> = setOf(
         "seed_manifest",
+        "seed_signature",
         "instance_identity",
         "freedom_charter",
         "initial_body_record",

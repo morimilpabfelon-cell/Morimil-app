@@ -205,6 +205,7 @@ class GenesisUltraAtomicBirthStoreTest {
         val journal = journal(state, receipt)
         val artifacts = buildList {
             add(artifact("birth/seed-manifest.json", "seed_manifest", manifestJson(manifest)))
+            add(artifact("birth/seed-signature.json", "seed_signature"))
             add(artifact("birth/instance-identity.json", "instance_identity", identityJson(identity)))
             add(artifact("birth/freedom-charter.json", "freedom_charter"))
             add(artifact("birth/initial-body-record.json", "initial_body_record"))
