@@ -8,10 +8,6 @@ private fun localUsbChatUrl(): String {
     return "http://" + "127.0.0.1" + ":11434" + "/v1/" + "chat/" + "completions"
 }
 
-private fun localLanChatUrl(): String {
-    return "http://" + "192.168.1.100" + ":11434" + "/v1/" + "chat/" + "completions"
-}
-
 enum class ReasoningWireFormat {
     MESSAGES,
     CHAT,
@@ -25,7 +21,6 @@ enum class ReasoningPreset(
     val defaultModel: String
 ) {
     LOCAL_USB_HELPER("Ollama USB helper", ReasoningWireFormat.CHAT, localUsbChatUrl(), DEFAULT_LOCAL_MODEL),
-    LOCAL_LAN_HELPER("Ollama LAN helper", ReasoningWireFormat.CHAT, localLanChatUrl(), DEFAULT_LOCAL_MODEL),
     MESSAGES_COMPATIBLE("Remote Messages helper", ReasoningWireFormat.MESSAGES, "", ""),
     CHAT_COMPATIBLE("Remote Chat helper", ReasoningWireFormat.CHAT, "", ""),
     RESPONSES_COMPATIBLE("Remote Responses helper", ReasoningWireFormat.RESPONSES, "", ""),
@@ -34,7 +29,9 @@ enum class ReasoningPreset(
     companion object {
         fun fromName(name: String?): ReasoningPreset {
             return when (name) {
-                "LOCAL_EMULATOR_HELPER", "LOCAL_COMPATIBLE" -> LOCAL_USB_HELPER
+                "LOCAL_EMULATOR_HELPER",
+                "LOCAL_COMPATIBLE",
+                "LOCAL_LAN_HELPER" -> LOCAL_USB_HELPER
                 else -> entries.firstOrNull { it.name == name } ?: LOCAL_USB_HELPER
             }
         }
@@ -65,8 +62,13 @@ data class ReasoningProviderConfig(
         val cleanUrl = baseUrl.trim()
         val cleanModel = model.trim()
         require(cleanUrl.isNotBlank()) { "Endpoint requerido." }
-        require(cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
-            "Endpoint debe ser http(s)."
+        require(ReasoningEndpointPolicy.isAllowedTemporaryReasoningEndpoint(cleanUrl)) {
+            "El auxiliar local usa USB/ADB por loopback; las APIs remotas requieren HTTPS."
+        }
+        if (preset == ReasoningPreset.LOCAL_USB_HELPER) {
+            require(ReasoningEndpointPolicy.isLocalTrustedEndpoint(cleanUrl)) {
+                "Ollama local solo puede usar el puente USB/ADB por loopback."
+            }
         }
         require(cleanModel.isNotBlank()) { "Modelo requerido." }
         require(maxTokens in 1..MAX_ALLOWED_TOKENS) { "maxTokens fuera de rango." }
@@ -106,9 +108,16 @@ class ReasoningConfigStore(context: Context) {
     fun loadActiveSlot(): ReasoningMotorSlot = ReasoningMotorSlot(load())
 
     fun load(): ReasoningProviderConfig {
-        val preset = ReasoningPreset.fromName(preferences.getString(SETTING_PRESET, null))
-        val baseUrl = preferences.getString(SETTING_BASE_URL, null)?.takeIf { it.isNotBlank() }
-            ?: preset.defaultBaseUrl
+        val storedPresetName = preferences.getString(SETTING_PRESET, null)
+        val preset = ReasoningPreset.fromName(storedPresetName)
+        val storedBaseUrl = preferences.getString(SETTING_BASE_URL, null)?.takeIf { it.isNotBlank() }
+        val baseUrl = when {
+            storedPresetName == "LOCAL_LAN_HELPER" -> preset.defaultBaseUrl
+            preset == ReasoningPreset.LOCAL_USB_HELPER &&
+                storedBaseUrl != null &&
+                !ReasoningEndpointPolicy.isLocalTrustedEndpoint(storedBaseUrl) -> preset.defaultBaseUrl
+            else -> storedBaseUrl ?: preset.defaultBaseUrl
+        }
         val model = preferences.getString(SETTING_MODEL, null)?.takeIf { it.isNotBlank() }
             ?: preset.defaultModel
         val maxTokens = preferences.getInt(SETTING_MAX_TOKENS, ReasoningProviderConfig.DEFAULT_MAX_TOKENS)
