@@ -1,34 +1,48 @@
 package com.morimil.app.ai
 
 import java.net.URI
+import java.util.Locale
 
 /**
- * Defines which model endpoints belong to Morimil's local trust boundary.
+ * Defines the transport boundary for temporary reasoning providers.
  *
- * A local endpoint means the model is owned by the user's device/LAN, so it
- * should not require a remote API key and should be routed as LOCAL_OPERATIVE.
+ * Local trust is intentionally limited to exact loopback/ADB hosts used by the
+ * Ollama USB bridge. Private-LAN addresses and hostnames that merely begin with
+ * an IP-looking prefix are not trusted and never suppress API authentication.
  */
 object ReasoningEndpointPolicy {
     fun isLocalTrustedEndpoint(baseUrl: String): Boolean {
-        val host = runCatching { URI(baseUrl.trim()).host.orEmpty().lowercase() }
-            .getOrDefault("")
-        if (host.isBlank()) return false
-        return isLoopbackOrAndroidHost(host) || isPrivateLanHost(host)
-    }
-
-    private fun isLoopbackOrAndroidHost(host: String): Boolean {
+        val uri = parseHttpUri(baseUrl) ?: return false
+        val host = normalizeHost(uri.host)
         return host == "localhost" ||
             host == "127.0.0.1" ||
             host == "::1" ||
             host == "10.0.2.2"
     }
 
-    private fun isPrivateLanHost(host: String): Boolean {
-        if (host.startsWith("192.168.")) return true
-        val parts = host.split(".")
-        if (parts.size != 4) return false
-        val first = parts[0].toIntOrNull() ?: return false
-        val second = parts[1].toIntOrNull() ?: return false
-        return first == 10 || (first == 172 && second in 16..31)
+    fun isSecureRemoteEndpoint(baseUrl: String): Boolean {
+        val uri = parseHttpUri(baseUrl) ?: return false
+        return uri.scheme.equals("https", ignoreCase = true) && !isLocalTrustedEndpoint(baseUrl)
+    }
+
+    fun isAllowedTemporaryReasoningEndpoint(baseUrl: String): Boolean {
+        return isLocalTrustedEndpoint(baseUrl) || isSecureRemoteEndpoint(baseUrl)
+    }
+
+    private fun parseHttpUri(baseUrl: String): URI? {
+        val uri = runCatching { URI(baseUrl.trim()) }.getOrNull() ?: return null
+        val scheme = uri.scheme?.lowercase(Locale.ROOT) ?: return null
+        if (scheme != "http" && scheme != "https") return null
+        if (uri.rawUserInfo != null) return null
+        if (uri.host.isNullOrBlank()) return null
+        return uri
+    }
+
+    private fun normalizeHost(host: String?): String {
+        return host.orEmpty()
+            .trim()
+            .removePrefix("[")
+            .removeSuffix("]")
+            .lowercase(Locale.ROOT)
     }
 }
