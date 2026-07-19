@@ -1,9 +1,9 @@
 package com.morimil.app.ai
 
+import com.morimil.app.net.BoundedHttpBodyReader
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
-import java.net.URI
 import java.net.URL
 
 data class DiscoveredReasoningModel(
@@ -39,23 +39,26 @@ class ReasoningModelDiscoveryClient {
         val endpoint = DEFAULT_RESPONSES_ENDPOINT
         val root = getJson(url = DEFAULT_MODELS_ENDPOINT, headers = bearerHeaders(runtimeKey))
         val models = parseModelIds(root.optJSONArray("data"))
-            .filter { isRemoteReasoningCandidate(it.id) }
+            .filter { !isBlockedModel(it.id) }
             .map { it.copy(rank = rankModel(it.id)) }
             .sortedWith(compareByDescending<DiscoveredReasoningModel> { it.rank }.thenBy { it.id })
 
-        require(models.isNotEmpty()) { "La API no devolvio modelos de razonamiento compatibles." }
+        require(models.isNotEmpty()) { "La API no devolvio modelos de texto compatibles." }
 
         return ReasoningDiscoveryResult(
             formatLabel = "Responses-compatible",
             endpoint = endpoint,
             preset = ReasoningPreset.RESPONSES_COMPATIBLE,
             models = models,
-            note = "Modelos listados desde /v1/models. Se usara formato Responses."
+            note = "Modelos de texto listados desde /v1/models y ordenados por señales de razonamiento."
         )
     }
 
     private fun discoverEndpointCompatible(runtimeKey: String, endpointHint: String): ReasoningDiscoveryResult {
         val endpoint = normalizeRuntimeEndpoint(endpointHint)
+        require(ReasoningEndpointPolicy.isAllowedTemporaryReasoningEndpoint(endpoint)) {
+            "El auxiliar local usa USB/ADB por loopback; las APIs remotas requieren HTTPS."
+        }
         val preset = presetForEndpoint(endpoint)
         val isLocal = isLocalEndpoint(endpoint)
         if (!isLocal) require(runtimeKey.isNotBlank()) { "Pega una llave de razonamiento primero." }
@@ -65,24 +68,18 @@ class ReasoningModelDiscoveryClient {
             headers = headersFor(preset.wireFormat, runtimeKey, isLocal)
         )
         val models = parseModelIds(root.optJSONArray("data"))
-            .filter { model ->
-                if (preset == ReasoningPreset.RESPONSES_COMPATIBLE) {
-                    isRemoteReasoningCandidate(model.id)
-                } else {
-                    !isBlockedModel(model.id)
-                }
-            }
+            .filter { !isBlockedModel(it.id) }
             .map { it.copy(rank = rankModel(it.id)) }
             .sortedWith(compareByDescending<DiscoveredReasoningModel> { it.rank }.thenBy { it.id })
 
-        require(models.isNotEmpty()) { "La API no devolvio modelos compatibles." }
+        require(models.isNotEmpty()) { "La API no devolvio modelos de texto compatibles." }
 
         return ReasoningDiscoveryResult(
             formatLabel = preset.displayName,
             endpoint = endpoint,
             preset = preset,
             models = models,
-            note = "Modelos listados desde catalogo compatible. Se usara ${preset.displayName}."
+            note = "Modelos listados desde un catalogo compatible y ordenados por señales de razonamiento; el usuario conserva la seleccion final."
         )
     }
 
@@ -91,18 +88,27 @@ class ReasoningModelDiscoveryClient {
             requestMethod = "GET"
             connectTimeout = TIMEOUT_MS
             readTimeout = TIMEOUT_MS
+            setRequestProperty("Accept", "application/json")
             headers.forEach { (key, value) -> setRequestProperty(key, value) }
         }
 
         try {
             val statusCode = connection.responseCode
             val responseBody = if (statusCode in 200..299) {
-                connection.inputStream.bufferedReader().use { it.readText() }
+                BoundedHttpBodyReader.read(
+                    stream = connection.inputStream,
+                    declaredLength = connection.contentLengthLong,
+                    maxBytes = MAX_CATALOG_BYTES
+                )
             } else {
-                connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                BoundedHttpBodyReader.read(
+                    stream = connection.errorStream,
+                    declaredLength = connection.contentLengthLong,
+                    maxBytes = MAX_ERROR_BYTES
+                )
             }
             require(statusCode in 200..299) {
-                "Listado de modelos rechazo la solicitud: HTTP $statusCode $responseBody"
+                "Listado de modelos rechazo la solicitud: HTTP $statusCode ${responseBody.take(MAX_ERROR_MESSAGE_CHARS)}"
             }
             return JSONObject(responseBody)
         } finally {
@@ -118,13 +124,7 @@ class ReasoningModelDiscoveryClient {
             val id = item.optString("id").trim()
             if (id.isNotBlank()) models += DiscoveredReasoningModel(id = id)
         }
-        return models
-    }
-
-    private fun isRemoteReasoningCandidate(modelId: String): Boolean {
-        val id = modelId.lowercase()
-        if (isBlockedModel(id)) return false
-        return id.startsWith("gpt-") || id.startsWith("o1") || id.startsWith("o3") || id.startsWith("o4")
+        return models.distinctBy { it.id }
     }
 
     private fun isBlockedModel(modelId: String): Boolean {
@@ -134,21 +134,12 @@ class ReasoningModelDiscoveryClient {
 
     private fun rankModel(modelId: String): Int {
         val id = modelId.lowercase()
-        return when {
-            id.contains("gpt-5.5") -> 100
-            id.contains("gpt-5") -> 95
-            id.startsWith("o3") -> 90
-            id.startsWith("o4") -> 88
-            id.contains("gpt-4.1") -> 82
-            id.contains("gpt-4o") -> 75
-            id.contains("gpt-4") -> 65
-            id.contains("qwen") -> 58
-            id.contains("llama") -> 56
-            id.contains("mistral") -> 54
-            id.contains("gemma") -> 52
-            id.contains("gpt-3.5") -> 20
-            else -> 40
-        }
+        var score = 40
+        if (REASONING_SIGNALS.any { id.contains(it) }) score += 50
+        if (id.startsWith("o1") || id.startsWith("o3") || id.startsWith("o4")) score += 45
+        if (GENERAL_MODEL_FAMILIES.any { id.contains(it) }) score += 10
+        if (id.contains("mini") || id.contains("small") || id.contains("lite")) score -= 5
+        return score
     }
 
     private fun normalizeRuntimeEndpoint(endpointHint: String): String {
@@ -181,8 +172,7 @@ class ReasoningModelDiscoveryClient {
         return when {
             lower.contains("/responses") -> ReasoningPreset.RESPONSES_COMPATIBLE
             lower.contains("/messages") -> ReasoningPreset.MESSAGES_COMPATIBLE
-            isUsbEndpoint(endpoint) -> ReasoningPreset.LOCAL_USB_HELPER
-            isLanEndpoint(endpoint) -> ReasoningPreset.LOCAL_LAN_HELPER
+            isLocalEndpoint(endpoint) -> ReasoningPreset.LOCAL_USB_HELPER
             else -> ReasoningPreset.CHAT_COMPATIBLE
         }
     }
@@ -192,14 +182,16 @@ class ReasoningModelDiscoveryClient {
         runtimeKey: String,
         isLocal: Boolean
     ): Map<String, String> {
-        if (isLocal || runtimeKey.isBlank()) return emptyMap()
+        if (isLocal) return emptyMap()
+        val cleanKey = runtimeKey.trim()
+        require(cleanKey.isNotBlank()) { "Pega una llave de razonamiento primero." }
         return when (wireFormat) {
             ReasoningWireFormat.MESSAGES -> mapOf(
-                "x-" + "api-key" to runtimeKey,
+                API_KEY_HEADER to cleanKey,
                 MESSAGES_VERSION_HEADER to MESSAGES_VERSION
             )
             ReasoningWireFormat.CHAT,
-            ReasoningWireFormat.RESPONSES -> bearerHeaders(runtimeKey)
+            ReasoningWireFormat.RESPONSES -> bearerHeaders(cleanKey)
         }
     }
 
@@ -208,31 +200,39 @@ class ReasoningModelDiscoveryClient {
     }
 
     private fun isLocalEndpoint(endpoint: String): Boolean {
-        return isUsbEndpoint(endpoint) || isLanEndpoint(endpoint)
-    }
-
-    private fun isUsbEndpoint(endpoint: String): Boolean {
-        val lower = endpoint.lowercase()
-        return lower.startsWith("http://127.0.0.1") || lower.startsWith("http://localhost")
-    }
-
-    private fun isLanEndpoint(endpoint: String): Boolean {
-        val host = runCatching { URI(endpoint.trim()).host.orEmpty().lowercase() }
-            .getOrDefault("")
-        if (host.startsWith("192.168.")) return true
-        val parts = host.split(".")
-        if (parts.size != 4) return false
-        val first = parts[0].toIntOrNull() ?: return false
-        val second = parts[1].toIntOrNull() ?: return false
-        return first == 10 || (first == 172 && second in 16..31)
+        return ReasoningEndpointPolicy.isLocalTrustedEndpoint(endpoint)
     }
 
     companion object {
         private const val TIMEOUT_MS = 30000
+        private const val MAX_CATALOG_BYTES = 2 * 1024 * 1024
+        private const val MAX_ERROR_BYTES = 64 * 1024
+        private const val MAX_ERROR_MESSAGE_CHARS = 2_000
         private const val DEFAULT_RESPONSES_ENDPOINT = "https://api.openai.com/v1/responses"
         private const val DEFAULT_MODELS_ENDPOINT = "https://api.openai.com/v1/models"
-        private val MESSAGES_VERSION_HEADER = "anth" + "ropic-version"
+        private const val API_KEY_HEADER = "x-api-key"
+        private const val MESSAGES_VERSION_HEADER = "anthropic-version"
         private const val MESSAGES_VERSION = "2023-06-01"
+        private val REASONING_SIGNALS = listOf(
+            "reasoning",
+            "reasoner",
+            "thinking",
+            "deep-think",
+            "deepthink",
+            "r1",
+            "qwq"
+        )
+        private val GENERAL_MODEL_FAMILIES = listOf(
+            "gpt",
+            "claude",
+            "gemini",
+            "qwen",
+            "llama",
+            "mistral",
+            "deepseek",
+            "grok",
+            "command"
+        )
         private val BLOCKED_MODEL_PARTS = listOf(
             "embedding",
             "audio",
