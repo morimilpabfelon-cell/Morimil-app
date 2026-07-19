@@ -1,5 +1,6 @@
 package com.morimil.app.ai
 
+import com.morimil.app.net.BoundedHttpBodyReader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -264,9 +265,6 @@ class ReasoningClient {
             val valid = ReasoningBudgetPolicy
                 .effectiveConfigForMessage(requestedValid, latestUserMessage)
                 .validated()
-            if (valid.requiresRuntimeKey) {
-                require(runtimeKey.isNotBlank()) { "Falta la llave de razonamiento." }
-            }
             val compactHistory = ReasoningBudgetPolicy.compactHistory(history)
             require(compactHistory.isNotEmpty()) { "No hay mensaje para enviar." }
 
@@ -299,6 +297,7 @@ class ReasoningClient {
         history: List<ChatTurn>
     ): ReasoningParsedReply {
         val requestBody = ReasoningWire.buildBody(valid, systemPrompt, history)
+        val headers = ReasoningRequestHeaders.build(valid, runtimeKey)
         val connection = (URL(valid.baseUrl).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = ReasoningNetworkTimeoutPolicy.CONNECT_TIMEOUT_MS
@@ -306,28 +305,27 @@ class ReasoningClient {
             doOutput = true
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("Accept", "application/json")
-            when (valid.wireFormat) {
-                ReasoningWireFormat.MESSAGES -> {
-                    if (runtimeKey.isNotBlank()) setRequestProperty("x-" + "api-key", runtimeKey)
-                    setRequestProperty(MESSAGES_VERSION_HEADER, MESSAGES_VERSION)
-                }
-                ReasoningWireFormat.CHAT,
-                ReasoningWireFormat.RESPONSES -> {
-                    if (runtimeKey.isNotBlank()) setRequestProperty("Authorization", "Bearer " + runtimeKey)
-                }
-            }
+            headers.forEach { (name, value) -> setRequestProperty(name, value) }
         }
 
         return try {
             connection.outputStream.use { it.write(requestBody.toByteArray(Charsets.UTF_8)) }
             val statusCode = connection.responseCode
             val responseBody = if (statusCode in 200..299) {
-                connection.inputStream.bufferedReader().use { it.readText() }
+                BoundedHttpBodyReader.read(
+                    stream = connection.inputStream,
+                    declaredLength = connection.contentLengthLong,
+                    maxBytes = MAX_RESPONSE_BYTES
+                )
             } else {
-                connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                BoundedHttpBodyReader.read(
+                    stream = connection.errorStream,
+                    declaredLength = connection.contentLengthLong,
+                    maxBytes = MAX_ERROR_RESPONSE_BYTES
+                )
             }
             require(statusCode in 200..299) {
-                "Motor de razonamiento rechazo la solicitud: HTTP $statusCode $responseBody"
+                "Motor de razonamiento rechazo la solicitud: HTTP $statusCode ${responseBody.take(MAX_ERROR_MESSAGE_CHARS)}"
             }
             ReasoningWire.parseReplyResult(valid, responseBody)
         } finally {
@@ -387,7 +385,8 @@ class ReasoningClient {
         const val MAX_HISTORY_MESSAGES = ReasoningBudgetPolicy.DEFAULT_HISTORY_MESSAGES
         private const val MAX_CONTINUATION_CALLS = 1
         private const val CONTINUATION_PROMPT = "Continua exactamente desde donde se corto la respuesta anterior. No reinicies, no repitas introducciones y no cambies de tema."
-        private val MESSAGES_VERSION_HEADER = "anth" + "ropic-version"
-        private const val MESSAGES_VERSION = "2023-06-01"
+        private const val MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+        private const val MAX_ERROR_RESPONSE_BYTES = 64 * 1024
+        private const val MAX_ERROR_MESSAGE_CHARS = 2_000
     }
 }
