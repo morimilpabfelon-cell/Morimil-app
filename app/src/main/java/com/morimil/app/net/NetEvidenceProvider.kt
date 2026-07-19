@@ -201,7 +201,16 @@ class HttpNetRawFetcher(
                 }
 
                 val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-                val body = stream?.bufferedReader()?.use { reader -> reader.readText().take(MAX_RAW_CHARS) }.orEmpty()
+                val boundedBody = BoundedHttpBodyReader.read(
+                    stream = stream,
+                    declaredLength = connection.contentLengthLong,
+                    maxBytes = if (code in 200..299) MAX_RAW_BYTES else MAX_ERROR_BYTES
+                )
+                val body = if (code in 200..299) {
+                    boundedBody.take(MAX_RAW_CHARS)
+                } else {
+                    boundedBody.take(MAX_ERROR_CHARS)
+                }
                 if (code !in 200..299) {
                     NetFetchResult(ok = false, error = "http_$code:${body.take(160)}")
                 } else {
@@ -216,7 +225,10 @@ class HttpNetRawFetcher(
     }
 
     companion object {
+        private const val MAX_RAW_BYTES = 512 * 1024
+        private const val MAX_ERROR_BYTES = 64 * 1024
         private const val MAX_RAW_CHARS = 250_000
+        private const val MAX_ERROR_CHARS = 16_000
         private const val MAX_REDIRECTS = 3
         private val HTTP_REDIRECT_CODES = setOf(301, 302, 303, 307, 308)
         private const val MOBILE_USER_AGENT = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Mobile Safari/537.36"
