@@ -17,7 +17,7 @@ internal object BoundedHttpBodyReader {
         }
 
         val initialCapacity = when {
-            declaredLength in 0..maxBytes.toLong() -> declaredLength.toInt()
+            declaredLength in 0L..maxBytes.toLong() -> declaredLength.toInt()
             else -> minOf(DEFAULT_INITIAL_CAPACITY, maxBytes)
         }
         val output = ByteArrayOutputStream(initialCapacity)
