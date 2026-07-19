@@ -13,7 +13,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.json.JSONObject
-import java.net.URL
+import java.io.ByteArrayInputStream
 import kotlin.coroutines.resume
 
 object NativeBrowserRuntime {
@@ -51,29 +51,29 @@ class NativeBrowserReader(
         handler.post {
             var finished = false
             var webView: WebView? = null
+            var timeout: Runnable? = null
 
             fun complete(result: NetRenderedResult) {
                 if (finished) return
                 finished = true
+                timeout?.let(handler::removeCallbacks)
                 runCatching {
                     webView?.stopLoading()
                     webView?.destroy()
                 }
+                webView = null
                 if (continuation.isActive) {
                     continuation.resume(result)
                 }
             }
 
-            val timeout = Runnable {
+            timeout = Runnable {
                 complete(NetRenderedResult(ok = false, error = "browser_timeout"))
             }
 
             continuation.invokeOnCancellation {
                 handler.post {
-                    runCatching {
-                        webView?.stopLoading()
-                        webView?.destroy()
-                    }
+                    complete(NetRenderedResult(ok = false, error = "browser_cancelled"))
                 }
             }
 
@@ -84,10 +84,29 @@ class NativeBrowserReader(
                         val targetUrl = request?.url?.toString().orEmpty()
                         val policy = NetSourcePolicy.validateUrl(targetUrl)
                         if (!policy.allowed) {
-                            complete(NetRenderedResult(ok = false, error = "browser_navigation_denied:${policy.reason}"))
+                            if (request?.isForMainFrame == true) {
+                                complete(NetRenderedResult(ok = false, error = "browser_navigation_denied:${policy.reason}"))
+                            }
                             return true
                         }
                         return false
+                    }
+
+                    override fun shouldInterceptRequest(
+                        view: WebView?,
+                        request: WebResourceRequest?
+                    ): WebResourceResponse? {
+                        val targetUrl = request?.url?.toString().orEmpty()
+                        val policy = NetSourcePolicy.validateUrl(targetUrl)
+                        return if (policy.allowed) {
+                            null
+                        } else {
+                            WebResourceResponse(
+                                "text/plain",
+                                "UTF-8",
+                                ByteArrayInputStream(ByteArray(0))
+                            )
+                        }
                     }
 
                     override fun onReceivedError(
@@ -128,6 +147,7 @@ class NativeBrowserReader(
                             return
                         }
                         handler.postDelayed({
+                            if (finished) return@postDelayed
                             extractVisibleText(loadedView) { text ->
                                 complete(
                                     NetRenderedResult(
@@ -142,7 +162,7 @@ class NativeBrowserReader(
                 }
             }
 
-            handler.postDelayed(timeout, timeoutMillis)
+            timeout?.let { handler.postDelayed(it, timeoutMillis) }
             runCatching { webView?.loadUrl(rawUrl) }
                 .onFailure { error ->
                     complete(
@@ -157,7 +177,6 @@ class NativeBrowserReader(
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun WebView.configureForReadOnlyResearch() {
-        CookieManager.getInstance().setAcceptCookie(false)
         CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
         settings.javaScriptEnabled = true
         settings.javaScriptCanOpenWindowsAutomatically = false
@@ -169,14 +188,15 @@ class NativeBrowserReader(
         settings.allowContentAccess = false
         settings.setSupportMultipleWindows(false)
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+        settings.safeBrowsingEnabled = true
     }
 
     private fun extractVisibleText(webView: WebView, callback: (String) -> Unit) {
         val script = """
             (function() {
-                var title = document.title || '';
+                var title = (document.title || '').slice(0, 500);
                 var body = document.body ? document.body.innerText : '';
-                return (title + '\n' + body).trim();
+                return (title + '\n' + body).trim().slice(0, $MAX_RENDERED_TEXT_CHARS);
             })();
         """.trimIndent()
         webView.evaluateJavascript(script) { encoded ->
