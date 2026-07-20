@@ -5,9 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
-import java.net.URL
 import java.util.Locale
 
 data class ChatTurn(val role: String, val content: String)
@@ -298,7 +296,7 @@ class ReasoningClient {
     ): ReasoningParsedReply {
         val requestBody = ReasoningWire.buildBody(valid, systemPrompt, history)
         val headers = ReasoningRequestHeaders.build(valid, runtimeKey)
-        val connection = (URL(valid.baseUrl).openConnection() as HttpURLConnection).apply {
+        val connection = ReasoningTransportSecurity.openConnection(valid.baseUrl).apply {
             requestMethod = "POST"
             connectTimeout = ReasoningNetworkTimeoutPolicy.CONNECT_TIMEOUT_MS
             readTimeout = ReasoningNetworkTimeoutPolicy.READ_TIMEOUT_MS
@@ -311,6 +309,7 @@ class ReasoningClient {
         return try {
             connection.outputStream.use { it.write(requestBody.toByteArray(Charsets.UTF_8)) }
             val statusCode = connection.responseCode
+            ReasoningTransportSecurity.requireNoRedirect(statusCode)
             val responseBody = if (statusCode in 200..299) {
                 BoundedHttpBodyReader.read(
                     stream = connection.inputStream,

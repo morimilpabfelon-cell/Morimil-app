@@ -3,8 +3,6 @@ package com.morimil.app.ai
 import com.morimil.app.net.BoundedHttpBodyReader
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 
 data class DiscoveredReasoningModel(
     val id: String,
@@ -84,7 +82,7 @@ class ReasoningModelDiscoveryClient {
     }
 
     private fun getJson(url: String, headers: Map<String, String>): JSONObject {
-        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+        val connection = ReasoningTransportSecurity.openConnection(url).apply {
             requestMethod = "GET"
             connectTimeout = TIMEOUT_MS
             readTimeout = TIMEOUT_MS
@@ -94,6 +92,7 @@ class ReasoningModelDiscoveryClient {
 
         try {
             val statusCode = connection.responseCode
+            ReasoningTransportSecurity.requireNoRedirect(statusCode)
             val responseBody = if (statusCode in 200..299) {
                 BoundedHttpBodyReader.read(
                     stream = connection.inputStream,
