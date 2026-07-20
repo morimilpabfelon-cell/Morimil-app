@@ -63,10 +63,16 @@ class Gemma3nE2bArm64CandidateHarnessV0Test {
     }
 
     @Test
-    fun exactCandidateLoadsAndGeneratesOnPhysicalArm64Cpu() = runBlocking {
+    fun exactCandidateLoadsAndGeneratesOnPhysicalArm64Cpu() {
+        runBlocking {
+            runOptInHarness()
+        }
+    }
+
+    private suspend fun runOptInHarness() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val arguments = InstrumentationRegistry.getArguments()
-        val enabled = arguments.getString(ENABLE_ARGUMENT)
+        val enabled = InstrumentationRegistry.getArguments()
+            .getString(ENABLE_ARGUMENT)
             ?.trim()
             ?.equals("true", ignoreCase = true) == true
 
@@ -78,7 +84,8 @@ class Gemma3nE2bArm64CandidateHarnessV0Test {
         val targetContext = instrumentation.targetContext
         val harnessRoot = File(targetContext.filesDir, HARNESS_ROOT).canonicalFile
         val inputRoot = File(harnessRoot, INPUT_DIRECTORY).canonicalFile
-        val outputRoot = File(harnessRoot, OUTPUT_DIRECTORY).apply { mkdirs() }.canonicalFile
+        val outputRoot = File(harnessRoot, OUTPUT_DIRECTORY).canonicalFile
+        check(outputRoot.mkdirs() || outputRoot.isDirectory) { "arm64_harness_output_directory_unavailable" }
         val modelFile = File(
             inputRoot,
             MorimilDeliberativeArtifactContractV02Candidate.LOCAL_CANDIDATE_FILENAME
@@ -110,7 +117,6 @@ class Gemma3nE2bArm64CandidateHarnessV0Test {
                 "arm64_harness_required_64_bit_abi_missing"
             }
             check(Process.is64Bit()) { "arm64_harness_process_not_64_bit" }
-
             check(isInside(modelFile, inputRoot)) { "arm64_harness_model_path_escaped" }
             check(modelFile.isFile) { "arm64_harness_model_missing" }
             check(!Files.isSymbolicLink(modelFile.toPath())) { "arm64_harness_model_symlink_rejected" }
@@ -169,7 +175,6 @@ class Gemma3nE2bArm64CandidateHarnessV0Test {
             check(strictOutputPassed) {
                 "arm64_harness_strict_output_mismatch:$responseText"
             }
-
             status = "passed"
         } catch (error: Throwable) {
             failure = error
@@ -200,7 +205,6 @@ class Gemma3nE2bArm64CandidateHarnessV0Test {
                         if (failure == null) failure = hashError
                     }
             }
-
             if (hashBeforeFirst != null && hashAfter != null && hashBeforeFirst != hashAfter) {
                 val integrityError = IllegalStateException("arm64_harness_model_changed_during_run")
                 errors += errorSummary(integrityError)
@@ -226,51 +230,24 @@ class Gemma3nE2bArm64CandidateHarnessV0Test {
             val reportError = runCatching {
                 writeReportAtomically(
                     reportFile = reportFile,
-                    report = JSONObject()
-                        .put("schemaVersion", REPORT_SCHEMA)
-                        .put("status", status)
-                        .put("startedAt", startedAt)
-                        .put("completedAt", Instant.now().toString())
-                        .put("candidateProfileVersion", MorimilDeliberativeArtifactContractV02Candidate.PROFILE_VERSION)
-                        .put("artifactVersion", MorimilDeliberativeArtifactContractV02Candidate.ARTIFACT_VERSION)
-                        .put("artifactFilename", MorimilDeliberativeArtifactContractV02Candidate.LOCAL_CANDIDATE_FILENAME)
-                        .put("artifactPath", modelFile.path)
-                        .put("artifactSizeBytes", modelFile.takeIf(File::isFile)?.length() ?: 0L)
-                        .put("expectedArtifactSizeBytes", MorimilDeliberativeArtifactContractV02Candidate.ARTIFACT_SIZE_BYTES)
-                        .put("expectedArtifactSha256", MorimilDeliberativeArtifactContractV02Candidate.ARTIFACT_SHA256)
-                        .put("hashBeforeFirst", hashBeforeFirst ?: JSONObject.NULL)
-                        .put("hashBeforeSecond", hashBeforeSecond ?: JSONObject.NULL)
-                        .put("hashAfter", hashAfter ?: JSONObject.NULL)
-                        .put("hashStable", hashBeforeFirst != null && hashBeforeFirst == hashBeforeSecond && hashBeforeFirst == hashAfter)
-                        .put("runtimeDependencyVersion", MorimilDeliberativeArtifactContractV02Candidate.LITERT_LM_DEPENDENCY_VERSION)
-                        .put("backend", "cpu")
-                        .put("requiredAbi", REQUIRED_ABI)
-                        .put("supportedAbis", JSONArray(Build.SUPPORTED_ABIS.toList()))
-                        .put("process64Bit", Process.is64Bit())
-                        .put("manufacturer", Build.MANUFACTURER)
-                        .put("model", Build.MODEL)
-                        .put("device", Build.DEVICE)
-                        .put("sdkInt", Build.VERSION.SDK_INT)
-                        .put("buildFingerprint", Build.FINGERPRINT)
-                        .put("loadMilliseconds", loadMilliseconds ?: JSONObject.NULL)
-                        .put("inferenceMilliseconds", inferenceMilliseconds ?: JSONObject.NULL)
-                        .put("responseText", responseText ?: JSONObject.NULL)
-                        .put("expectedStrictOutput", EXPECTED_STRICT_OUTPUT)
-                        .put("strictOutputPassed", strictOutputPassed)
-                        .put("engineInitialized", engineInitialized)
-                        .put("conversationClosed", conversationClosed)
-                        .put("engineClosed", engineClosed)
-                        .put("sourceModelRevision", JSONObject.NULL)
-                        .put("certified", false)
-                        .put("signed", false)
-                        .put("installed", false)
-                        .put("promotionAllowed", false)
-                        .put("productionAuthorization", false)
-                        .put("newInferencePerformed", engineInitialized)
-                        .put("errors", JSONArray(errors))
+                    report = buildReport(
+                        status = status,
+                        startedAt = startedAt,
+                        modelFile = modelFile,
+                        hashBeforeFirst = hashBeforeFirst,
+                        hashBeforeSecond = hashBeforeSecond,
+                        hashAfter = hashAfter,
+                        loadMilliseconds = loadMilliseconds,
+                        inferenceMilliseconds = inferenceMilliseconds,
+                        responseText = responseText,
+                        strictOutputPassed = strictOutputPassed,
+                        engineInitialized = engineInitialized,
+                        conversationClosed = conversationClosed,
+                        engineClosed = engineClosed,
+                        errors = errors
+                    )
                 )
             }.exceptionOrNull()
-
             if (reportError != null) {
                 failure?.addSuppressed(reportError)
                 if (failure == null) failure = reportError
@@ -278,6 +255,71 @@ class Gemma3nE2bArm64CandidateHarnessV0Test {
         }
 
         failure?.let { throw it }
+    }
+
+    private fun buildReport(
+        status: String,
+        startedAt: String,
+        modelFile: File,
+        hashBeforeFirst: String?,
+        hashBeforeSecond: String?,
+        hashAfter: String?,
+        loadMilliseconds: Long?,
+        inferenceMilliseconds: Long?,
+        responseText: String?,
+        strictOutputPassed: Boolean,
+        engineInitialized: Boolean,
+        conversationClosed: Boolean,
+        engineClosed: Boolean,
+        errors: List<String>
+    ): JSONObject {
+        return JSONObject()
+            .put("schemaVersion", REPORT_SCHEMA)
+            .put("status", status)
+            .put("startedAt", startedAt)
+            .put("completedAt", Instant.now().toString())
+            .put("candidateProfileVersion", MorimilDeliberativeArtifactContractV02Candidate.PROFILE_VERSION)
+            .put("artifactVersion", MorimilDeliberativeArtifactContractV02Candidate.ARTIFACT_VERSION)
+            .put("artifactFilename", MorimilDeliberativeArtifactContractV02Candidate.LOCAL_CANDIDATE_FILENAME)
+            .put("artifactPath", modelFile.path)
+            .put("artifactSizeBytes", if (modelFile.isFile) modelFile.length() else 0L)
+            .put("expectedArtifactSizeBytes", MorimilDeliberativeArtifactContractV02Candidate.ARTIFACT_SIZE_BYTES)
+            .put("expectedArtifactSha256", MorimilDeliberativeArtifactContractV02Candidate.ARTIFACT_SHA256)
+            .put("hashBeforeFirst", hashBeforeFirst ?: JSONObject.NULL)
+            .put("hashBeforeSecond", hashBeforeSecond ?: JSONObject.NULL)
+            .put("hashAfter", hashAfter ?: JSONObject.NULL)
+            .put(
+                "hashStable",
+                hashBeforeFirst != null &&
+                    hashBeforeFirst == hashBeforeSecond &&
+                    hashBeforeFirst == hashAfter
+            )
+            .put("runtimeDependencyVersion", MorimilDeliberativeArtifactContractV02Candidate.LITERT_LM_DEPENDENCY_VERSION)
+            .put("backend", "cpu")
+            .put("requiredAbi", REQUIRED_ABI)
+            .put("supportedAbis", JSONArray(Build.SUPPORTED_ABIS.toList()))
+            .put("process64Bit", Process.is64Bit())
+            .put("manufacturer", Build.MANUFACTURER)
+            .put("model", Build.MODEL)
+            .put("device", Build.DEVICE)
+            .put("sdkInt", Build.VERSION.SDK_INT)
+            .put("buildFingerprint", Build.FINGERPRINT)
+            .put("loadMilliseconds", loadMilliseconds ?: JSONObject.NULL)
+            .put("inferenceMilliseconds", inferenceMilliseconds ?: JSONObject.NULL)
+            .put("responseText", responseText ?: JSONObject.NULL)
+            .put("expectedStrictOutput", EXPECTED_STRICT_OUTPUT)
+            .put("strictOutputPassed", strictOutputPassed)
+            .put("engineInitialized", engineInitialized)
+            .put("conversationClosed", conversationClosed)
+            .put("engineClosed", engineClosed)
+            .put("sourceModelRevision", JSONObject.NULL)
+            .put("certified", false)
+            .put("signed", false)
+            .put("installed", false)
+            .put("promotionAllowed", false)
+            .put("productionAuthorization", false)
+            .put("newInferencePerformed", engineInitialized)
+            .put("errors", JSONArray(errors))
     }
 
     private fun sha256(file: File): String {
@@ -297,17 +339,22 @@ class Gemma3nE2bArm64CandidateHarnessV0Test {
     }
 
     private fun writeReportAtomically(reportFile: File, report: JSONObject) {
-        check(isInside(reportFile, reportFile.parentFile.canonicalFile)) {
-            "arm64_harness_report_path_escaped"
+        val reportParent = checkNotNull(reportFile.parentFile).canonicalFile
+        check(isInside(reportFile, reportParent)) { "arm64_harness_report_path_escaped" }
+        check(reportParent.mkdirs() || reportParent.isDirectory) {
+            "arm64_harness_report_directory_unavailable"
         }
-        reportFile.parentFile?.mkdirs()
-        val temporary = File(reportFile.parentFile, reportFile.name + ".partial")
-        if (temporary.exists()) check(temporary.delete()) { "arm64_harness_old_partial_report_not_removed" }
+        val temporary = File(reportParent, reportFile.name + ".partial")
+        if (temporary.exists()) {
+            check(temporary.delete()) { "arm64_harness_old_partial_report_not_removed" }
+        }
         FileOutputStream(temporary).use { output ->
             output.write((report.toString(2) + "\n").toByteArray(Charsets.UTF_8))
             output.fd.sync()
         }
-        if (reportFile.exists()) check(reportFile.delete()) { "arm64_harness_old_report_not_removed" }
+        if (reportFile.exists()) {
+            check(reportFile.delete()) { "arm64_harness_old_report_not_removed" }
+        }
         check(temporary.renameTo(reportFile)) { "arm64_harness_report_atomic_rename_failed" }
     }
 
