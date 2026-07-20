@@ -17,6 +17,7 @@ class ReasoningKernel(
 ) {
     suspend fun reason(request: ReasoningKernelRequest): ReasoningKernelResult {
         val cleanInput = request.input.trim()
+        val authorityTaskKind = ReasoningTaskKindClassifierV0.classify(cleanInput)
         val intent = LocalIntentDetector.detect(cleanInput)
         val backend = ModelBackendRouter.select(
             runtimeLabel = request.runtimeLabel,
@@ -46,7 +47,10 @@ class ReasoningKernel(
             trace = listOf(
                 ReasoningTraceEvent(
                     "kernel_start",
-                    "mode=${backend.mode} intent=$intent backend=${backend.kind} intrinsic_roles=$intrinsicRoles complexity=${backend.taskComplexity} hint=${backend.routingHint} reason=${backend.reason}"
+                    "mode=${backend.mode} intent=$intent backend=${backend.kind} " +
+                        "intrinsic_roles=$intrinsicRoles complexity=${backend.taskComplexity} " +
+                        "authority_task_kind=$authorityTaskKind hint=${backend.routingHint} " +
+                        "reason=${backend.reason}"
                 )
             )
         )
@@ -82,7 +86,10 @@ class ReasoningKernel(
                 capsuleContextSummary = summarizeContext(capsuleContext)
             ).withTrace(
                 "context_built",
-                "memory_chars=${localMemoryContext.length} combined_chars=${memoryContext.length} capsule_chars=${capsuleContext.length} web_chars=${nativeWebContext.length}"
+                "memory_chars=${localMemoryContext.length} " +
+                    "combined_chars=${memoryContext.length} " +
+                    "capsule_chars=${capsuleContext.length} " +
+                    "web_chars=${nativeWebContext.length}"
             )
 
             val systemPrompt = SystemPromptBuilder.build(
@@ -99,13 +106,16 @@ class ReasoningKernel(
 
             state = state.withTrace(
                 "intrinsic_motor_plan",
-                "complexity=${backend.taskComplexity} available=$intrinsicRoles"
+                "complexity=${backend.taskComplexity} " +
+                    "authority_task_kind=$authorityTaskKind available=$intrinsicRoles"
             )
             val reply = intrinsicCoordinator.reason(
                 IntrinsicReasoningRequest(
                     systemPrompt = systemPrompt,
                     history = recentHistory,
-                    taskComplexity = backend.taskComplexity
+                    taskComplexity = backend.taskComplexity,
+                    taskKind = authorityTaskKind,
+                    authorityPrompt = cleanInput
                 )
             ).map { motorResult ->
                 state = state.copy(
@@ -114,7 +124,12 @@ class ReasoningKernel(
                     modelBackendLabel = "morimil_intrinsic:${motorResult.activatedVersions}"
                 ).withTrace(
                     "intrinsic_motor_result",
-                    "requested=${motorResult.requestedRoles} activated=${motorResult.activatedVersions} unavailable=${motorResult.unavailableRoles} failed=${motorResult.failedRoles}"
+                    "requested=${motorResult.requestedRoles} " +
+                        "activated=${motorResult.activatedVersions} " +
+                        "unavailable=${motorResult.unavailableRoles} " +
+                        "failed=${motorResult.failedRoles} " +
+                        "finalization=${motorResult.finalizationStatus} " +
+                        "authority_route=${motorResult.authorityDecision?.route}"
                 )
                 motorResult.reply
             }.getOrElse { intrinsicError ->
@@ -130,7 +145,8 @@ class ReasoningKernel(
                 } else {
                     state = state.withTrace(
                         "temporary_external_call",
-                        "backend=${backend.kind} endpoint=${backend.endpoint.take(80)} model=${backend.model} complexity=${backend.taskComplexity}"
+                        "backend=${backend.kind} endpoint=${backend.endpoint.take(80)} " +
+                            "model=${backend.model} complexity=${backend.taskComplexity}"
                     )
                     temporaryExternalProvider.compute(
                         TemporaryExternalReasoningRequest(
