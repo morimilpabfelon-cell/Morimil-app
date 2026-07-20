@@ -18,6 +18,9 @@ captures/
 *.pem
 secrets.properties
 
+# Local model artifacts
+*.litertlm
+
 # OS
 .DS_Store
 Thumbs.db
