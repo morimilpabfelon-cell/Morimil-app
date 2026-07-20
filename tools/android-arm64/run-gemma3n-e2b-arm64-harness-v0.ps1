@@ -25,7 +25,8 @@ $HarnessClass = "com.morimil.app.reasoning.intrinsic.Gemma3nE2bArm64CandidateHar
 $DeviceRoot = "files/morimil-arm64-harness"
 $DeviceModel = "$DeviceRoot/input/$ExpectedFilename"
 $DeviceReport = "$DeviceRoot/output/morimil-arm64-candidate-runtime-v0.json"
-$MinimumFreeBytes = $ExpectedSizeBytes * 2L + 2L * 1024L * 1024L * 1024L
+$MinimumFreeBytes = ([Int64]$ExpectedSizeBytes * [Int64]2) + ([Int64]2 * 1024 * 1024 * 1024)
+$MinimumMemoryKilobytes = [Int64]6 * 1024 * 1024
 
 function Stop-Work {
     param([Parameter(Mandatory = $true)][string]$Message)
@@ -36,38 +37,42 @@ function Invoke-External {
     param(
         [Parameter(Mandatory = $true)][string]$Step,
         [Parameter(Mandatory = $true)][string]$FilePath,
-        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [Parameter(Mandatory = $true)][string[]]$CommandArguments,
         [switch]$AllowFailure
     )
 
     Write-Host ""
     Write-Host "==> $Step"
-    $output = @(& $FilePath @Arguments 2>&1 | ForEach-Object { "$_" })
+    $rawOutput = @(& $FilePath @CommandArguments 2>&1 | ForEach-Object { "$_" })
     $exitCode = $LASTEXITCODE
-    $output | ForEach-Object { Write-Host $_ }
+    $rawOutput | ForEach-Object { Write-Host $_ }
     if (-not $AllowFailure -and $exitCode -ne 0) {
         Stop-Work "fallo en '$Step' (codigo $exitCode)"
     }
     return [pscustomobject]@{
         ExitCode = $exitCode
-        Lines = $output
-        Text = ($output -join "`n")
+        Lines = $rawOutput
+        Text = ($rawOutput -join "`n")
     }
 }
 
 function Invoke-Adb {
     param(
         [Parameter(Mandatory = $true)][string]$Step,
-        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [Parameter(Mandatory = $true)][string[]]$CommandArguments,
         [switch]$AllowFailure
     )
 
-    $fullArguments = @()
-    if (-not [string]::IsNullOrWhiteSpace($script:Serial)) {
-        $fullArguments += @("-s", $script:Serial)
+    $allArguments = @()
+    if (-not [string]::IsNullOrWhiteSpace($script:DeviceSerial)) {
+        $allArguments += @("-s", $script:DeviceSerial)
     }
-    $fullArguments += $Arguments
-    return Invoke-External -Step $Step -FilePath $script:AdbPath -Arguments $fullArguments -AllowFailure:$AllowFailure
+    $allArguments += $CommandArguments
+    return Invoke-External `
+        -Step $Step `
+        -FilePath $script:AdbPath `
+        -CommandArguments $allArguments `
+        -AllowFailure:$AllowFailure
 }
 
 function Get-LowerSha256 {
@@ -76,9 +81,12 @@ function Get-LowerSha256 {
 }
 
 function Get-OnlyDeviceSerial {
-    param([Parameter(Mandatory = $true)][string]$Adb)
+    param([Parameter(Mandatory = $true)][string]$AdbPath)
 
-    $result = Invoke-External -Step "Enumerar dispositivos adb" -FilePath $Adb -Arguments @("devices")
+    $result = Invoke-External `
+        -Step "Enumerar dispositivos adb" `
+        -FilePath $AdbPath `
+        -CommandArguments @("devices")
     $devices = @(
         $result.Lines |
             Where-Object { $_ -match "^([^\s]+)\s+device$" } |
@@ -90,13 +98,14 @@ function Get-OnlyDeviceSerial {
     return $devices[0]
 }
 
-function Parse-FirstToken {
+function Get-FirstToken {
     param([Parameter(Mandatory = $true)][string]$Text)
-    $token = ($Text.Trim() -split "\s+")[0]
-    if ([string]::IsNullOrWhiteSpace($token)) {
-        Stop-Work "no se pudo leer el primer token de salida"
+
+    $trimmed = $Text.Trim()
+    if ([string]::IsNullOrWhiteSpace($trimmed)) {
+        Stop-Work "la salida esperada esta vacia"
     }
-    return $token
+    return ($trimmed -split "\s+")[0]
 }
 
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
@@ -131,14 +140,14 @@ if ($null -eq $adbCommand) {
     Stop-Work "adb no esta instalado o no esta en PATH"
 }
 $script:AdbPath = $adbCommand.Source
-if ([string]::IsNullOrWhiteSpace($Serial)) {
-    $script:Serial = Get-OnlyDeviceSerial -Adb $script:AdbPath
+$script:DeviceSerial = if ([string]::IsNullOrWhiteSpace($Serial)) {
+    Get-OnlyDeviceSerial -AdbPath $script:AdbPath
 } else {
-    $script:Serial = $Serial.Trim()
+    $Serial.Trim()
 }
 
-Invoke-Adb -Step "Confirmar estado del dispositivo" -Arguments @("get-state") | Out-Null
-$abiResult = Invoke-Adb -Step "Comprobar ABI del dispositivo" -Arguments @(
+Invoke-Adb -Step "Confirmar estado del dispositivo" -CommandArguments @("get-state") | Out-Null
+$abiResult = Invoke-Adb -Step "Comprobar ABI del dispositivo" -CommandArguments @(
     "shell",
     "getprop ro.product.cpu.abilist"
 )
@@ -147,7 +156,7 @@ if (($abiList -split ",") -notcontains $RequiredAbi) {
     Stop-Work "el dispositivo no declara $RequiredAbi; ABI: $abiList"
 }
 
-$qemuResult = Invoke-Adb -Step "Rechazar emulador" -Arguments @(
+$qemuResult = Invoke-Adb -Step "Rechazar emulador" -CommandArguments @(
     "shell",
     "getprop ro.kernel.qemu"
 )
@@ -155,23 +164,23 @@ if ($qemuResult.Text.Trim() -eq "1") {
     Stop-Work "este harness requiere un telefono o tableta fisica arm64"
 }
 
-$memResult = Invoke-Adb -Step "Leer memoria fisica" -Arguments @(
+$memoryResult = Invoke-Adb -Step "Leer memoria fisica" -CommandArguments @(
     "shell",
     "cat /proc/meminfo | head -n 1"
 )
-if ($memResult.Text -notmatch "MemTotal:\s+(\d+)\s+kB") {
+if ($memoryResult.Text -notmatch "MemTotal:\s+(\d+)\s+kB") {
     Stop-Work "no se pudo leer MemTotal"
 }
 $memoryKilobytes = [Int64]$Matches[1]
-if ($memoryKilobytes -lt 6L * 1024L * 1024L) {
+if ($memoryKilobytes -lt $MinimumMemoryKilobytes) {
     Stop-Work "el dispositivo declara menos de 6 GiB de RAM; MemTotal=$memoryKilobytes kB"
 }
 
-$dfResult = Invoke-Adb -Step "Comprobar espacio libre en /data" -Arguments @(
+$diskResult = Invoke-Adb -Step "Comprobar espacio libre en /data" -CommandArguments @(
     "shell",
     "df -k /data"
 )
-$dataLine = @($dfResult.Lines | Where-Object { $_ -match "\s/data$" } | Select-Object -Last 1)
+$dataLine = @($diskResult.Lines | Where-Object { $_ -match "\s/data$" } | Select-Object -Last 1)
 if ($dataLine.Count -ne 1) {
     Stop-Work "no se pudo interpretar df -k /data"
 }
@@ -179,7 +188,7 @@ $columns = @($dataLine[0].Trim() -split "\s+")
 if ($columns.Count -lt 4) {
     Stop-Work "salida df inesperada: $($dataLine[0])"
 }
-$availableBytes = [Int64]$columns[3] * 1024L
+$availableBytes = [Int64]$columns[3] * [Int64]1024
 if ($availableBytes -lt $MinimumFreeBytes) {
     Stop-Work "espacio insuficiente en /data; disponibles=$availableBytes requeridos=$MinimumFreeBytes"
 }
@@ -193,10 +202,13 @@ if (-not $SkipBuild) {
     }
     Push-Location $repoRoot
     try {
-        Invoke-External -Step "Compilar APK debug y androidTest" -FilePath $gradleWrapper -Arguments @(
-            ":app:assembleDebug",
-            ":app:assembleDebugAndroidTest"
-        ) | Out-Null
+        Invoke-External `
+            -Step "Compilar APK debug y androidTest" `
+            -FilePath $gradleWrapper `
+            -CommandArguments @(
+                ":app:assembleDebug",
+                ":app:assembleDebugAndroidTest"
+            ) | Out-Null
     } finally {
         Pop-Location
     }
@@ -208,13 +220,13 @@ if (-not (Test-Path -LiteralPath $testApk -PathType Leaf)) {
     Stop-Work "falta APK androidTest: $testApk"
 }
 
-Invoke-Adb -Step "Instalar APK debug de Morimil" -Arguments @(
+Invoke-Adb -Step "Instalar APK debug de Morimil" -CommandArguments @(
     "install",
     "-r",
     "-t",
     $debugApk
 ) | Out-Null
-Invoke-Adb -Step "Instalar APK de instrumentacion" -Arguments @(
+Invoke-Adb -Step "Instalar APK de instrumentacion" -CommandArguments @(
     "install",
     "-r",
     "-t",
@@ -230,66 +242,68 @@ $hostRunDirectory = Join-Path $resolvedReportDirectory $runStamp
 New-Item -ItemType Directory -Path $hostRunDirectory -Force | Out-Null
 $hostReportPath = Join-Path $hostRunDirectory "morimil-arm64-candidate-runtime-v0.json"
 $hostTranscriptPath = Join-Path $hostRunDirectory "instrumentation-output.txt"
-
 $remoteTemporary = "/data/local/tmp/$ExpectedFilename.$([guid]::NewGuid().ToString('N')).partial"
-$cleanupErrors = mutableListOf
+
 try {
-    Invoke-Adb -Step "Subir candidato a staging shell temporal" -Arguments @(
+    Invoke-Adb -Step "Subir candidato a staging shell temporal" -CommandArguments @(
         "push",
         $resolvedArtifact,
         $remoteTemporary
     ) | Out-Null
 
-    $remoteSizeResult = Invoke-Adb -Step "Verificar tamano del staging shell" -Arguments @(
+    $remoteSizeResult = Invoke-Adb -Step "Verificar tamano del staging shell" -CommandArguments @(
         "shell",
         "wc -c < '$remoteTemporary'"
     )
-    $remoteSize = [Int64](Parse-FirstToken -Text $remoteSizeResult.Text)
+    $remoteSize = [Int64](Get-FirstToken -Text $remoteSizeResult.Text)
     if ($remoteSize -ne $ExpectedSizeBytes) {
         Stop-Work "tamano remoto inesperado: $remoteSize"
     }
 
-    $remoteHashResult = Invoke-Adb -Step "Verificar SHA-256 del staging shell" -Arguments @(
+    $remoteHashResult = Invoke-Adb -Step "Verificar SHA-256 del staging shell" -CommandArguments @(
         "shell",
         "sha256sum '$remoteTemporary'"
     )
-    $remoteHash = (Parse-FirstToken -Text $remoteHashResult.Text).ToLowerInvariant()
+    $remoteHash = (Get-FirstToken -Text $remoteHashResult.Text).ToLowerInvariant()
     if ($remoteHash -cne $ExpectedSha256) {
         Stop-Work "SHA-256 remoto inesperado: $remoteHash"
     }
 
-    Invoke-Adb -Step "Preparar staging privado del APK de prueba" -Arguments @(
+    Invoke-Adb -Step "Preparar staging privado del APK" -CommandArguments @(
         "shell",
         "run-as $TargetPackage sh -c 'rm -rf $DeviceRoot && mkdir -p $DeviceRoot/input $DeviceRoot/output'"
     ) | Out-Null
 
-    Invoke-Adb -Step "Copiar candidato al staging privado y volverlo solo lectura" -Arguments @(
+    Invoke-Adb -Step "Copiar candidato al staging privado y volverlo solo lectura" -CommandArguments @(
         "shell",
         "cat '$remoteTemporary' | run-as $TargetPackage sh -c 'cat > $DeviceModel.partial && mv $DeviceModel.partial $DeviceModel && chmod 400 $DeviceModel'"
     ) | Out-Null
 
-    $privateSizeResult = Invoke-Adb -Step "Verificar tamano del staging privado" -Arguments @(
+    $privateSizeResult = Invoke-Adb -Step "Verificar tamano del staging privado" -CommandArguments @(
         "shell",
         "run-as $TargetPackage sh -c 'test -r $DeviceModel && test ! -w $DeviceModel && wc -c < $DeviceModel'"
     )
-    $privateSize = [Int64](Parse-FirstToken -Text $privateSizeResult.Text)
+    $privateSize = [Int64](Get-FirstToken -Text $privateSizeResult.Text)
     if ($privateSize -ne $ExpectedSizeBytes) {
         Stop-Work "tamano privado inesperado: $privateSize"
     }
 
-    $privateHashResult = Invoke-Adb -Step "Verificar SHA-256 del staging privado" -Arguments @(
+    $privateHashResult = Invoke-Adb -Step "Verificar SHA-256 del staging privado" -CommandArguments @(
         "shell",
         "run-as $TargetPackage sha256sum $DeviceModel"
     )
-    $privateHash = (Parse-FirstToken -Text $privateHashResult.Text).ToLowerInvariant()
+    $privateHash = (Get-FirstToken -Text $privateHashResult.Text).ToLowerInvariant()
     if ($privateHash -cne $ExpectedSha256) {
         Stop-Work "SHA-256 privado inesperado: $privateHash"
     }
 
-    $instrumentation = Invoke-Adb -Step "Ejecutar inferencia LiteRT-LM CPU en arm64" -Arguments @(
-        "shell",
-        "am instrument -w -r -e morimilArm64HarnessEnabled true -e class $HarnessClass $TestPackage/$Runner"
-    ) -AllowFailure
+    $instrumentation = Invoke-Adb `
+        -Step "Ejecutar inferencia LiteRT-LM CPU en arm64" `
+        -CommandArguments @(
+            "shell",
+            "am instrument -w -r -e morimilArm64HarnessEnabled true -e class $HarnessClass $TestPackage/$Runner"
+        ) `
+        -AllowFailure
     [System.IO.File]::WriteAllText(
         $hostTranscriptPath,
         $instrumentation.Text + "`n",
@@ -305,7 +319,7 @@ try {
         Stop-Work "la instrumentacion no confirmo dos tests correctos"
     }
 
-    $reportResult = Invoke-Adb -Step "Extraer informe JSON del proceso Android" -Arguments @(
+    $reportResult = Invoke-Adb -Step "Extraer informe JSON del proceso Android" -CommandArguments @(
         "shell",
         "run-as $TargetPackage cat $DeviceReport"
     )
@@ -369,12 +383,12 @@ try {
     Write-Host ""
     Write-Host "NO certificado, NO firmado, NO instalado y promocion bloqueada."
 } finally {
-    Invoke-Adb -Step "Eliminar staging shell temporal" -Arguments @(
-        "shell",
-        "rm -f '$remoteTemporary'"
-    ) -AllowFailure | Out-Null
-    Invoke-Adb -Step "Eliminar candidato y reporte del almacenamiento privado de prueba" -Arguments @(
-        "shell",
-        "run-as $TargetPackage rm -rf $DeviceRoot"
-    ) -AllowFailure | Out-Null
+    Invoke-Adb `
+        -Step "Eliminar staging shell temporal" `
+        -CommandArguments @("shell", "rm -f '$remoteTemporary'") `
+        -AllowFailure | Out-Null
+    Invoke-Adb `
+        -Step "Eliminar staging privado del APK" `
+        -CommandArguments @("shell", "run-as $TargetPackage rm -rf $DeviceRoot") `
+        -AllowFailure | Out-Null
 }
