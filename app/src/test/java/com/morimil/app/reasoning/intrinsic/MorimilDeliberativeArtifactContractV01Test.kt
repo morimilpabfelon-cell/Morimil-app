@@ -31,6 +31,15 @@ class MorimilDeliberativeArtifactContractV01Test {
     }
 
     @Test
+    fun manifestDigestMatchesOfflineCertifierGoldenVector() {
+        assertEquals(
+            "sha256:9e0863f34ed35090d60a66a57f51dc7" +
+                "22e4976ac34eaa730d16b23c4b6603747",
+            DeliberativeArtifactHashProfile.manifestDigest(manifest())
+        )
+    }
+
+    @Test
     fun everyIdentityAndProvenanceFieldIsCommittedByTheManifestDigest() {
         val base = manifest()
         val baseDigest = DeliberativeArtifactHashProfile.manifestDigest(base)

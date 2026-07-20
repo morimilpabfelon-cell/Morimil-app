@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "morimil.deliberative.conversion.recipe.v0.1",
+  "artifactVersion": "morimil-deliberative-v0.1",
+  "sourceModelId": "google/gemma-3-1b-it",
+  "architectureId": "google.gemma3.text.1b.it",
+  "tokenizerId": "google.gemma3.tokenizer",
+  "formatId": "litertlm.v1",
+  "runtimeAbi": "litertlm.kotlin.android.v0.14.0",
+  "sdkVersion": "0.14.0",
+  "contextWindowTokens": 4096,
+  "quantizationProfile": "litertlm.int4.per-channel",
+  "modality": "text-only",
+  "executionBackend": "cpu",
+  "snapshotDigestProfile": "morimil.source.snapshot.tree.v0.1",
+  "acceptedInputKinds": [
+    "official-prebuilt-litertlm",
+    "reproducibly-converted-litertlm"
+  ],
+  "acquisitionPolicy": "manual-license-gated-local-input-only",
+  "networkPolicy": "certifier-offline-no-download",
+  "signingPolicy": "separate-genesis-ed25519-envelope-required",
+  "conversionTranscriptRequired": true
+}
