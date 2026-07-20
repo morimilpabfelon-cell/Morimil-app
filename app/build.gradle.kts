@@ -189,6 +189,7 @@ dependencies {
     implementation("androidx.webkit:webkit:1.16.0")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
     implementation("com.fasterxml.jackson.core:jackson-core:2.22.0")
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.14.0")
     implementation("com.google.crypto.tink:tink-android:1.23.0")
 
     implementation("androidx.room:room-runtime:$roomVersion")
