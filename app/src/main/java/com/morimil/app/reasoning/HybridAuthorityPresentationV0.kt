@@ -2,6 +2,7 @@ package com.morimil.app.reasoning
 
 import com.morimil.app.reasoning.authority.HybridAuthorityDecision
 import com.morimil.app.reasoning.authority.HybridAuthorityRoute
+import com.morimil.app.reasoning.authority.HybridAuthorityRouterV0
 import com.morimil.app.reasoning.authority.HybridAuthorityStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -56,6 +57,7 @@ object HybridAuthorityPresentationV0 {
                     "accepted_finalization_requires_authority_decision"
                 }
                 require(decision.accepted) { "accepted_finalization_requires_accepted_content" }
+                validateAuthorityVersion(decision)
                 accepted(decision)
             }
 
@@ -67,6 +69,7 @@ object HybridAuthorityPresentationV0 {
                 require(decision.status == HybridAuthorityStatus.ABSTAINED) {
                     "abstained_finalization_requires_abstained_status"
                 }
+                validateAuthorityVersion(decision)
                 HybridAuthorityPresentation(
                     status = HybridAuthorityPresentationStatus.ABSTAINED,
                     headline = "Morimil se abstuvo",
@@ -80,11 +83,21 @@ object HybridAuthorityPresentationV0 {
 
     private fun accepted(decision: HybridAuthorityDecision): HybridAuthorityPresentation {
         val presentationStatus = when (decision.status) {
-            HybridAuthorityStatus.ACCEPTED_DETERMINISTIC ->
+            HybridAuthorityStatus.ACCEPTED_DETERMINISTIC -> {
+                require(
+                    decision.route == HybridAuthorityRoute.DETERMINISTIC_ARITHMETIC ||
+                        decision.route == HybridAuthorityRoute.RESTRICTED_CODE ||
+                        decision.route == HybridAuthorityRoute.DETERMINISTIC_CLAIM_CHECK
+                ) { "deterministic_status_requires_deterministic_route" }
                 HybridAuthorityPresentationStatus.ACCEPTED_DETERMINISTIC
+            }
 
-            HybridAuthorityStatus.ACCEPTED_STRICT_CONSENSUS ->
+            HybridAuthorityStatus.ACCEPTED_STRICT_CONSENSUS -> {
+                require(decision.route == HybridAuthorityRoute.STRICT_GENERATIVE_CONSENSUS) {
+                    "consensus_status_requires_consensus_route"
+                }
                 HybridAuthorityPresentationStatus.ACCEPTED_STRICT_CONSENSUS
+            }
 
             HybridAuthorityStatus.ABSTAINED ->
                 error("accepted_decision_cannot_have_abstained_status")
@@ -107,6 +120,12 @@ object HybridAuthorityPresentationV0 {
             explanation = explanation,
             authorityVersion = decision.authorityVersion
         )
+    }
+
+    private fun validateAuthorityVersion(decision: HybridAuthorityDecision) {
+        require(decision.authorityVersion == HybridAuthorityRouterV0.VERSION) {
+            "authority_version_mismatch"
+        }
     }
 
     private fun routeLabel(route: HybridAuthorityRoute): String {
