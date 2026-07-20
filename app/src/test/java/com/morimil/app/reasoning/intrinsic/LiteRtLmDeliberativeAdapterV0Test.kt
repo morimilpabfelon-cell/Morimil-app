@@ -275,16 +275,38 @@ class LiteRtLmDeliberativeAdapterV0Test {
     ): DeliberativeArtifactManifest {
         return DeliberativeArtifactManifest(
             schemaVersion = DeliberativeArtifactHashProfile.MANIFEST_SCHEMA,
-            artifactVersion = "morimil-deliberative-test-v0",
+            contractVersion = MorimilDeliberativeArtifactContractV01.CONTRACT_VERSION,
+            artifactVersion = MorimilDeliberativeArtifactContractV01.ARTIFACT_VERSION,
             artifactSha256 = GenesisUltraHashProfile.sha256(bytes),
             artifactSizeBytes = bytes.size.toLong(),
             formatId = LiteRtLmDeliberativeRuntimeV0.FORMAT_ID,
             runtimeAbi = runtimeAbi,
+            architectureId = MorimilDeliberativeArtifactContractV01.ARCHITECTURE_ID,
+            tokenizerId = MorimilDeliberativeArtifactContractV01.TOKENIZER_ID,
+            tokenizerSha256 = hash('a'),
+            contextWindowTokens =
+                MorimilDeliberativeArtifactContractV01.CONTEXT_WINDOW_TOKENS,
+            quantizationProfile =
+                MorimilDeliberativeArtifactContractV01.QUANTIZATION_PROFILE,
+            modality = MorimilDeliberativeArtifactContractV01.MODALITY,
+            executionBackend =
+                MorimilDeliberativeArtifactContractV01.EXECUTION_BACKEND,
+            deliberationProfile =
+                MorimilDeliberativeArtifactContractV01.DELIBERATION_PROFILE,
+            sourceModelId = MorimilDeliberativeArtifactContractV01.SOURCE_MODEL_ID,
+            sourceModelRevision = "0".repeat(40),
+            sourceModelSnapshotSha256 = hash('b'),
+            conversionRecipeSha256 = hash('c'),
+            licenseId = MorimilDeliberativeArtifactContractV01.LICENSE_ID,
             blueprintVersion = MorimilIntrinsicMotorBlueprints.VERSION,
             techniques = MorimilIntrinsicMotorBlueprints
                 .requireBlueprint(ReasoningMotorRole.DELIBERATIVE)
                 .requiredTechniques
         )
+    }
+
+    private fun hash(character: Char): String {
+        return "sha256:" + character.toString().repeat(64)
     }
 
     private fun verified(

@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "morimil://schemas/deliberative-artifact-manifest-v0.2",
+  "title": "Morimil Deliberative Artifact Manifest v0.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "contractVersion",
+    "artifactVersion",
+    "artifactSha256",
+    "artifactSizeBytes",
+    "formatId",
+    "runtimeAbi",
+    "architectureId",
+    "tokenizerId",
+    "tokenizerSha256",
+    "contextWindowTokens",
+    "quantizationProfile",
+    "modality",
+    "executionBackend",
+    "deliberationProfile",
+    "sourceModelId",
+    "sourceModelRevision",
+    "sourceModelSnapshotSha256",
+    "conversionRecipeSha256",
+    "licenseId",
+    "blueprintVersion",
+    "techniques"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "morimil.deliberative.artifact.manifest.v0.2"
+    },
+    "contractVersion": {
+      "const": "morimil.deliberative.artifact.contract.v0.1"
+    },
+    "artifactVersion": {
+      "const": "morimil-deliberative-v0.1"
+    },
+    "artifactSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "artifactSizeBytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4294967296
+    },
+    "formatId": {
+      "const": "litertlm.v1"
+    },
+    "runtimeAbi": {
+      "const": "litertlm.kotlin.android.v0.14.0"
+    },
+    "architectureId": {
+      "const": "google.gemma3.text.1b.it"
+    },
+    "tokenizerId": {
+      "const": "google.gemma3.tokenizer"
+    },
+    "tokenizerSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "contextWindowTokens": {
+      "const": 4096
+    },
+    "quantizationProfile": {
+      "const": "litertlm.int4.per-channel"
+    },
+    "modality": {
+      "const": "text-only"
+    },
+    "executionBackend": {
+      "const": "cpu"
+    },
+    "deliberationProfile": {
+      "const": "morimil.request-scoped.textual-recurrence.v0"
+    },
+    "sourceModelId": {
+      "const": "google/gemma-3-1b-it"
+    },
+    "sourceModelRevision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sourceModelSnapshotSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "conversionRecipeSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "licenseId": {
+      "const": "gemma"
+    },
+    "blueprintVersion": {
+      "const": "morimil.reasoning_growth.v1"
+    },
+    "techniques": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "LOOPED_LATENT_DEPTH",
+          "DIRECT_LANGUAGE_MODEL_HEAD",
+          "ADAPTIVE_REASONING_EFFORT"
+        ]
+      },
+      "allOf": [
+        {
+          "contains": {
+            "const": "LOOPED_LATENT_DEPTH"
+          }
+        },
+        {
+          "contains": {
+            "const": "DIRECT_LANGUAGE_MODEL_HEAD"
+          }
+        },
+        {
+          "contains": {
+            "const": "ADAPTIVE_REASONING_EFFORT"
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

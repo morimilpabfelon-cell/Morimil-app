@@ -37,7 +37,7 @@ class VerifiedLocalDeliberativeCoreV01Test {
         val response = DeliberativeMotorV0(core).compute(request()).getOrThrow()
 
         assertEquals("respuesta intrínseca local", response.content)
-        assertEquals("deliberative-weights-v0.1", core.artifactVersion)
+        assertEquals(MorimilDeliberativeArtifactContractV01.ARTIFACT_VERSION, core.artifactVersion)
         assertEquals(fixture.manifest.artifactSha256, core.artifactSha256)
         assertEquals(1, engine.sessions.size)
         assertEquals(listOf(1, 2), engine.sessions.single().refinementPasses)
@@ -118,9 +118,9 @@ class VerifiedLocalDeliberativeCoreV01Test {
     }
 
     @Test
-    fun signatureCannotBeReusedForChangedRuntimeAbi() {
+    fun signatureCannotBeReusedForChangedSourceRevision() {
         val fixture = signedFixture()
-        val changed = fixture.manifest.copy(runtimeAbi = "litertlm.kotlin.v0.15")
+        val changed = fixture.manifest.copy(sourceModelRevision = "1".repeat(40))
 
         val error = assertThrows(IllegalArgumentException::class.java) {
             fixture.verifier.verify(changed, fixture.signature, fixture.localArtifact)
@@ -285,11 +285,29 @@ class VerifiedLocalDeliberativeCoreV01Test {
         val bytes = "morimil-local-weights-v0.1".toByteArray()
         val manifest = DeliberativeArtifactManifest(
             schemaVersion = DeliberativeArtifactHashProfile.MANIFEST_SCHEMA,
-            artifactVersion = "deliberative-weights-v0.1",
+            contractVersion = MorimilDeliberativeArtifactContractV01.CONTRACT_VERSION,
+            artifactVersion = MorimilDeliberativeArtifactContractV01.ARTIFACT_VERSION,
             artifactSha256 = GenesisUltraHashProfile.sha256(bytes),
             artifactSizeBytes = bytes.size.toLong(),
-            formatId = "litertlm.v1",
-            runtimeAbi = "litertlm.kotlin.v0.14",
+            formatId = MorimilDeliberativeArtifactContractV01.FORMAT_ID,
+            runtimeAbi = MorimilDeliberativeArtifactContractV01.RUNTIME_ABI,
+            architectureId = MorimilDeliberativeArtifactContractV01.ARCHITECTURE_ID,
+            tokenizerId = MorimilDeliberativeArtifactContractV01.TOKENIZER_ID,
+            tokenizerSha256 = digest('a'),
+            contextWindowTokens =
+                MorimilDeliberativeArtifactContractV01.CONTEXT_WINDOW_TOKENS,
+            quantizationProfile =
+                MorimilDeliberativeArtifactContractV01.QUANTIZATION_PROFILE,
+            modality = MorimilDeliberativeArtifactContractV01.MODALITY,
+            executionBackend =
+                MorimilDeliberativeArtifactContractV01.EXECUTION_BACKEND,
+            deliberationProfile =
+                MorimilDeliberativeArtifactContractV01.DELIBERATION_PROFILE,
+            sourceModelId = MorimilDeliberativeArtifactContractV01.SOURCE_MODEL_ID,
+            sourceModelRevision = "0".repeat(40),
+            sourceModelSnapshotSha256 = digest('b'),
+            conversionRecipeSha256 = digest('c'),
+            licenseId = MorimilDeliberativeArtifactContractV01.LICENSE_ID,
             blueprintVersion = MorimilIntrinsicMotorBlueprints.VERSION,
             techniques = MorimilIntrinsicMotorBlueprints
                 .requireBlueprint(ReasoningMotorRole.DELIBERATIVE)
@@ -402,8 +420,10 @@ class VerifiedLocalDeliberativeCoreV01Test {
     }
 
     private class RecordingEngine(
-        override val formatId: String = "litertlm.v1",
-        override val runtimeAbi: String = "litertlm.kotlin.v0.14",
+        override val formatId: String =
+            MorimilDeliberativeArtifactContractV01.FORMAT_ID,
+        override val runtimeAbi: String =
+            MorimilDeliberativeArtifactContractV01.RUNTIME_ABI,
         override val loadedArtifactSha256: String,
         private val failAtPass: Int? = null
     ) : LocalDeliberativeEngine {

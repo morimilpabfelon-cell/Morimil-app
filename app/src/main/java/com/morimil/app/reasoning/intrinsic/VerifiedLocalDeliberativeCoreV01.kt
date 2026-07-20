@@ -18,11 +18,25 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 data class DeliberativeArtifactManifest(
     val schemaVersion: String,
+    val contractVersion: String,
     val artifactVersion: String,
     val artifactSha256: String,
     val artifactSizeBytes: Long,
     val formatId: String,
     val runtimeAbi: String,
+    val architectureId: String,
+    val tokenizerId: String,
+    val tokenizerSha256: String,
+    val contextWindowTokens: Int,
+    val quantizationProfile: String,
+    val modality: String,
+    val executionBackend: String,
+    val deliberationProfile: String,
+    val sourceModelId: String,
+    val sourceModelRevision: String,
+    val sourceModelSnapshotSha256: String,
+    val conversionRecipeSha256: String,
+    val licenseId: String,
     val blueprintVersion: String,
     val techniques: Set<IntrinsicMotorTechnique>
 )
@@ -81,8 +95,8 @@ data class DeliberativeArtifactVerificationPolicy(
 }
 
 object DeliberativeArtifactHashProfile {
-    const val MANIFEST_SCHEMA = "morimil.deliberative.artifact.manifest.v0.1"
-    const val SIGNED_DOMAIN = "morimil.deliberative.artifact.signature.v0.1"
+    const val MANIFEST_SCHEMA = "morimil.deliberative.artifact.manifest.v0.2"
+    const val SIGNED_DOMAIN = "morimil.deliberative.artifact.signature.v0.2"
 
     fun manifestDigest(manifest: DeliberativeArtifactManifest): String {
         val orderedTechniques = manifest.techniques.sortedBy { technique -> technique.name }
@@ -90,11 +104,25 @@ object DeliberativeArtifactHashProfile {
             SIGNED_DOMAIN,
             buildList {
                 add(manifest.schemaVersion)
+                add(manifest.contractVersion)
                 add(manifest.artifactVersion)
                 add(manifest.artifactSha256)
                 add(manifest.artifactSizeBytes.toString())
                 add(manifest.formatId)
                 add(manifest.runtimeAbi)
+                add(manifest.architectureId)
+                add(manifest.tokenizerId)
+                add(manifest.tokenizerSha256)
+                add(manifest.contextWindowTokens.toString())
+                add(manifest.quantizationProfile)
+                add(manifest.modality)
+                add(manifest.executionBackend)
+                add(manifest.deliberationProfile)
+                add(manifest.sourceModelId)
+                add(manifest.sourceModelRevision)
+                add(manifest.sourceModelSnapshotSha256)
+                add(manifest.conversionRecipeSha256)
+                add(manifest.licenseId)
                 add(manifest.blueprintVersion)
                 add(orderedTechniques.size.toString())
                 orderedTechniques.forEach { technique -> add(technique.name) }
@@ -199,6 +227,7 @@ class DeliberativeArtifactVerifier(
         require(RUNTIME_ABI_PATTERN.matches(manifest.runtimeAbi)) {
             "artifact_runtime_abi_invalid"
         }
+        MorimilDeliberativeArtifactContractV01.validate(manifest)
         require(manifest.blueprintVersion == MorimilIntrinsicMotorBlueprints.VERSION) {
             "artifact_blueprint_version_mismatch"
         }

@@ -17,9 +17,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /** Exact production runtime boundary used by Morimil's first LiteRT-LM adapter. */
 object LiteRtLmDeliberativeRuntimeV0 {
-    const val DEPENDENCY_VERSION = "0.14.0"
-    const val FORMAT_ID = "litertlm.v1"
-    const val RUNTIME_ABI = "litertlm.kotlin.android.v0.14.0"
+    const val DEPENDENCY_VERSION =
+        MorimilDeliberativeArtifactContractV01.LITERT_LM_DEPENDENCY_VERSION
+    const val FORMAT_ID = MorimilDeliberativeArtifactContractV01.FORMAT_ID
+    const val RUNTIME_ABI = MorimilDeliberativeArtifactContractV01.RUNTIME_ABI
 }
 
 data class LiteRtLmDeliberativePromptPolicy(

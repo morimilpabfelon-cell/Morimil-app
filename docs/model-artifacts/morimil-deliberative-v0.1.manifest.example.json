@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "morimil.deliberative.artifact.manifest.v0.2",
+  "contractVersion": "morimil.deliberative.artifact.contract.v0.1",
+  "artifactVersion": "morimil-deliberative-v0.1",
+  "artifactSha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "artifactSizeBytes": 1,
+  "formatId": "litertlm.v1",
+  "runtimeAbi": "litertlm.kotlin.android.v0.14.0",
+  "architectureId": "google.gemma3.text.1b.it",
+  "tokenizerId": "google.gemma3.tokenizer",
+  "tokenizerSha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "contextWindowTokens": 4096,
+  "quantizationProfile": "litertlm.int4.per-channel",
+  "modality": "text-only",
+  "executionBackend": "cpu",
+  "deliberationProfile": "morimil.request-scoped.textual-recurrence.v0",
+  "sourceModelId": "google/gemma-3-1b-it",
+  "sourceModelRevision": "0000000000000000000000000000000000000000",
+  "sourceModelSnapshotSha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "conversionRecipeSha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "licenseId": "gemma",
+  "blueprintVersion": "morimil.reasoning_growth.v1",
+  "techniques": [
+    "ADAPTIVE_REASONING_EFFORT",
+    "DIRECT_LANGUAGE_MODEL_HEAD",
+    "LOOPED_LATENT_DEPTH"
+  ]
+}
