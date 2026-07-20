@@ -22,6 +22,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.morimil.app.reasoning.HybridAuthorityPresentation
 import com.morimil.app.reasoning.HybridAuthorityPresentationStatus
 import com.morimil.app.reasoning.HybridAuthorityPresentationStore
+import java.util.Locale
 
 @Composable
 fun ChatScreenWithAuthorityStatus(viewModel: ChatViewModel) {
@@ -78,7 +79,7 @@ internal fun HybridAuthorityStatusSurface(
                 color = contentColor
             )
             Text(
-                text = "RUTA: ${presentation.routeLabel.uppercase()}",
+                text = "RUTA: ${presentation.routeLabel.uppercase(Locale.ROOT)}",
                 style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
                 color = contentColor
             )
