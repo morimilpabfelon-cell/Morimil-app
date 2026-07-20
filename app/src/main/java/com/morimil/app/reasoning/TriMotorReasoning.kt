@@ -1,6 +1,10 @@
 package com.morimil.app.reasoning
 
 import com.morimil.app.ai.ChatTurn
+import com.morimil.app.reasoning.authority.HybridAuthorityDecision
+import com.morimil.app.reasoning.authority.HybridAuthorityRequest
+import com.morimil.app.reasoning.authority.HybridAuthorityRoute
+import com.morimil.app.reasoning.authority.HybridAuthorityRouterV0
 import com.morimil.app.reasoning.model.ReasoningTaskComplexity
 
 /** Stable reasoning roles. Providers and model families remain replaceable. */
@@ -14,7 +18,9 @@ data class IntrinsicReasoningRequest(
     val systemPrompt: String,
     val history: List<ChatTurn>,
     val taskComplexity: ReasoningTaskComplexity,
-    val candidateReply: String? = null
+    val candidateReply: String? = null,
+    val taskKind: ReasoningTaskKind = ReasoningTaskKind.UNKNOWN,
+    val authorityPrompt: String? = null
 )
 
 data class IntrinsicReasoningResponse(
@@ -93,11 +99,18 @@ data class TriMotorReasoningResult(
     val activatedVersions: Map<ReasoningMotorRole, String>,
     val unavailableRoles: List<ReasoningMotorRole>,
     val failedRoles: List<ReasoningMotorRole>,
-    val findings: List<String>
+    val findings: List<String>,
+    val primaryCandidate: String = reply,
+    val verifierCandidate: String? = null,
+    val authorityDecision: HybridAuthorityDecision? = null,
+    val finalizationStatus: TriMotorFinalizationStatus =
+        TriMotorFinalizationStatus.LEGACY_UNROUTED
 )
 
 class IntrinsicTriMotorCoordinator(
-    motors: List<IntrinsicReasoningMotor> = emptyList()
+    motors: List<IntrinsicReasoningMotor> = emptyList(),
+    private val authorityRouter: HybridAuthorityRouterV0 = HybridAuthorityRouterV0(),
+    private val runtimePolicy: HybridAuthorityRuntimePolicy = HybridAuthorityRuntimePolicy()
 ) {
     private val motorsByRole: Map<ReasoningMotorRole, IntrinsicReasoningMotor>
 
@@ -130,18 +143,26 @@ class IntrinsicTriMotorCoordinator(
 
         val activated = linkedMapOf(primary.role to primary.motor.capabilityVersion)
         val findings = primary.response.findings.toMutableList()
-        var finalReply = primary.response.content
+        val primaryCandidate = primary.response.content
+        var verifierCandidate: String? = null
+        var legacyReply = primaryCandidate
 
         if (plan.verificationRequested) {
             val verifier = motorsByRole[ReasoningMotorRole.METACOGNITIVE]
             if (verifier == null) {
                 unavailable += ReasoningMotorRole.METACOGNITIVE
             } else {
+                val candidateForVerifier = if (runtimePolicy.hybridAuthorityRuntimeEnabled) {
+                    null
+                } else {
+                    primaryCandidate
+                }
                 verifier.compute(
-                    request.copy(candidateReply = finalReply)
+                    request.copy(candidateReply = candidateForVerifier)
                 ).onSuccess { verification ->
-                    if (verification.content.isNotBlank()) {
-                        finalReply = verification.content
+                    verifierCandidate = verification.content.takeIf(String::isNotBlank)
+                    if (!runtimePolicy.hybridAuthorityRuntimeEnabled && verifierCandidate != null) {
+                        legacyReply = requireNotNull(verifierCandidate)
                     }
                     activated[ReasoningMotorRole.METACOGNITIVE] = verifier.capabilityVersion
                     findings += verification.findings
@@ -149,6 +170,31 @@ class IntrinsicTriMotorCoordinator(
                     failed += ReasoningMotorRole.METACOGNITIVE
                 }
             }
+        }
+
+        val authorityDecision = if (runtimePolicy.hybridAuthorityRuntimeEnabled) {
+            decideWithAuthority(
+                request = request,
+                primaryCandidate = primaryCandidate,
+                verifierCandidate = verifierCandidate
+            )
+        } else {
+            null
+        }
+
+        val finalizationStatus: TriMotorFinalizationStatus
+        val finalReply: String
+        if (authorityDecision == null) {
+            finalizationStatus = TriMotorFinalizationStatus.LEGACY_UNROUTED
+            finalReply = legacyReply
+        } else if (authorityDecision.accepted) {
+            finalizationStatus = TriMotorFinalizationStatus.ACCEPTED_BY_AUTHORITY
+            finalReply = requireNotNull(authorityDecision.acceptedContent)
+            findings += authorityDecision.findings
+        } else {
+            finalizationStatus = TriMotorFinalizationStatus.ABSTAINED_BY_AUTHORITY
+            finalReply = ""
+            findings += authorityDecision.findings
         }
 
         return Result.success(
@@ -159,7 +205,42 @@ class IntrinsicTriMotorCoordinator(
                 activatedVersions = activated.toMap(),
                 unavailableRoles = unavailable.toList(),
                 failedRoles = failed.toList(),
-                findings = findings.distinct()
+                findings = findings.distinct(),
+                primaryCandidate = primaryCandidate,
+                verifierCandidate = verifierCandidate,
+                authorityDecision = authorityDecision,
+                finalizationStatus = finalizationStatus
+            )
+        )
+    }
+
+    private fun decideWithAuthority(
+        request: IntrinsicReasoningRequest,
+        primaryCandidate: String,
+        verifierCandidate: String?
+    ): HybridAuthorityDecision {
+        val prompt = request.authorityPrompt
+            ?.trim()
+            ?.takeIf(String::isNotBlank)
+            ?: request.history
+                .lastOrNull { turn -> turn.role.equals("user", ignoreCase = true) }
+                ?.content
+                ?.trim()
+                ?.takeIf(String::isNotBlank)
+
+        if (prompt == null) {
+            return HybridAuthorityDecision.abstain(
+                route = HybridAuthorityRoute.UNSUPPORTED,
+                reason = "hybrid_authority_prompt_missing"
+            )
+        }
+
+        return authorityRouter.decide(
+            HybridAuthorityRequest(
+                taskKind = request.taskKind.toHybridAuthorityTaskKind(),
+                prompt = prompt,
+                directReply = primaryCandidate,
+                verifierReply = verifierCandidate
             )
         )
     }
@@ -189,7 +270,9 @@ class IntrinsicTriMotorCoordinator(
             }
             failed += role
         }
-        return Result.failure(IllegalStateException("No primary reasoning motor produced a reply."))
+        return Result.failure(
+            IllegalStateException("No primary reasoning motor produced a reply.")
+        )
     }
 
     private data class PrimaryComputation(
