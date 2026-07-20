@@ -17,6 +17,7 @@ class ReasoningKernel(
 ) {
     suspend fun reason(request: ReasoningKernelRequest): ReasoningKernelResult {
         val cleanInput = request.input.trim()
+        HybridAuthorityPresentationStore.resetDisabled()
         val authorityTaskKind = ReasoningTaskKindClassifierV0.classify(cleanInput)
         val intent = LocalIntentDetector.detect(cleanInput)
         val backend = ModelBackendRouter.select(
@@ -118,6 +119,10 @@ class ReasoningKernel(
                     authorityPrompt = cleanInput
                 )
             ).map { motorResult ->
+                HybridAuthorityPresentationStore.publish(
+                    finalizationStatus = motorResult.finalizationStatus,
+                    authorityDecision = motorResult.authorityDecision
+                )
                 state = state.copy(
                     criticFindings = motorResult.findings,
                     executionOrigin = ReasoningExecutionOrigin.MORIMIL_INTRINSIC,
