@@ -30,6 +30,11 @@ jobs:
       - name: Test deliberative artifact certifier
         run: python -m unittest discover -s tools/model-artifacts -p 'test_*.py'
 
+      - name: Test Android arm64 host tools
+        run: |
+          python tools/android-arm64/run_gemma3n_e2b_arm64_unplugged_energy_v0.py --self-test
+          python tools/android-arm64/run_gemma3n_e2b_arm64_unplugged_energy_v0_1.py --self-test
+
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
