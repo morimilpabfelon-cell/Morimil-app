@@ -40,6 +40,8 @@ jobs:
         run: |
           python tools/android-arm64/run_gemma3n_e2b_arm64_unplugged_energy_v0.py --self-test
           python tools/android-arm64/run_gemma3n_e2b_arm64_unplugged_energy_v0_1.py --self-test
+          python tools/android-arm64/run_gemma3n_e2b_arm64_deliberative_benchmark_v0.py --self-test
+          python tools/android-arm64/test_run_gemma3n_e2b_arm64_deliberative_benchmark_v0.py
 
       - name: Make Gradle executable
         run: chmod +x ./gradlew
