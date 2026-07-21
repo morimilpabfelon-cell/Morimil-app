@@ -16,7 +16,7 @@ class DeliberativeRuntimeCapabilitiesV03Test {
         )
         assertFalse(capabilities.latentRecurrenceClaimAllowed)
         assertFalse(capabilities.supportsHiddenStateReinjection)
-        assertFalse(capabilities.reusesBackboneWeightsAcrossIterations)
+        assertFalse(capabilities.sharesBackboneParametersInsideLatentLoop)
         assertFalse(capabilities.supportsLatentReadout)
     }
 
@@ -26,7 +26,7 @@ class DeliberativeRuntimeCapabilitiesV03Test {
 
         assertEquals(DeliberativeStateKindV03.LATENT_RECURRENT, capabilities.stateKind)
         assertTrue(capabilities.supportsHiddenStateReinjection)
-        assertTrue(capabilities.reusesBackboneWeightsAcrossIterations)
+        assertTrue(capabilities.sharesBackboneParametersInsideLatentLoop)
         assertTrue(capabilities.latentRecurrenceClaimAllowed)
     }
 
@@ -36,8 +36,8 @@ class DeliberativeRuntimeCapabilitiesV03Test {
     }
 
     @Test(expected = IllegalArgumentException::class)
-    fun textualRuntimeCannotClaimRecurrentBackboneReuse() {
-        textualCapabilities(reusesBackboneWeightsAcrossIterations = true)
+    fun textualRuntimeCannotClaimLatentLoopParameterSharing() {
+        textualCapabilities(sharesBackboneParametersInsideLatentLoop = true)
     }
 
     @Test(expected = IllegalArgumentException::class)
@@ -46,8 +46,8 @@ class DeliberativeRuntimeCapabilitiesV03Test {
     }
 
     @Test(expected = IllegalArgumentException::class)
-    fun latentRuntimeWithoutBackboneReuseIsRejected() {
-        latentCapabilities(reusesBackboneWeightsAcrossIterations = false)
+    fun latentRuntimeWithoutSharedBackboneParametersIsRejected() {
+        latentCapabilities(sharesBackboneParametersInsideLatentLoop = false)
     }
 
     @Test(expected = IllegalArgumentException::class)
@@ -137,14 +137,15 @@ class DeliberativeRuntimeCapabilitiesV03Test {
     private fun textualCapabilities(
         maximumIterations: Int = 8,
         supportsHiddenStateReinjection: Boolean = false,
-        reusesBackboneWeightsAcrossIterations: Boolean = false
+        sharesBackboneParametersInsideLatentLoop: Boolean = false
     ): DeliberativeRuntimeCapabilitiesV03 {
         return DeliberativeRuntimeCapabilitiesV03(
             stateKind = DeliberativeStateKindV03.TEXTUAL_CONVERSATION,
             maximumIterations = maximumIterations,
             supportsVariableIterations = true,
             supportsHiddenStateReinjection = supportsHiddenStateReinjection,
-            reusesBackboneWeightsAcrossIterations = reusesBackboneWeightsAcrossIterations,
+            sharesBackboneParametersInsideLatentLoop =
+                sharesBackboneParametersInsideLatentLoop,
             supportsLatentReadout = false,
             supportsConvergenceEvidence = true
         )
@@ -153,7 +154,7 @@ class DeliberativeRuntimeCapabilitiesV03Test {
     private fun latentCapabilities(
         maximumIterations: Int = 8,
         supportsHiddenStateReinjection: Boolean = true,
-        reusesBackboneWeightsAcrossIterations: Boolean = true,
+        sharesBackboneParametersInsideLatentLoop: Boolean = true,
         persistsWorkingState: Boolean = false,
         memoryWriteCapability: Boolean = false,
         identityAuthority: Boolean = false,
@@ -165,7 +166,8 @@ class DeliberativeRuntimeCapabilitiesV03Test {
             maximumIterations = maximumIterations,
             supportsVariableIterations = true,
             supportsHiddenStateReinjection = supportsHiddenStateReinjection,
-            reusesBackboneWeightsAcrossIterations = reusesBackboneWeightsAcrossIterations,
+            sharesBackboneParametersInsideLatentLoop =
+                sharesBackboneParametersInsideLatentLoop,
             supportsLatentReadout = true,
             supportsConvergenceEvidence = true,
             persistsWorkingState = persistsWorkingState,
