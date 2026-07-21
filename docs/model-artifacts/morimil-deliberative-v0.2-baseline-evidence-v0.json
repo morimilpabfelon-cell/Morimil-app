@@ -1,0 +1,122 @@
+{
+  "schemaVersion": "morimil.deliberative.v0.2.baseline-evidence.v0",
+  "status": "research-only",
+  "snapshotKind": "repository-summary",
+  "snapshotCommit": "5071f399703273a91ad280ebc43fbce8eb2c1ff7",
+  "artifact": {
+    "profileVersion": "morimil.deliberative.artifact.contract.v0.2-candidate",
+    "artifactVersion": "morimil-deliberative-v0.2",
+    "localFilename": "morimil-deliberative-v0.2.candidate.litertlm",
+    "upstreamRepository": "google/gemma-3n-E2B-it-litert-lm",
+    "upstreamRepositoryRevision": "c03b6f60b8da6c5400b6838a2cf26420f80c0a01",
+    "upstreamArtifactFilename": "gemma-3n-E2B-it-int4.litertlm",
+    "artifactSha256": "sha256:2ed7bc3a0026c93d5b8a4544b352d9d00cd66ff0bac3ef6a20ac3d2cba4010d6",
+    "artifactSizeBytes": 3655827456,
+    "runtimeVersion": "0.14.0",
+    "formatId": "litertlm.v1",
+    "architectureId": "google.gemma3n.text.e2b.it",
+    "sourceModelId": "google/gemma-3n-E2B-it",
+    "sourceModelRevision": null,
+    "quantizationProfile": "litertlm.int4.per-channel",
+    "backend": "cpu",
+    "requiredAbi": "arm64-v8a",
+    "licenseId": "gemma"
+  },
+  "physicalEvidence": {
+    "summaryStatus": "ACCEPTED_SUMMARY_RAW_REPORT_NOT_VERSIONED",
+    "rawReportVersioned": false,
+    "rawReportSha256": null,
+    "process64Bit": true,
+    "physicalArm64HarnessPassed": true,
+    "sustainedProfilePasses": 6,
+    "unpluggedProfilePasses": 6,
+    "strictInferenceCount": 36,
+    "allStrictOutputsPassed": true,
+    "hashStable": true,
+    "allConversationsClosed": true,
+    "allEnginesClosed": true,
+    "allSamplesUnplugged": true,
+    "observedChargeDecreaseMicroampHours": 29000,
+    "p95InferenceMilliseconds": 8953,
+    "peakTotalPssKilobytes": 2649395,
+    "maximumBatteryTemperatureCelsius": 35.0,
+    "maximumThermalStatus": 0,
+    "lowMemoryObserved": false,
+    "errors": [],
+    "researchEvidenceAccepted": true
+  },
+  "benchmark": {
+    "benchmarkVersion": "morimil.deliberative.loop-effort.benchmark.smoke.v0",
+    "datasetSha256": "sha256:f5531706637d2358ca7da9181ab3bd4ccebed634a774c66ebb538bce5cf651fc",
+    "caseCount": 120,
+    "runStatus": "NOT_EXECUTED",
+    "responseFileSha256": null,
+    "reportFileSha256": null,
+    "report": null
+  },
+  "promotion": {
+    "gateVersion": "morimil.deliberative.promotion-gate.v0.2",
+    "reproducibleConversionEvidence": false,
+    "certified": false,
+    "signed": false,
+    "installed": false,
+    "normalRuntimeActivated": false,
+    "productionAuthorization": false,
+    "productionPromotionAllowed": false,
+    "blockers": [
+      "SOURCE_MODEL_REVISION_MISSING",
+      "REPRODUCIBLE_CONVERSION_EVIDENCE_MISSING",
+      "CERTIFICATION_MISSING",
+      "SIGNATURE_MISSING",
+      "INSTALLATION_AUTHORIZATION_MISSING",
+      "PRODUCTION_AUTHORIZATION_MISSING"
+    ]
+  },
+  "authorityBoundary": {
+    "intrinsicMotorOwnedByMorimil": true,
+    "externalMotorMayBecomeIdentity": false,
+    "memoryWriteCapability": false,
+    "identityAuthority": false,
+    "lifecycleAuthority": false,
+    "requestScopedStateRequired": true
+  },
+  "sourceReferences": [
+    {
+      "path": "app/src/main/java/com/morimil/app/reasoning/intrinsic/MorimilDeliberativeArtifactContractV02Candidate.kt",
+      "commit": "5071f399703273a91ad280ebc43fbce8eb2c1ff7",
+      "purpose": "artifact identity and unresolved provenance"
+    },
+    {
+      "path": "app/src/main/java/com/morimil/app/reasoning/intrinsic/MorimilDeliberativePromotionGateV02.kt",
+      "commit": "5071f399703273a91ad280ebc43fbce8eb2c1ff7",
+      "purpose": "fail-closed research and promotion gate"
+    },
+    {
+      "path": "app/src/test/java/com/morimil/app/reasoning/intrinsic/MorimilDeliberativePromotionGateV02Test.kt",
+      "commit": "5071f399703273a91ad280ebc43fbce8eb2c1ff7",
+      "purpose": "existing accepted physical summary fixture"
+    },
+    {
+      "path": "docs/ANDROID_ARM64_SUSTAINED_PROFILE_V0.md",
+      "commit": "5071f399703273a91ad280ebc43fbce8eb2c1ff7",
+      "purpose": "sustained profile contract"
+    },
+    {
+      "path": "docs/ANDROID_ARM64_UNPLUGGED_ENERGY_PROFILE_V0.md",
+      "commit": "5071f399703273a91ad280ebc43fbce8eb2c1ff7",
+      "purpose": "unplugged energy profile contract"
+    },
+    {
+      "path": "tools/benchmarks/benchmark_common_v0.py",
+      "commit": "5071f399703273a91ad280ebc43fbce8eb2c1ff7",
+      "purpose": "frozen smoke benchmark identity"
+    }
+  ],
+  "limitations": [
+    "The raw sustained and unplugged JSON reports are not versioned in this repository snapshot.",
+    "The 120-case v0.2 smoke benchmark has not been executed.",
+    "The exact source-model revision is unknown.",
+    "Reproducible conversion evidence is absent.",
+    "This snapshot cannot certify, sign, install, activate or authorize production."
+  ]
+}
