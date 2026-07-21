@@ -1,0 +1,311 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "morimil://schemas/deliberative-loop-effort-research-v0.3",
+  "title": "Morimil Deliberative Loop-Effort Research Record v0.3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "status",
+    "baseline",
+    "candidateBase",
+    "techniqueSources",
+    "runtimeCapabilities",
+    "benchmarkPlan",
+    "promotion"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "morimil.deliberative.loop-effort.research.v0.3"
+    },
+    "status": {
+      "const": "research-only"
+    },
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifactVersion",
+        "filename",
+        "sizeBytes",
+        "sha256",
+        "artifactRepository",
+        "artifactRepositoryCommit",
+        "sourceModelRevision",
+        "runtimeVersion",
+        "certified",
+        "signed",
+        "installed",
+        "productionAuthorized"
+      ],
+      "properties": {
+        "artifactVersion": {
+          "const": "morimil-deliberative-v0.2"
+        },
+        "filename": {
+          "const": "morimil-deliberative-v0.2.candidate.litertlm"
+        },
+        "sizeBytes": {
+          "const": 3655827456
+        },
+        "sha256": {
+          "const": "sha256:2ed7bc3a0026c93d5b8a4544b352d9d00cd66ff0bac3ef6a20ac3d2cba4010d6"
+        },
+        "artifactRepository": {
+          "const": "google/gemma-3n-E2B-it-litert-lm"
+        },
+        "artifactRepositoryCommit": {
+          "const": "c03b6f60b8da6c5400b6838a2cf26420f80c0a01"
+        },
+        "sourceModelRevision": {
+          "type": "null"
+        },
+        "runtimeVersion": {
+          "const": "LiteRT-LM 0.14.0"
+        },
+        "certified": {
+          "const": false
+        },
+        "signed": {
+          "const": false
+        },
+        "installed": {
+          "const": false
+        },
+        "productionAuthorized": {
+          "const": false
+        }
+      }
+    },
+    "candidateBase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selectionStatus",
+        "modelId",
+        "gemma3nFirstCandidate",
+        "allowedFeasibilityOutcomes"
+      ],
+      "properties": {
+        "selectionStatus": {
+          "enum": [
+            "not-selected",
+            "experimental"
+          ]
+        },
+        "modelId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "gemma3nFirstCandidate": {
+          "const": true
+        },
+        "allowedFeasibilityOutcomes": {
+          "type": "array",
+          "uniqueItems": true,
+          "minItems": 5,
+          "maxItems": 5,
+          "items": {
+            "enum": [
+              "ADAPTABLE",
+              "ADAPTABLE_BUT_NOT_EXPORTABLE",
+              "MEMORY_LIMIT_EXCEEDED",
+              "QUALITY_REGRESSION",
+              "ARCHITECTURALLY_INCOMPATIBLE"
+            ]
+          },
+          "allOf": [
+            {
+              "contains": {
+                "const": "ADAPTABLE"
+              }
+            },
+            {
+              "contains": {
+                "const": "ADAPTABLE_BUT_NOT_EXPORTABLE"
+              }
+            },
+            {
+              "contains": {
+                "const": "MEMORY_LIMIT_EXCEEDED"
+              }
+            },
+            {
+              "contains": {
+                "const": "QUALITY_REGRESSION"
+              }
+            },
+            {
+              "contains": {
+                "const": "ARCHITECTURALLY_INCOMPATIBLE"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "techniqueSources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inklingRole",
+        "lotusRole",
+        "licensesTrackedSeparately",
+        "teacherHasRuntimeAuthority"
+      ],
+      "properties": {
+        "inklingRole": {
+          "const": "teacher-evaluator-only"
+        },
+        "lotusRole": {
+          "const": "architecture-reference-only"
+        },
+        "licensesTrackedSeparately": {
+          "const": true
+        },
+        "teacherHasRuntimeAuthority": {
+          "const": false
+        }
+      }
+    },
+    "runtimeCapabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stateKind",
+        "maximumIterations",
+        "supportsVariableIterations",
+        "supportsHiddenStateReinjection",
+        "sharesBackboneParametersInsideLatentLoop",
+        "supportsLatentReadout",
+        "supportsConvergenceEvidence",
+        "requestScopedOnly",
+        "persistsWorkingState",
+        "memoryWriteCapability",
+        "identityAuthority",
+        "installable",
+        "productionEnabled"
+      ],
+      "properties": {
+        "stateKind": {
+          "enum": [
+            "TEXTUAL_CONVERSATION",
+            "LATENT_RECURRENT"
+          ]
+        },
+        "maximumIterations": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        },
+        "supportsVariableIterations": {
+          "type": "boolean"
+        },
+        "supportsHiddenStateReinjection": {
+          "type": "boolean"
+        },
+        "sharesBackboneParametersInsideLatentLoop": {
+          "type": "boolean"
+        },
+        "supportsLatentReadout": {
+          "type": "boolean"
+        },
+        "supportsConvergenceEvidence": {
+          "type": "boolean"
+        },
+        "requestScopedOnly": {
+          "const": true
+        },
+        "persistsWorkingState": {
+          "const": false
+        },
+        "memoryWriteCapability": {
+          "const": false
+        },
+        "identityAuthority": {
+          "const": false
+        },
+        "installable": {
+          "const": false
+        },
+        "productionEnabled": {
+          "const": false
+        }
+      }
+    },
+    "benchmarkPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "smokeTargetCases",
+        "principalTargetCases",
+        "holdoutRequired",
+        "androidSubsetRequired",
+        "statisticalUncertaintyRequired",
+        "privateMorimilStateAllowed"
+      ],
+      "properties": {
+        "smokeTargetCases": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "principalTargetCases": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "holdoutRequired": {
+          "const": true
+        },
+        "androidSubsetRequired": {
+          "const": true
+        },
+        "statisticalUncertaintyRequired": {
+          "const": true
+        },
+        "privateMorimilStateAllowed": {
+          "const": false
+        }
+      }
+    },
+    "promotion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allowed",
+        "falseAcceptedObservedMaximum",
+        "zeroObservedMeansZeroRealWorldRisk",
+        "fixedNextSteps"
+      ],
+      "properties": {
+        "allowed": {
+          "const": false
+        },
+        "falseAcceptedObservedMaximum": {
+          "const": 0
+        },
+        "zeroObservedMeansZeroRealWorldRisk": {
+          "const": false
+        },
+        "fixedNextSteps": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "DEFINE_RESEARCH_CONTRACT"
+            },
+            {
+              "const": "ADD_COMPARATIVE_BENCHMARK"
+            },
+            {
+              "const": "FREEZE_V02_BASELINE"
+            }
+          ],
+          "items": false,
+          "minItems": 3,
+          "maxItems": 3
+        }
+      }
+    }
+  }
+}
