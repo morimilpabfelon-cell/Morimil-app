@@ -1,0 +1,357 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "morimil://schemas/deliberative-v0.2-baseline-evidence-v0",
+  "title": "Morimil Deliberative v0.2 Baseline Evidence v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "status",
+    "snapshotKind",
+    "snapshotCommit",
+    "artifact",
+    "physicalEvidence",
+    "benchmark",
+    "promotion",
+    "authorityBoundary",
+    "sourceReferences",
+    "limitations"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "morimil.deliberative.v0.2.baseline-evidence.v0"
+    },
+    "status": {
+      "const": "research-only"
+    },
+    "snapshotKind": {
+      "const": "repository-summary"
+    },
+    "snapshotCommit": {
+      "const": "5071f399703273a91ad280ebc43fbce8eb2c1ff7"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profileVersion",
+        "artifactVersion",
+        "localFilename",
+        "upstreamRepository",
+        "upstreamRepositoryRevision",
+        "upstreamArtifactFilename",
+        "artifactSha256",
+        "artifactSizeBytes",
+        "runtimeVersion",
+        "formatId",
+        "architectureId",
+        "sourceModelId",
+        "sourceModelRevision",
+        "quantizationProfile",
+        "backend",
+        "requiredAbi",
+        "licenseId"
+      ],
+      "properties": {
+        "profileVersion": {
+          "const": "morimil.deliberative.artifact.contract.v0.2-candidate"
+        },
+        "artifactVersion": {
+          "const": "morimil-deliberative-v0.2"
+        },
+        "localFilename": {
+          "const": "morimil-deliberative-v0.2.candidate.litertlm"
+        },
+        "upstreamRepository": {
+          "const": "google/gemma-3n-E2B-it-litert-lm"
+        },
+        "upstreamRepositoryRevision": {
+          "const": "c03b6f60b8da6c5400b6838a2cf26420f80c0a01"
+        },
+        "upstreamArtifactFilename": {
+          "const": "gemma-3n-E2B-it-int4.litertlm"
+        },
+        "artifactSha256": {
+          "const": "sha256:2ed7bc3a0026c93d5b8a4544b352d9d00cd66ff0bac3ef6a20ac3d2cba4010d6"
+        },
+        "artifactSizeBytes": {
+          "const": 3655827456
+        },
+        "runtimeVersion": {
+          "const": "0.14.0"
+        },
+        "formatId": {
+          "const": "litertlm.v1"
+        },
+        "architectureId": {
+          "const": "google.gemma3n.text.e2b.it"
+        },
+        "sourceModelId": {
+          "const": "google/gemma-3n-E2B-it"
+        },
+        "sourceModelRevision": {
+          "type": "null"
+        },
+        "quantizationProfile": {
+          "const": "litertlm.int4.per-channel"
+        },
+        "backend": {
+          "const": "cpu"
+        },
+        "requiredAbi": {
+          "const": "arm64-v8a"
+        },
+        "licenseId": {
+          "const": "gemma"
+        }
+      }
+    },
+    "physicalEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summaryStatus",
+        "rawReportVersioned",
+        "rawReportSha256",
+        "process64Bit",
+        "physicalArm64HarnessPassed",
+        "sustainedProfilePasses",
+        "unpluggedProfilePasses",
+        "strictInferenceCount",
+        "allStrictOutputsPassed",
+        "hashStable",
+        "allConversationsClosed",
+        "allEnginesClosed",
+        "allSamplesUnplugged",
+        "observedChargeDecreaseMicroampHours",
+        "p95InferenceMilliseconds",
+        "peakTotalPssKilobytes",
+        "maximumBatteryTemperatureCelsius",
+        "maximumThermalStatus",
+        "lowMemoryObserved",
+        "errors",
+        "researchEvidenceAccepted"
+      ],
+      "properties": {
+        "summaryStatus": {
+          "const": "ACCEPTED_SUMMARY_RAW_REPORT_NOT_VERSIONED"
+        },
+        "rawReportVersioned": {
+          "const": false
+        },
+        "rawReportSha256": {
+          "type": "null"
+        },
+        "process64Bit": {
+          "const": true
+        },
+        "physicalArm64HarnessPassed": {
+          "const": true
+        },
+        "sustainedProfilePasses": {
+          "const": 6
+        },
+        "unpluggedProfilePasses": {
+          "const": 6
+        },
+        "strictInferenceCount": {
+          "const": 36
+        },
+        "allStrictOutputsPassed": {
+          "const": true
+        },
+        "hashStable": {
+          "const": true
+        },
+        "allConversationsClosed": {
+          "const": true
+        },
+        "allEnginesClosed": {
+          "const": true
+        },
+        "allSamplesUnplugged": {
+          "const": true
+        },
+        "observedChargeDecreaseMicroampHours": {
+          "const": 29000
+        },
+        "p95InferenceMilliseconds": {
+          "const": 8953
+        },
+        "peakTotalPssKilobytes": {
+          "const": 2649395
+        },
+        "maximumBatteryTemperatureCelsius": {
+          "const": 35.0
+        },
+        "maximumThermalStatus": {
+          "const": 0
+        },
+        "lowMemoryObserved": {
+          "const": false
+        },
+        "errors": {
+          "const": []
+        },
+        "researchEvidenceAccepted": {
+          "const": true
+        }
+      }
+    },
+    "benchmark": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "benchmarkVersion",
+        "datasetSha256",
+        "caseCount",
+        "runStatus",
+        "responseFileSha256",
+        "reportFileSha256",
+        "report"
+      ],
+      "properties": {
+        "benchmarkVersion": {
+          "const": "morimil.deliberative.loop-effort.benchmark.smoke.v0"
+        },
+        "datasetSha256": {
+          "const": "sha256:f5531706637d2358ca7da9181ab3bd4ccebed634a774c66ebb538bce5cf651fc"
+        },
+        "caseCount": {
+          "const": 120
+        },
+        "runStatus": {
+          "const": "NOT_EXECUTED"
+        },
+        "responseFileSha256": {
+          "type": "null"
+        },
+        "reportFileSha256": {
+          "type": "null"
+        },
+        "report": {
+          "type": "null"
+        }
+      }
+    },
+    "promotion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gateVersion",
+        "reproducibleConversionEvidence",
+        "certified",
+        "signed",
+        "installed",
+        "normalRuntimeActivated",
+        "productionAuthorization",
+        "productionPromotionAllowed",
+        "blockers"
+      ],
+      "properties": {
+        "gateVersion": {
+          "const": "morimil.deliberative.promotion-gate.v0.2"
+        },
+        "reproducibleConversionEvidence": {
+          "const": false
+        },
+        "certified": {
+          "const": false
+        },
+        "signed": {
+          "const": false
+        },
+        "installed": {
+          "const": false
+        },
+        "normalRuntimeActivated": {
+          "const": false
+        },
+        "productionAuthorization": {
+          "const": false
+        },
+        "productionPromotionAllowed": {
+          "const": false
+        },
+        "blockers": {
+          "const": [
+            "SOURCE_MODEL_REVISION_MISSING",
+            "REPRODUCIBLE_CONVERSION_EVIDENCE_MISSING",
+            "CERTIFICATION_MISSING",
+            "SIGNATURE_MISSING",
+            "INSTALLATION_AUTHORIZATION_MISSING",
+            "PRODUCTION_AUTHORIZATION_MISSING"
+          ]
+        }
+      }
+    },
+    "authorityBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "intrinsicMotorOwnedByMorimil",
+        "externalMotorMayBecomeIdentity",
+        "memoryWriteCapability",
+        "identityAuthority",
+        "lifecycleAuthority",
+        "requestScopedStateRequired"
+      ],
+      "properties": {
+        "intrinsicMotorOwnedByMorimil": {
+          "const": true
+        },
+        "externalMotorMayBecomeIdentity": {
+          "const": false
+        },
+        "memoryWriteCapability": {
+          "const": false
+        },
+        "identityAuthority": {
+          "const": false
+        },
+        "lifecycleAuthority": {
+          "const": false
+        },
+        "requestScopedStateRequired": {
+          "const": true
+        }
+      }
+    },
+    "sourceReferences": {
+      "type": "array",
+      "minItems": 6,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "commit",
+          "purpose"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "commit": {
+            "const": "5071f399703273a91ad280ebc43fbce8eb2c1ff7"
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}
