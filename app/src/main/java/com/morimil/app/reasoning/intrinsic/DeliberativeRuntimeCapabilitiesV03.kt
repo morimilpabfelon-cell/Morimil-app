@@ -29,7 +29,7 @@ data class DeliberativeRuntimeCapabilitiesV03(
     val maximumIterations: Int,
     val supportsVariableIterations: Boolean,
     val supportsHiddenStateReinjection: Boolean,
-    val reusesBackboneWeightsAcrossIterations: Boolean,
+    val sharesBackboneParametersInsideLatentLoop: Boolean,
     val supportsLatentReadout: Boolean,
     val supportsConvergenceEvidence: Boolean,
     val requestScopedOnly: Boolean = true,
@@ -67,8 +67,8 @@ data class DeliberativeRuntimeCapabilitiesV03(
                 require(!supportsHiddenStateReinjection) {
                     "Textual recurrence cannot claim hidden-state reinjection."
                 }
-                require(!reusesBackboneWeightsAcrossIterations) {
-                    "Textual recurrence cannot claim recurrent backbone reuse."
+                require(!sharesBackboneParametersInsideLatentLoop) {
+                    "Textual recurrence cannot claim latent-loop parameter sharing."
                 }
                 require(!supportsLatentReadout) {
                     "Textual recurrence cannot claim latent readout."
@@ -82,8 +82,8 @@ data class DeliberativeRuntimeCapabilitiesV03(
                 require(supportsHiddenStateReinjection) {
                     "Latent recurrence requires hidden-state reinjection."
                 }
-                require(reusesBackboneWeightsAcrossIterations) {
-                    "Latent recurrence requires reuse of the same backbone weights."
+                require(sharesBackboneParametersInsideLatentLoop) {
+                    "Latent recurrence requires shared backbone parameters inside the loop."
                 }
             }
         }
@@ -92,7 +92,7 @@ data class DeliberativeRuntimeCapabilitiesV03(
     val latentRecurrenceClaimAllowed: Boolean
         get() = stateKind == DeliberativeStateKindV03.LATENT_RECURRENT &&
             supportsHiddenStateReinjection &&
-            reusesBackboneWeightsAcrossIterations
+            sharesBackboneParametersInsideLatentLoop
 
     companion object {
         const val CONTRACT_VERSION = "morimil.deliberative.loop-effort.research.v0.3"
