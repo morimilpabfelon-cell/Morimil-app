@@ -178,7 +178,7 @@
         "maximumIterations",
         "supportsVariableIterations",
         "supportsHiddenStateReinjection",
-        "reusesBackboneWeightsAcrossIterations",
+        "sharesBackboneParametersInsideLatentLoop",
         "supportsLatentReadout",
         "supportsConvergenceEvidence",
         "requestScopedOnly",
@@ -206,7 +206,7 @@
         "supportsHiddenStateReinjection": {
           "type": "boolean"
         },
-        "reusesBackboneWeightsAcrossIterations": {
+        "sharesBackboneParametersInsideLatentLoop": {
           "type": "boolean"
         },
         "supportsLatentReadout": {
