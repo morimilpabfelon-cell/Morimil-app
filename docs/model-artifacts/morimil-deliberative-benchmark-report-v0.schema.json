@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "morimil://schemas/deliberative-benchmark-report-v0",
+  "title": "Morimil Deliberative Benchmark Report v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "reportVersion",
+    "status",
+    "runId",
+    "motorVersion",
+    "benchmarkVersion",
+    "datasetSha256",
+    "caseCount",
+    "counts",
+    "rates",
+    "uncertainty",
+    "latencyMs",
+    "researchGatePassed",
+    "productionPromotionAllowed",
+    "perCase"
+  ],
+  "properties": {
+    "reportVersion": {"const": "morimil.deliberative.loop-effort.benchmark.report.v0"},
+    "status": {"const": "research-only"},
+    "runId": {"type": "string", "minLength": 1},
+    "motorVersion": {"type": "string", "minLength": 1},
+    "benchmarkVersion": {"const": "morimil.deliberative.loop-effort.benchmark.smoke.v0"},
+    "datasetSha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "caseCount": {"const": 120},
+    "counts": {
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "rates": {
+      "type": "object",
+      "additionalProperties": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+    },
+    "uncertainty": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "zeroObservedFalseAcceptances",
+        "ruleOfThree95UpperBoundAmongAccepted",
+        "interpretation"
+      ],
+      "properties": {
+        "zeroObservedFalseAcceptances": {"type": "boolean"},
+        "ruleOfThree95UpperBoundAmongAccepted": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "interpretation": {"type": "string", "minLength": 1}
+      }
+    },
+    "latencyMs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimum", "median", "p95", "maximum", "average"],
+      "properties": {
+        "minimum": {"type": ["integer", "null"], "minimum": 0},
+        "median": {"type": ["integer", "null"], "minimum": 0},
+        "p95": {"type": ["integer", "null"], "minimum": 0},
+        "maximum": {"type": ["integer", "null"], "minimum": 0},
+        "average": {"type": ["number", "null"], "minimum": 0}
+      }
+    },
+    "researchGatePassed": {"type": "boolean"},
+    "productionPromotionAllowed": {"const": false},
+    "perCase": {
+      "type": "array",
+      "minItems": 120,
+      "maxItems": 120,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "caseId",
+          "domain",
+          "finalDisposition",
+          "acceptedCorrect",
+          "falseAccepted",
+          "correctAbstention",
+          "latencyMs",
+          "stateKind",
+          "completedIterations",
+          "stopReason"
+        ],
+        "properties": {
+          "caseId": {"type": "string"},
+          "domain": {"type": "string"},
+          "finalDisposition": {"enum": ["ACCEPTED", "ABSTAINED"]},
+          "acceptedCorrect": {"type": "boolean"},
+          "falseAccepted": {"type": "boolean"},
+          "correctAbstention": {"type": "boolean"},
+          "latencyMs": {"type": "integer", "minimum": 0},
+          "stateKind": {"enum": ["TEXTUAL_CONVERSATION", "LATENT_RECURRENT"]},
+          "completedIterations": {"type": "integer", "minimum": 0, "maximum": 8},
+          "stopReason": {"type": "string"}
+        }
+      }
+    }
+  }
+}

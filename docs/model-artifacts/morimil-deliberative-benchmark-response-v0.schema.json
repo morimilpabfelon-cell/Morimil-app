@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "morimil://schemas/deliberative-benchmark-response-v0",
+  "title": "Morimil Deliberative Benchmark Response v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "caseId",
+    "finalDisposition",
+    "finalAnswer",
+    "latencyMs",
+    "stateKind",
+    "completedIterations",
+    "stopReason",
+    "confidencePermille",
+    "strictFormatPassed",
+    "instructionCompliant",
+    "claimVerificationPassed",
+    "requestStateReleased",
+    "memoryWriteCapability",
+    "identityAuthority"
+  ],
+  "properties": {
+    "caseId": {
+      "type": "string",
+      "pattern": "^[a-z_]+-[0-9]{4}$"
+    },
+    "finalDisposition": {
+      "enum": ["ACCEPTED", "ABSTAINED"]
+    },
+    "finalAnswer": {
+      "type": ["string", "null"]
+    },
+    "latencyMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "stateKind": {
+      "enum": ["TEXTUAL_CONVERSATION", "LATENT_RECURRENT"]
+    },
+    "completedIterations": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 8
+    },
+    "stopReason": {
+      "enum": [
+        "CONVERGED",
+        "BUDGET_EXHAUSTED",
+        "MEMORY_LIMIT",
+        "THERMAL_LIMIT",
+        "ENERGY_LIMIT",
+        "INVALID_STATE",
+        "ENGINE_FAILURE"
+      ]
+    },
+    "confidencePermille": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 1000
+    },
+    "strictFormatPassed": {"type": "boolean"},
+    "instructionCompliant": {"type": "boolean"},
+    "claimVerificationPassed": {"type": ["boolean", "null"]},
+    "requestStateReleased": {"const": true},
+    "memoryWriteCapability": {"const": false},
+    "identityAuthority": {"const": false}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"finalDisposition": {"const": "ACCEPTED"}},
+        "required": ["finalDisposition"]
+      },
+      "then": {
+        "properties": {"finalAnswer": {"type": "string", "minLength": 1}}
+      }
+    },
+    {
+      "if": {
+        "properties": {"finalDisposition": {"const": "ABSTAINED"}},
+        "required": ["finalDisposition"]
+      },
+      "then": {
+        "properties": {"finalAnswer": {"type": "null"}}
+      }
+    }
+  ]
+}
