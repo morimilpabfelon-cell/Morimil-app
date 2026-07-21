@@ -143,7 +143,7 @@ maximumR
 completedIterations
 stopReason
 supportsHiddenStateReinjection
-reusesBackboneWeightsAcrossIterations
+sharesBackboneParametersInsideLatentLoop
 supportsConvergenceEvidence
 ```
 
