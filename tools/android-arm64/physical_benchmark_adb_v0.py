@@ -48,6 +48,7 @@ def command(
     allow_failure: bool = False,
     cwd: Path | None = None,
     timeout_seconds: float = DEFAULT_HOST_TIMEOUT_SECONDS,
+    input_text: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     if timeout_seconds <= 0:
         fail(f"{label} received an invalid timeout: {timeout_seconds}")
@@ -58,6 +59,7 @@ def command(
             check=False,
             cwd=str(cwd) if cwd else None,
             text=True,
+            input=input_text,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             encoding="utf-8",
@@ -87,12 +89,14 @@ class Adb:
         *,
         allow_failure: bool = False,
         timeout_seconds: float = DEFAULT_ADB_TIMEOUT_SECONDS,
+        input_text: str | None = None,
     ) -> subprocess.CompletedProcess[str]:
         return command(
             label,
             [*self.prefix, *args],
             allow_failure=allow_failure,
             timeout_seconds=timeout_seconds,
+            input_text=input_text,
         )
 
     def text(
@@ -118,6 +122,15 @@ def parse_byte_count(value: str, label: str) -> int:
     if len(tokens) not in (1, 2) or not tokens[0].isdigit():
         fail(f"{label} returned an ambiguous byte count: {value!r}")
     return int(tokens[0])
+
+
+def absolute_device_path(value: str, label: str) -> str:
+    """Accept only simple absolute Android paths safe for a fixed stdin script."""
+    if not re.fullmatch(r"/[A-Za-z0-9._/-]+", value):
+        fail(f"{label} is not a safe absolute device path: {value!r}")
+    if any(part in {"", ".", ".."} for part in value.split("/")[1:]):
+        fail(f"{label} contains an unsafe path component: {value!r}")
+    return value
 
 
 def resolve_serial(adb: str, requested: str | None) -> str:
@@ -215,6 +228,10 @@ def build_and_install(adb: Adb, root: Path, skip_build: bool) -> None:
 
 
 def stage_artifact(adb: Adb, artifact: Path, temporary: str) -> None:
+    temporary = absolute_device_path(temporary, "temporary artifact path")
+    private_input = f"{DEVICE_ROOT}/input"
+    private_output = f"{DEVICE_ROOT}/output"
+    partial_model = f"{DEVICE_MODEL}.partial"
     adb.run(
         "Remove prior private staging",
         ["shell", "run-as", TARGET_PACKAGE, "rm", "-rf", DEVICE_ROOT],
@@ -239,18 +256,27 @@ def stage_artifact(adb: Adb, artifact: Path, temporary: str) -> None:
         fail("temporary artifact identity mismatch")
     adb.run(
         "Create private staging",
-        ["shell", "run-as", TARGET_PACKAGE, "sh", "-c",
-         f"mkdir -p {DEVICE_ROOT}/input {DEVICE_ROOT}/output"],
+        ["shell", "run-as", TARGET_PACKAGE, "mkdir", "-p",
+         private_input, private_output],
     )
-    copy = (
-        f"cat '{temporary}' | run-as {TARGET_PACKAGE} sh -c "
-        f"'cat > {DEVICE_MODEL}.partial && mv {DEVICE_MODEL}.partial {DEVICE_MODEL} "
-        f"&& chmod 400 {DEVICE_MODEL}'"
+    copy_script = (
+        f"/system/bin/cat {temporary} | "
+        f"run-as {TARGET_PACKAGE} /system/bin/dd "
+        f"of={partial_model} bs=1048576\n"
     )
     adb.run(
-        "Copy artifact to private read-only staging",
-        ["shell", "sh", "-c", copy],
+        "Copy artifact to private staging",
+        ["shell"],
+        input_text=copy_script,
         timeout_seconds=PRIVATE_COPY_TIMEOUT_SECONDS,
+    )
+    adb.run(
+        "Commit private artifact staging",
+        ["shell", "run-as", TARGET_PACKAGE, "mv", partial_model, DEVICE_MODEL],
+    )
+    adb.run(
+        "Protect private artifact",
+        ["shell", "run-as", TARGET_PACKAGE, "chmod", "400", DEVICE_MODEL],
     )
     private_size = parse_byte_count(adb.text(
         "Verify private artifact size",
