@@ -1,0 +1,70 @@
+{
+  "$id": "morimil.trimotor.v0.2.physical-benchmark-evidence.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact": {
+      "type": "object"
+    },
+    "authorityBoundary": {
+      "type": "object"
+    },
+    "benchmark": {
+      "type": "object"
+    },
+    "comparison": {
+      "type": "object"
+    },
+    "evidenceKind": {
+      "const": "physical-trimotor-benchmark-completed-research-gate-passed"
+    },
+    "execution": {
+      "type": "object"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "promotion": {
+      "type": "object"
+    },
+    "runId": {
+      "const": "morimil-trimotor-v0.2-physical-20260722-043653-908d91aa"
+    },
+    "schemaVersion": {
+      "const": "morimil.trimotor.v0.2.physical-benchmark-evidence.v1"
+    },
+    "sourceArchive": {
+      "type": "object"
+    },
+    "sourceMainCommit": {
+      "const": "79eb5e31fe11611901048e80803c5c284f58e5cc"
+    },
+    "status": {
+      "const": "research-only"
+    },
+    "storage": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "artifact",
+    "authorityBoundary",
+    "benchmark",
+    "comparison",
+    "evidenceKind",
+    "execution",
+    "limitations",
+    "promotion",
+    "runId",
+    "schemaVersion",
+    "sourceArchive",
+    "sourceMainCommit",
+    "status",
+    "storage"
+  ],
+  "title": "Morimil trimotor v0.2 physical benchmark evidence v1",
+  "type": "object"
+}

@@ -1,0 +1,102 @@
+{
+  "artifact": {
+    "filename": "morimil-deliberative-v0.2.candidate.litertlm",
+    "sha256": "sha256:2ed7bc3a0026c93d5b8a4544b352d9d00cd66ff0bac3ef6a20ac3d2cba4010d6",
+    "sizeBytes": 3655827456,
+    "sourceModelRevision": null,
+    "version": "morimil-deliberative-v0.2"
+  },
+  "authorityBoundary": {
+    "identityAuthority": false,
+    "lifecycleAuthority": false,
+    "memoryWriteCapability": false,
+    "requestStateReleased": true
+  },
+  "benchmark": {
+    "abstainedCount": 48,
+    "acceptedCorrectCount": 72,
+    "caseCount": 120,
+    "datasetSha256": "sha256:f5531706637d2358ca7da9181ab3bd4ccebed634a774c66ebb538bce5cf651fc",
+    "falseAcceptedCount": 0,
+    "researchGatePassed": true,
+    "responseCount": 120,
+    "strictFormatCaseCount": 24,
+    "strictFormatPassCount": 24,
+    "version": "morimil.deliberative.loop-effort.benchmark.smoke.v0"
+  },
+  "certified": false,
+  "comparison": {
+    "baselineRunId": "morimil-v0.2-physical-20260721-192940-2e071af0",
+    "candidateRunId": "morimil-trimotor-v0.2-physical-20260722-043653-908d91aa",
+    "outcome": "V0_3_SUPERIOR",
+    "outcomeSemantics": "Legacy comparator label: superior candidate under the frozen v0.3 research contract; it does not claim that a trained neural v0.3 model exists.",
+    "reasons": [],
+    "status": "research-only"
+  },
+  "files": {
+    "baselineReport": {
+      "name": "report-v0.2.json",
+      "sha256": "sha256:2a371f906cebd74a05a50883563b665a5b99fac9864c44c794bb245b73304a12",
+      "sizeBytes": 43935
+    },
+    "comparison": {
+      "name": "comparison-v0.2.json",
+      "sha256": "sha256:5b850d760da8da950448e4ef932a39f8b41d5e6e6a11415cecd2f83446a8251f",
+      "sizeBytes": 520
+    },
+    "dataset": {
+      "name": "dataset-v0.json",
+      "sha256": "sha256:f5531706637d2358ca7da9181ab3bd4ccebed634a774c66ebb538bce5cf651fc",
+      "sizeBytes": 85714
+    },
+    "physicalExecution": {
+      "name": "physical-execution-trimotor-v0.2.json",
+      "sha256": "sha256:5d6a1f11fbb04990aa280b801d4d02b29bf5ae2db0d52c51e6729064b4eac8fb",
+      "sizeBytes": 53428
+    },
+    "report": {
+      "name": "report-trimotor-v0.2.json",
+      "sha256": "sha256:a7800a7992c99f0ab1294ea7892348413e9de1f8d4fd61056d898acebbf5393a",
+      "sizeBytes": 43371
+    },
+    "responses": {
+      "name": "responses-trimotor-v0.2.jsonl",
+      "sha256": "sha256:7461727a8e78aa54d98a180ce1916af81a55ee5d01bb368836f4c1a21b15187b",
+      "sizeBytes": 204065
+    },
+    "transcript": {
+      "name": "instrumentation-output.txt",
+      "sha256": "sha256:dcadc8dcb0612f0d4bfe887b834b7b8104a21518077befdc2bf2d20ece7ca150",
+      "sizeBytes": 1645
+    }
+  },
+  "installed": false,
+  "normalRuntimeActivated": false,
+  "personalRuntimeActivationAuthorized": false,
+  "productionAuthorization": false,
+  "productionPromotionAllowed": false,
+  "runId": "morimil-trimotor-v0.2-physical-20260722-043653-908d91aa",
+  "schemaVersion": "morimil.trimotor.benchmark.physical-bundle.v0",
+  "signed": false,
+  "status": "COMPLETED",
+  "trimotor": {
+    "authorityStatusCounts": {
+      "ABSTAINED": 48,
+      "ACCEPTED_DETERMINISTIC": 72
+    },
+    "benchmarkAdapterVersion": "morimil.trimotor.benchmark-adapter.v0",
+    "closedConversationCount": 48,
+    "deliberativeArtifactVersion": "morimil-deliberative-v0.2",
+    "hybridAuthorityEnabled": true,
+    "intuitiveCoreVersion": "morimil.intuitive.bounded-local-core.v0",
+    "metacognitiveCoreVersion": "morimil.metacognitive.bounded-local-core.v0",
+    "motorVersion": "morimil-trimotor-v0.2-bounded-local-v0",
+    "openedConversationCount": 48,
+    "roleActivationCounts": {
+      "DELIBERATIVE": 48,
+      "INTUITIVE": 72,
+      "METACOGNITIVE": 72
+    },
+    "triMotorRuntimeVersion": "morimil.intrinsic-trimotor.research-runtime.v0"
+  }
+}
