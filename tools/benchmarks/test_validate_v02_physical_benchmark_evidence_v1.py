@@ -57,16 +57,28 @@ class ValidateV02PhysicalBenchmarkEvidenceV1Test(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "manifest benchmark counts differ"):
             validate_manifest(forged)
 
-    def test_base64_archive_digest_cannot_be_changed(self) -> None:
+    def test_base64_part_digest_cannot_be_changed(self) -> None:
         forged = copy.deepcopy(self.manifest)
-        forged["storage"]["archiveBase64"]["sha256"] = "sha256:" + "0" * 64
-        with self.assertRaisesRegex(ValueError, "manifest Base64 archive digest mismatch"):
+        forged["storage"]["archiveBase64Parts"]["parts"][0]["sha256"] = (
+            "sha256:" + "0" * 64
+        )
+        with self.assertRaisesRegex(ValueError, "manifest Base64 part digest mismatch"):
+            validate_manifest(forged)
+
+    def test_concatenated_base64_digest_cannot_be_changed(self) -> None:
+        forged = copy.deepcopy(self.manifest)
+        forged["storage"]["archiveBase64Parts"]["concatenatedBase64Sha256"] = (
+            "sha256:" + "0" * 64
+        )
+        with self.assertRaisesRegex(
+            ValueError, "manifest concatenated Base64 digest mismatch"
+        ):
             validate_manifest(forged)
 
     def test_source_model_revision_remains_unknown(self) -> None:
         forged = copy.deepcopy(self.manifest)
         forged["artifact"]["sourceModelRevision"] = "0" * 40
-        with self.assertRaisesRegex(ValueError, "immutable evidence manifest digest mismatch"):
+        with self.assertRaisesRegex(ValueError, "source model revision must remain unknown"):
             validate_manifest(forged)
 
     def test_production_authorization_is_rejected(self) -> None:
