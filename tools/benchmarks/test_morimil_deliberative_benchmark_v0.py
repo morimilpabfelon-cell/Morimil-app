@@ -60,6 +60,24 @@ class MorimilDeliberativeBenchmarkV0Test(unittest.TestCase):
         self.assertEqual(1.0, report["rates"]["abstentionPrecision"])
         self.assertIsNotNone(report["uncertainty"]["ruleOfThree95UpperBoundAmongAccepted"])
 
+    def test_hybrid_routed_authority_abstention_is_valid(self):
+        responses = self.perfect_responses()
+        target = next(item for item in responses if item["caseId"] == "logic-0001")
+        target["finalDisposition"] = "ABSTAINED"
+        target["finalAnswer"] = None
+        target["stateKind"] = "HYBRID_ROUTED"
+        target["completedIterations"] = 2
+        target["stopReason"] = "AUTHORITY_ABSTAINED"
+        target["instructionCompliant"] = False
+
+        report = evaluator.evaluate(self.dataset, responses, "hybrid-abstain", "trimotor-test")
+
+        self.assertEqual(0, report["counts"]["falseAcceptedCount"])
+        self.assertEqual(1, report["counts"]["unnecessaryAbstentionCount"])
+        self.assertEqual("HYBRID_ROUTED", next(
+            item for item in report["perCase"] if item["caseId"] == "logic-0001"
+        )["stateKind"])
+
     def test_false_acceptance_fails_closed(self):
         responses = self.perfect_responses()
         target = next(item for item in responses if item["caseId"] == "insufficient_information-0001")
