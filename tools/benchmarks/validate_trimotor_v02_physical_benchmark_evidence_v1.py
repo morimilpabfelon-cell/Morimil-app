@@ -63,6 +63,10 @@ def manifest_path() -> Path:
     return root() / MANIFEST_PATH
 
 
+def default_manifest_path() -> Path:
+    return manifest_path()
+
+
 def sha(data: bytes) -> str:
     return "sha256:" + hashlib.sha256(data).hexdigest()
 
@@ -117,13 +121,20 @@ def decode_archive(manifest: dict[str, Any], repo: Path | None = None) -> dict[s
         record = stored.get("archiveContents", {}).get(name, {})
         if record.get("sizeBytes") != size or record.get("sha256") != f"sha256:{digest}":
             raise ValueError(f"manifest content metadata mismatch: {name}")
-    for key, filename in (("bundle", "bundle-trimotor-v0.2.json"), ("comparison", "comparison-v0.2.json"), ("transcript", "instrumentation-output.txt")):
+    convenience = {
+        "bundle": ("bundle-trimotor-v0.2.json", 3752, "sha256:2259627efab4ed88dc4e276075d44c327a2a61b12522d4135f178fcb8992430e"),
+        "comparison": ("comparison-v0.2.json", 520, "sha256:5b850d760da8da950448e4ef932a39f8b41d5e6e6a11415cecd2f83446a8251f"),
+        "transcript": ("instrumentation-output.txt", 1645, "sha256:dcadc8dcb0612f0d4bfe887b834b7b8104a21518077befdc2bf2d20ece7ca150"),
+    }
+    for key, (filename, size, digest) in convenience.items():
         record = stored.get("convenienceFiles", {}).get(key, {})
         direct = (repo / record.get("path", "")).read_bytes()
-        archive_name = "comparison-v0.2.json" if key == "comparison" else "instrumentation-output.txt" if key == "transcript" else None
-        expected = entries[archive_name] if archive_name else direct
-        if key != "bundle" and direct != expected:
+        if record.get("sizeBytes") != size or record.get("sha256") != digest:
+            raise ValueError(f"convenience metadata mismatch: {key}")
+        if len(direct) != size or sha(direct) != digest:
             raise ValueError(f"convenience file mismatch: {key}")
+        if key != "bundle" and direct != entries[filename]:
+            raise ValueError(f"convenience/archive mismatch: {key}")
     return entries
 
 
@@ -140,8 +151,11 @@ def validate_manifest(value: dict[str, Any], repo: Path | None = None) -> None:
         raise ValueError("evidence identity mismatch")
     if value.get("runId") != RUN_ID or value.get("status") != "research-only":
         raise ValueError("run identity or status mismatch")
-    if sha(canonical(value)) != MANIFEST_DIGEST:
-        raise ValueError("immutable evidence manifest digest mismatch")
+    source_archive = value.get("sourceArchive", {})
+    if (source_archive.get("filename") != "morimil-trimotor-v0.2-physical-20260722-043653-908d91aa-freeze.zip"
+            or source_archive.get("sizeBytes") != 19421
+            or source_archive.get("sha256") != ARCHIVE_SHA256):
+        raise ValueError("source archive identity mismatch")
     entries = decode_archive(value, repo)
     dataset = load_json(entries["dataset-v0.json"], "dataset")
     report = load_json(entries["report-trimotor-v0.2.json"], "report")
@@ -210,6 +224,8 @@ def validate_manifest(value: dict[str, Any], repo: Path | None = None) -> None:
         raise ValueError("Morimil authority boundary violated")
     if value.get("artifact", {}).get("sourceModelRevision") is not None:
         raise ValueError("source model revision must remain unknown")
+    if sha(canonical(value)) != MANIFEST_DIGEST:
+        raise ValueError("immutable evidence manifest digest mismatch")
 
 
 def main() -> int:
