@@ -6,7 +6,7 @@ Source `main` commit: `b9cdfa0371f6520528090655c4eb795a1aae70d9`
 
 Run ID: `morimil-v0.2-physical-20260721-192940-2e071af0`
 
-Manifest digest: `sha256:d1923982e4d991ede50989db62f64a7a591117049ca8608a4fafb3c85e9df1fc`
+Manifest digest: `sha256:ca11d9d77ae86aac31374ff72855d36ce640561a437d7afb7b10575417089f09`
 
 ## Result boundary
 
@@ -24,24 +24,37 @@ A passed physical execution does not imply that the model answered correctly.
 
 ## Exact archive
 
-The original host-created ZIP is versioned losslessly as Base64 text:
+The original host-created ZIP is versioned losslessly as seven ordered Base64 fragments under:
 
 ```text
-Base64 path:
-  docs/research/evidence/morimil-v0.2-physical-20260721-192940-2e071af0/
-  morimil-v0.2-physical-20260721-192940-2e071af0.zip.base64
+docs/research/evidence/morimil-v0.2-physical-20260721-192940-2e071af0/
+  archive-base64/
+    part-0001.txt
+    part-0002.txt
+    part-0003.txt
+    part-0004.txt
+    part-0005a.txt
+    part-0005b.txt
+    part-0005c.txt
+```
+
+CI verifies every fragment before concatenation and then requires:
+
+```text
+concatenated Base64 size:
+  18804 bytes
+
+concatenated Base64 SHA-256:
+  5105b05f29aa0e2ab2d2fa1f9cb18b4925982d966296821fbe20e1006e37419f
 
 decoded ZIP size:
   14102 bytes
 
 decoded ZIP SHA-256:
   d8c835c29fb79a1d9c49966977771f11da3d93d155a95fa4653868db5baf4ef9
-
-Base64 text SHA-256:
-  6fe4e6b2141583074207f3e02f0a22438b7a71aa5a6171879c7c5a917e088920
 ```
 
-CI decodes the Base64, verifies the original ZIP hash and then verifies these six entries:
+The decoded ZIP must contain exactly these six entries:
 
 ```text
 bundle-v0.2.json
@@ -63,7 +76,7 @@ responses-v0.2.jsonl
   sha256:f5fb72210ca6b60f4093f216c4a313ebbc9f6f4a1a0bcb80b2fa9ce53b606246
 ```
 
-The bundle and instrumentation transcript are also materialized beside the Base64 archive for direct review. The validator requires them to be byte-identical to the ZIP entries.
+The bundle and instrumentation transcript are also materialized beside the fragment directory for direct review. The validator requires them to be byte-identical to their ZIP entries.
 
 ## Artifact and physical execution
 
@@ -163,4 +176,4 @@ python tools/benchmarks/validate_v02_physical_benchmark_evidence_v1.py check
 python tools/benchmarks/validate_v02_physical_benchmark_evidence_v1.py print-digest
 ```
 
-The validator reconstructs the ZIP, verifies every internal hash, cross-checks all 120 case IDs across dataset, responses, evaluator report and physical telemetry, verifies lifecycle closure and preserves the failed quality and production gates.
+The validator reconstructs the ZIP from the verified fragments, checks every internal hash, cross-checks all 120 case IDs across dataset, responses, evaluator report and physical telemetry, verifies lifecycle closure and preserves the failed quality and production gates.
