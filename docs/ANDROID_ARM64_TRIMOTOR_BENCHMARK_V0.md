@@ -1,8 +1,15 @@
 # Android ARM64 tri-motor benchmark v0
 
-Status: **research-only harness implemented; physical execution not yet performed**.
+Status: **research-only harness implemented and physically executed; research gate passed**.
 
-This benchmark sends the frozen 120-case dataset through Morimil's isolated tri-motor research runtime:
+The frozen execution and all raw text evidence are documented in:
+
+```text
+docs/research/MORIMIL_TRIMOTOR_V02_PHYSICAL_BENCHMARK_EVIDENCE_V1.md
+```
+
+This benchmark sends the frozen 120-case dataset through Morimil's isolated tri-motor
+research runtime:
 
 ```text
 Bounded closed tasks
@@ -17,12 +24,14 @@ Open or unsupported tasks
   -> structured abstention when independent verification is unavailable
 ```
 
-It does not activate the normal Morimil runtime, install a model for daily use, authorize production, write memory, alter identity or control lifecycle state.
+It does not activate Morimil's normal personal runtime, install a model for daily use,
+write memory, alter identity or control lifecycle state.
 
 ## Frozen identities
 
 ```text
 main base for harness:  a38d0652565cd786486ea5c97e573851e7249d84
+merged harness commit:  79eb5e31fe11611901048e80803c5c284f58e5cc
 benchmark version:      morimil.deliberative.loop-effort.benchmark.smoke.v0
 dataset SHA-256:        sha256:f5531706637d2358ca7da9181ab3bd4ccebed634a774c66ebb538bce5cf651fc
 case count:             120
@@ -32,13 +41,14 @@ artifact size:          3,655,827,456 bytes
 artifact SHA-256:       sha256:2ed7bc3a0026c93d5b8a4544b352d9d00cd66ff0bac3ef6a20ac3d2cba4010d6
 ```
 
-The original deliberative-only benchmark and its evidence remain unchanged.
+The original Deliberative-only benchmark remains the immutable comparison baseline.
+The runner decodes its exact raw `report-v0.2.json` from the already-versioned v0.2
+evidence archive, verifies SHA-256, and materializes it inside the new run directory.
 
 ## Routing plan
 
-The routing plan is derived only from the closed synthetic request. It never reads `acceptedAnswers` or `expectedDisposition` while producing an answer.
-
-Expected route coverage by dataset construction:
+The routing plan is derived only from the closed synthetic request. It never reads
+`acceptedAnswers` or `expectedDisposition` while producing an answer.
 
 ```text
 72 bounded cases:
@@ -56,9 +66,33 @@ Expected route coverage by dataset construction:
   insufficient_information
 ```
 
-The 72 bounded cases use Intuitive plus Metacognitive. The other 48 invoke the Deliberative candidate; when the bounded Metacognitive core cannot independently verify them, authority must abstain.
+The 72 bounded cases use Intuitive plus Metacognitive. The other 48 invoke the
+Deliberative candidate; when the bounded Metacognitive core cannot independently
+verify them, authority abstains.
 
-These are routing expectations, not benchmark results.
+## Frozen physical result
+
+```text
+run id:                     morimil-trimotor-v0.2-physical-20260722-043653-908d91aa
+completed cases:            120/120
+research gate:              PASSED
+false accepted:             0
+accepted correct:           72
+abstained:                  48
+strict format:              24/24
+request state released:     120/120
+capability boundary:        120/120
+```
+
+Role coverage:
+
+```text
+INTUITIVE:                  72
+DELIBERATIVE:               48
+METACOGNITIVE:              72
+opened conversations:       48
+closed conversations:       48
+```
 
 ## Output contract
 
@@ -77,7 +111,8 @@ capability boundaries
 latency and deliberative iteration count
 ```
 
-The response state kind is `HYBRID_ROUTED`. `AUTHORITY_ABSTAINED` is a valid fail-closed stop reason.
+The response state kind is `HYBRID_ROUTED`. `AUTHORITY_ABSTAINED` is a valid
+fail-closed stop reason.
 
 The physical report requires:
 
@@ -95,6 +130,9 @@ normalRuntimeActivated == false
 productionAuthorization == false
 promotionAllowed == false
 ```
+
+The final two fields are legacy fail-closed compatibility fields. Public production is
+not Morimil's target.
 
 ## Host execution
 
@@ -114,12 +152,15 @@ The runner:
 3. builds and installs debug plus instrumentation APKs;
 4. stages the artifact in app-private, read-only storage;
 5. runs the opt-in instrumentation class;
-6. extracts response JSONL and the physical report;
-7. validates all host contracts;
-8. evaluates the frozen 120-case dataset;
-9. compares the result with the frozen physical v0.2 baseline;
-10. writes a bundle with hashes for every evidence file;
-11. removes shell and app-private staging.
+6. checks instrumentation success before attempting output extraction;
+7. captures exit information and recent logcat on instrumentation failure;
+8. extracts response JSONL and the physical report;
+9. validates all host contracts;
+10. evaluates the frozen 120-case dataset;
+11. materializes and verifies the raw v0.2 baseline from immutable evidence;
+12. compares the candidate with that frozen baseline;
+13. writes a bundle with hashes for every evidence file;
+14. removes shell and app-private staging.
 
 Default output root:
 
@@ -127,7 +168,7 @@ Default output root:
 build/morimil-arm64-trimotor-benchmark-reports/
 ```
 
-Each run directory contains:
+Each completed run directory contains:
 
 ```text
 dataset-v0.json
@@ -139,9 +180,12 @@ instrumentation-output.txt
 bundle-trimotor-v0.2.json
 ```
 
+A failed instrumentation run retains the transcript and best-effort diagnostics in the
+run directory before private staging is removed.
+
 ## Research gate
 
-The existing evaluator remains fail-closed. The research gate requires:
+The fail-closed research gate requires:
 
 ```text
 falseAcceptedCount == 0
@@ -150,17 +194,37 @@ stateReleasePassCount == 120
 capabilityBoundaryPassCount == 120
 ```
 
-Passing this gate does not certify, sign, install, activate or promote the motor. A physical result must be frozen separately as immutable evidence before any later decision.
+The frozen physical run passed all four conditions.
+
+Passing this gate does not certify, sign, install or authorize activation of Morimil's
+personal runtime.
+
+## Comparison label
+
+The frozen comparator returned:
+
+```text
+V0_3_SUPERIOR
+```
+
+This is a legacy outcome label from the comparative v0.3 research contract. It means
+that the candidate satisfied the frozen superiority conditions. It does not claim that
+a trained neural v0.3 model exists. The candidate is:
+
+```text
+Deliberative v0.2
++ bounded Intuitive core
++ bounded Metacognitive core
++ hybrid authority
+```
 
 ## Explicitly not claimed
 
 ```text
-physical tri-motor result:       not yet executed
-research gate result:            unknown until execution
-comparison outcome:              unknown until execution
-normal Morimil activation:       false
-artifact certification:          false
-artifact signature:              false
-artifact installation:           false
-production promotion:            false
+trained neural v0.3 model:          false
+normal Morimil activation:          false
+personal runtime authorization:     false
+artifact certification:             false
+artifact signature:                 false
+artifact installation:              false
 ```
