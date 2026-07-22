@@ -1,0 +1,52 @@
+{
+  "artifact": {
+    "filename": "morimil-deliberative-v0.2.candidate.litertlm",
+    "sha256": "sha256:2ed7bc3a0026c93d5b8a4544b352d9d00cd66ff0bac3ef6a20ac3d2cba4010d6",
+    "sizeBytes": 3655827456,
+    "version": "morimil-deliberative-v0.2"
+  },
+  "authorityBoundary": {
+    "identityAuthority": false,
+    "lifecycleAuthority": false,
+    "memoryWriteCapability": false,
+    "requestStateReleased": true
+  },
+  "benchmark": {
+    "caseCount": 120,
+    "datasetSha256": "sha256:f5531706637d2358ca7da9181ab3bd4ccebed634a774c66ebb538bce5cf651fc",
+    "researchGatePassed": false,
+    "responseCount": 120,
+    "version": "morimil.deliberative.loop-effort.benchmark.smoke.v0"
+  },
+  "certified": false,
+  "files": {
+    "dataset": {
+      "name": "dataset-v0.json",
+      "sha256": "sha256:f5531706637d2358ca7da9181ab3bd4ccebed634a774c66ebb538bce5cf651fc"
+    },
+    "physicalExecution": {
+      "name": "physical-execution-v0.2.json",
+      "sha256": "sha256:ca856b63f0daadbb6449f144f633ac9c00e9b59ae912b7996cfd4e3324fb1d38"
+    },
+    "report": {
+      "name": "report-v0.2.json",
+      "sha256": "sha256:2a371f906cebd74a05a50883563b665a5b99fac9864c44c794bb245b73304a12"
+    },
+    "responses": {
+      "name": "responses-v0.2.jsonl",
+      "sha256": "sha256:f5fb72210ca6b60f4093f216c4a313ebbc9f6f4a1a0bcb80b2fa9ce53b606246"
+    },
+    "transcript": {
+      "name": "instrumentation-output.txt",
+      "sha256": "sha256:019857fd678cf54c2dae2aa186462a775ff7f05f4c0f012c7b0035f94ca00082"
+    }
+  },
+  "installed": false,
+  "normalRuntimeActivated": false,
+  "productionAuthorization": false,
+  "productionPromotionAllowed": false,
+  "runId": "morimil-v0.2-physical-20260721-192940-2e071af0",
+  "schemaVersion": "morimil.deliberative.benchmark.physical-bundle.v0",
+  "signed": false,
+  "status": "COMPLETED"
+}
