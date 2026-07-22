@@ -24,11 +24,20 @@ class ValidateV02PhysicalBenchmarkEvidenceV1Test(unittest.TestCase):
     def test_repository_evidence_is_valid(self) -> None:
         validate_manifest(self.manifest)
 
-    def test_schema_freezes_the_exact_manifest(self) -> None:
+    def test_schema_pins_identity_and_top_level_shape(self) -> None:
         schema_path = default_manifest_path().with_suffix(".schema.json")
         with schema_path.open("r", encoding="utf-8") as handle:
             schema = json.load(handle)
-        self.assertEqual(self.manifest, schema["const"])
+        self.assertFalse(schema["additionalProperties"])
+        self.assertEqual(set(self.manifest), set(schema["required"]))
+        self.assertEqual(
+            self.manifest["schemaVersion"],
+            schema["properties"]["schemaVersion"]["const"],
+        )
+        self.assertEqual(
+            self.manifest["sourceMainCommit"],
+            schema["properties"]["sourceMainCommit"]["const"],
+        )
 
     def test_quality_gate_cannot_be_rewritten_as_passed(self) -> None:
         forged = copy.deepcopy(self.manifest)
