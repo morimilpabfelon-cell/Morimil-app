@@ -1,4 +1,4 @@
-"""Focused tests for physical benchmark ADB parsing and timeouts."""
+"""Focused tests for physical benchmark ADB parsing, staging and timeouts."""
 from __future__ import annotations
 
 import subprocess
@@ -11,7 +11,7 @@ import physical_benchmark_adb_v0 as adb_support
 
 class FakeAdb:
     def __init__(self) -> None:
-        self.calls: list[tuple[str, list[str], float | None]] = []
+        self.calls: list[tuple[str, list[str], float | None, str | None]] = []
 
     def run(
         self,
@@ -20,9 +20,10 @@ class FakeAdb:
         *,
         allow_failure: bool = False,
         timeout_seconds: float = adb_support.DEFAULT_ADB_TIMEOUT_SECONDS,
+        input_text: str | None = None,
     ) -> subprocess.CompletedProcess[str]:
         del allow_failure
-        self.calls.append((label, list(args), timeout_seconds))
+        self.calls.append((label, list(args), timeout_seconds, input_text))
         return subprocess.CompletedProcess(args, 0, "")
 
     def text(
@@ -32,7 +33,7 @@ class FakeAdb:
         *,
         timeout_seconds: float = adb_support.DEFAULT_ADB_TIMEOUT_SECONDS,
     ) -> str:
-        self.calls.append((label, list(args), timeout_seconds))
+        self.calls.append((label, list(args), timeout_seconds, None))
         if label == "Verify temporary artifact size":
             return f"{adb_support.EXPECTED_SIZE_BYTES} /data/local/tmp/candidate"
         if label == "Verify temporary artifact hash":
@@ -78,14 +79,54 @@ class PhysicalBenchmarkAdbV0Test(unittest.TestCase):
                     timeout_seconds=1,
                 )
 
-    def test_stage_uses_unambiguous_wc_commands_and_bounded_timeouts(self) -> None:
+    def test_command_passes_stdin_script_without_nested_shell(self) -> None:
+        completed = subprocess.CompletedProcess(["adb", "shell"], 0, "")
+        with mock.patch.object(
+            adb_support.subprocess, "run", return_value=completed
+        ) as run:
+            adb_support.command(
+                "Copy",
+                ["adb", "shell"],
+                input_text="echo fixed\n",
+                timeout_seconds=2,
+            )
+        self.assertEqual("echo fixed\n", run.call_args.kwargs["input"])
+        self.assertEqual(["adb", "shell"], run.call_args.args[0])
+
+    def test_stage_uses_direct_private_commands_and_stdin_pipeline(self) -> None:
         adb = FakeAdb()
         temporary = "/data/local/tmp/candidate.partial"
         adb_support.stage_artifact(adb, Path("candidate.litertlm"), temporary)
-        calls = {label: (args, timeout) for label, args, timeout in adb.calls}
+        calls = {
+            label: (args, timeout, input_text)
+            for label, args, timeout, input_text in adb.calls
+        }
         self.assertEqual(
             ["shell", "wc", "-c", temporary],
             calls["Verify temporary artifact size"][0],
+        )
+        self.assertEqual(
+            ["shell", "run-as", adb_support.TARGET_PACKAGE, "mkdir", "-p",
+             f"{adb_support.DEVICE_ROOT}/input",
+             f"{adb_support.DEVICE_ROOT}/output"],
+            calls["Create private staging"][0],
+        )
+        self.assertEqual(["shell"], calls["Copy artifact to private staging"][0])
+        self.assertEqual(
+            f"/system/bin/cat {temporary} | "
+            f"run-as {adb_support.TARGET_PACKAGE} /system/bin/dd "
+            f"of={adb_support.DEVICE_MODEL}.partial bs=1048576\n",
+            calls["Copy artifact to private staging"][2],
+        )
+        self.assertEqual(
+            ["shell", "run-as", adb_support.TARGET_PACKAGE, "mv",
+             f"{adb_support.DEVICE_MODEL}.partial", adb_support.DEVICE_MODEL],
+            calls["Commit private artifact staging"][0],
+        )
+        self.assertEqual(
+            ["shell", "run-as", adb_support.TARGET_PACKAGE,
+             "chmod", "400", adb_support.DEVICE_MODEL],
+            calls["Protect private artifact"][0],
         )
         self.assertEqual(
             ["shell", "run-as", adb_support.TARGET_PACKAGE,
@@ -98,8 +139,21 @@ class PhysicalBenchmarkAdbV0Test(unittest.TestCase):
         )
         self.assertEqual(
             adb_support.PRIVATE_COPY_TIMEOUT_SECONDS,
-            calls["Copy artifact to private read-only staging"][1],
+            calls["Copy artifact to private staging"][1],
         )
+        for _, args, _, _ in adb.calls:
+            pairs = [args[index:index + 2] for index in range(len(args) - 1)]
+            self.assertNotIn(["sh", "-c"], pairs)
+
+    def test_stage_rejects_unsafe_temporary_path_before_adb_calls(self) -> None:
+        adb = FakeAdb()
+        with self.assertRaisesRegex(adb_support.RunnerError, "safe absolute device path"):
+            adb_support.stage_artifact(
+                adb,
+                Path("candidate.litertlm"),
+                "/data/local/tmp/candidate;rm",
+            )
+        self.assertEqual([], adb.calls)
 
 
 if __name__ == "__main__":
