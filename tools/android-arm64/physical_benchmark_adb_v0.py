@@ -11,6 +11,7 @@ from physical_benchmark_contract_v0 import (
     EXPECTED_FILENAME,
     EXPECTED_SHA256,
     EXPECTED_SIZE_BYTES,
+    RunnerError,
     fail,
     sha256_file,
 )
@@ -24,6 +25,21 @@ DEVICE_PHYSICAL_REPORT = f"{DEVICE_ROOT}/output/physical-execution-v0.2.json"
 MINIMUM_MEMORY_KIB = 6 * 1024 * 1024
 MINIMUM_FREE_BYTES = EXPECTED_SIZE_BYTES * 2 + 2 * 1024 * 1024 * 1024
 
+DEFAULT_HOST_TIMEOUT_SECONDS = 15 * 60
+DEFAULT_ADB_TIMEOUT_SECONDS = 30
+APK_INSTALL_TIMEOUT_SECONDS = 5 * 60
+ARTIFACT_TRANSFER_TIMEOUT_SECONDS = 15 * 60
+ARTIFACT_HASH_TIMEOUT_SECONDS = 10 * 60
+PRIVATE_COPY_TIMEOUT_SECONDS = 15 * 60
+OUTPUT_EXTRACTION_TIMEOUT_SECONDS = 2 * 60
+
+
+def _timeout_output(error: subprocess.TimeoutExpired) -> str:
+    output = error.stdout or error.output or ""
+    if isinstance(output, bytes):
+        return output.decode("utf-8", errors="replace")
+    return str(output)
+
 
 def command(
     label: str,
@@ -31,18 +47,28 @@ def command(
     *,
     allow_failure: bool = False,
     cwd: Path | None = None,
+    timeout_seconds: float = DEFAULT_HOST_TIMEOUT_SECONDS,
 ) -> subprocess.CompletedProcess[str]:
+    if timeout_seconds <= 0:
+        fail(f"{label} received an invalid timeout: {timeout_seconds}")
     print(f"\n==> {label}")
-    result = subprocess.run(
-        list(args),
-        check=False,
-        cwd=str(cwd) if cwd else None,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        encoding="utf-8",
-        errors="replace",
-    )
+    try:
+        result = subprocess.run(
+            list(args),
+            check=False,
+            cwd=str(cwd) if cwd else None,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as error:
+        output = _timeout_output(error)
+        if output:
+            print(output, end="" if output.endswith("\n") else "\n")
+        fail(f"{label} timed out after {timeout_seconds:g} seconds")
     if result.stdout:
         print(result.stdout, end="" if result.stdout.endswith("\n") else "\n")
     if result.returncode and not allow_failure:
@@ -60,11 +86,23 @@ class Adb:
         args: Sequence[str],
         *,
         allow_failure: bool = False,
+        timeout_seconds: float = DEFAULT_ADB_TIMEOUT_SECONDS,
     ) -> subprocess.CompletedProcess[str]:
-        return command(label, [*self.prefix, *args], allow_failure=allow_failure)
+        return command(
+            label,
+            [*self.prefix, *args],
+            allow_failure=allow_failure,
+            timeout_seconds=timeout_seconds,
+        )
 
-    def text(self, label: str, args: Sequence[str]) -> str:
-        return self.run(label, args).stdout.strip()
+    def text(
+        self,
+        label: str,
+        args: Sequence[str],
+        *,
+        timeout_seconds: float = DEFAULT_ADB_TIMEOUT_SECONDS,
+    ) -> str:
+        return self.run(label, args, timeout_seconds=timeout_seconds).stdout.strip()
 
 
 def first_token(value: str, label: str) -> str:
@@ -74,10 +112,22 @@ def first_token(value: str, label: str) -> str:
     return tokens[0]
 
 
+def parse_byte_count(value: str, label: str) -> int:
+    """Parse `wc -c FILE` output and reject ambiguous multi-metric output."""
+    tokens = value.split()
+    if len(tokens) not in (1, 2) or not tokens[0].isdigit():
+        fail(f"{label} returned an ambiguous byte count: {value!r}")
+    return int(tokens[0])
+
+
 def resolve_serial(adb: str, requested: str | None) -> str:
     if requested:
         return requested.strip()
-    result = command("Enumerate adb devices", [adb, "devices"])
+    result = command(
+        "Enumerate adb devices",
+        [adb, "devices"],
+        timeout_seconds=DEFAULT_ADB_TIMEOUT_SECONDS,
+    )
     devices = []
     for line in result.stdout.splitlines():
         match = re.fullmatch(r"([^\s]+)\s+device", line.strip())
@@ -119,7 +169,7 @@ def verify_device(adb: Adb) -> None:
     if adb.text("Reject emulator", ["shell", "getprop", "ro.kernel.qemu"]) == "1":
         fail("a physical Android device is required")
     meminfo = adb.text(
-        "Read device memory", ["shell", "sh", "-c", "head -n 1 /proc/meminfo"]
+        "Read device memory", ["shell", "head", "-n", "1", "/proc/meminfo"]
     )
     match = re.search(r"MemTotal:\s+(\d+)\s+kB", meminfo)
     if not match or int(match.group(1)) < MINIMUM_MEMORY_KIB:
@@ -143,11 +193,20 @@ def build_and_install(adb: Adb, root: Path, skip_build: bool) -> None:
             "Build debug and instrumentation APKs",
             [str(wrapper), ":app:assembleDebug", ":app:assembleDebugAndroidTest"],
             cwd=root,
+            timeout_seconds=DEFAULT_HOST_TIMEOUT_SECONDS,
         )
     if not debug.is_file() or not tests.is_file():
         fail("required APK outputs are missing")
-    adb.run("Install debug APK", ["install", "-r", "-t", str(debug)])
-    adb.run("Install instrumentation APK", ["install", "-r", "-t", str(tests)])
+    adb.run(
+        "Install debug APK",
+        ["install", "-r", "-t", str(debug)],
+        timeout_seconds=APK_INSTALL_TIMEOUT_SECONDS,
+    )
+    adb.run(
+        "Install instrumentation APK",
+        ["install", "-r", "-t", str(tests)],
+        timeout_seconds=APK_INSTALL_TIMEOUT_SECONDS,
+    )
     adb.run(
         "Stop Morimil before benchmark",
         ["shell", "am", "force-stop", TARGET_PACKAGE],
@@ -161,13 +220,20 @@ def stage_artifact(adb: Adb, artifact: Path, temporary: str) -> None:
         ["shell", "run-as", TARGET_PACKAGE, "rm", "-rf", DEVICE_ROOT],
         allow_failure=True,
     )
-    adb.run("Push exact artifact", ["push", str(artifact), temporary])
-    size = int(first_token(adb.text(
+    adb.run(
+        "Push exact artifact",
+        ["push", str(artifact), temporary],
+        timeout_seconds=ARTIFACT_TRANSFER_TIMEOUT_SECONDS,
+    )
+    size = parse_byte_count(adb.text(
         "Verify temporary artifact size",
-        ["shell", "sh", "-c", f"wc -c < '{temporary}'"],
-    ), "temporary artifact size"))
+        ["shell", "wc", "-c", temporary],
+        timeout_seconds=DEFAULT_ADB_TIMEOUT_SECONDS,
+    ), "temporary artifact size")
     digest = first_token(adb.text(
-        "Verify temporary artifact hash", ["shell", "sha256sum", temporary]
+        "Verify temporary artifact hash",
+        ["shell", "sha256sum", temporary],
+        timeout_seconds=ARTIFACT_HASH_TIMEOUT_SECONDS,
     ), "temporary artifact hash").lower()
     if size != EXPECTED_SIZE_BYTES or digest != EXPECTED_SHA256:
         fail("temporary artifact identity mismatch")
@@ -181,16 +247,20 @@ def stage_artifact(adb: Adb, artifact: Path, temporary: str) -> None:
         f"'cat > {DEVICE_MODEL}.partial && mv {DEVICE_MODEL}.partial {DEVICE_MODEL} "
         f"&& chmod 400 {DEVICE_MODEL}'"
     )
-    adb.run("Copy artifact to private read-only staging", ["shell", "sh", "-c", copy])
-    private_size = int(first_token(adb.text(
+    adb.run(
+        "Copy artifact to private read-only staging",
+        ["shell", "sh", "-c", copy],
+        timeout_seconds=PRIVATE_COPY_TIMEOUT_SECONDS,
+    )
+    private_size = parse_byte_count(adb.text(
         "Verify private artifact size",
-        ["shell", "run-as", TARGET_PACKAGE, "sh", "-c",
-         f"test -r {DEVICE_MODEL} && test ! -w {DEVICE_MODEL} "
-         f"&& wc -c < {DEVICE_MODEL}"],
-    ), "private artifact size"))
+        ["shell", "run-as", TARGET_PACKAGE, "wc", "-c", DEVICE_MODEL],
+        timeout_seconds=DEFAULT_ADB_TIMEOUT_SECONDS,
+    ), "private artifact size")
     private_hash = first_token(adb.text(
         "Verify private artifact hash",
         ["shell", "run-as", TARGET_PACKAGE, "sha256sum", DEVICE_MODEL],
+        timeout_seconds=ARTIFACT_HASH_TIMEOUT_SECONDS,
     ), "private artifact hash").lower()
     if private_size != EXPECTED_SIZE_BYTES or private_hash != EXPECTED_SHA256:
         fail("private artifact identity mismatch")
@@ -201,6 +271,7 @@ def private_text(adb: Adb, path: str, label: str) -> str:
         f"Extract {label}",
         ["shell", "run-as", TARGET_PACKAGE, "cat", path],
         allow_failure=True,
+        timeout_seconds=OUTPUT_EXTRACTION_TIMEOUT_SECONDS,
     )
     if result.returncode or not result.stdout.strip():
         fail(f"could not extract {label}")
