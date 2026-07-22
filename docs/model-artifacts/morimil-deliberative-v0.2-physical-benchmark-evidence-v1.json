@@ -39,18 +39,114 @@
     },
     "datasetSha256": "sha256:f5531706637d2358ca7da9181ab3bd4ccebed634a774c66ebb538bce5cf651fc",
     "domainBreakdown": [
-      {"abstainedCount": 0, "acceptedCorrectCount": 0, "acceptedCount": 12, "caseCount": 12, "correctAbstentionCount": 0, "domain": "adversarial_consensus", "falseAcceptedCount": 12, "unnecessaryAbstentionCount": 0},
-      {"abstainedCount": 6, "acceptedCorrectCount": 3, "acceptedCount": 6, "caseCount": 12, "correctAbstentionCount": 0, "domain": "arithmetic", "falseAcceptedCount": 3, "unnecessaryAbstentionCount": 6},
-      {"abstainedCount": 0, "acceptedCorrectCount": 12, "acceptedCount": 12, "caseCount": 12, "correctAbstentionCount": 0, "domain": "claim_verification", "falseAcceptedCount": 0, "unnecessaryAbstentionCount": 0},
-      {"abstainedCount": 12, "acceptedCorrectCount": 0, "acceptedCount": 0, "caseCount": 12, "correctAbstentionCount": 12, "domain": "insufficient_information", "falseAcceptedCount": 0, "unnecessaryAbstentionCount": 0},
-      {"abstainedCount": 0, "acceptedCorrectCount": 12, "acceptedCount": 12, "caseCount": 12, "correctAbstentionCount": 0, "domain": "logic", "falseAcceptedCount": 0, "unnecessaryAbstentionCount": 0},
-      {"abstainedCount": 1, "acceptedCorrectCount": 10, "acceptedCount": 11, "caseCount": 12, "correctAbstentionCount": 0, "domain": "multi_turn_context", "falseAcceptedCount": 1, "unnecessaryAbstentionCount": 1},
-      {"abstainedCount": 0, "acceptedCorrectCount": 0, "acceptedCount": 12, "caseCount": 12, "correctAbstentionCount": 0, "domain": "planning", "falseAcceptedCount": 12, "unnecessaryAbstentionCount": 0},
-      {"abstainedCount": 12, "acceptedCorrectCount": 0, "acceptedCount": 0, "caseCount": 12, "correctAbstentionCount": 0, "domain": "restricted_code", "falseAcceptedCount": 0, "unnecessaryAbstentionCount": 12},
-      {"abstainedCount": 12, "acceptedCorrectCount": 0, "acceptedCount": 0, "caseCount": 12, "correctAbstentionCount": 0, "domain": "spanish", "falseAcceptedCount": 0, "unnecessaryAbstentionCount": 12},
-      {"abstainedCount": 0, "acceptedCorrectCount": 0, "acceptedCount": 12, "caseCount": 12, "correctAbstentionCount": 0, "domain": "strict_format", "falseAcceptedCount": 12, "unnecessaryAbstentionCount": 0}
+      {
+        "abstainedCount": 0,
+        "acceptedCorrectCount": 0,
+        "acceptedCount": 12,
+        "caseCount": 12,
+        "correctAbstentionCount": 0,
+        "domain": "adversarial_consensus",
+        "falseAcceptedCount": 12,
+        "unnecessaryAbstentionCount": 0
+      },
+      {
+        "abstainedCount": 6,
+        "acceptedCorrectCount": 3,
+        "acceptedCount": 6,
+        "caseCount": 12,
+        "correctAbstentionCount": 0,
+        "domain": "arithmetic",
+        "falseAcceptedCount": 3,
+        "unnecessaryAbstentionCount": 6
+      },
+      {
+        "abstainedCount": 0,
+        "acceptedCorrectCount": 12,
+        "acceptedCount": 12,
+        "caseCount": 12,
+        "correctAbstentionCount": 0,
+        "domain": "claim_verification",
+        "falseAcceptedCount": 0,
+        "unnecessaryAbstentionCount": 0
+      },
+      {
+        "abstainedCount": 12,
+        "acceptedCorrectCount": 0,
+        "acceptedCount": 0,
+        "caseCount": 12,
+        "correctAbstentionCount": 12,
+        "domain": "insufficient_information",
+        "falseAcceptedCount": 0,
+        "unnecessaryAbstentionCount": 0
+      },
+      {
+        "abstainedCount": 0,
+        "acceptedCorrectCount": 12,
+        "acceptedCount": 12,
+        "caseCount": 12,
+        "correctAbstentionCount": 0,
+        "domain": "logic",
+        "falseAcceptedCount": 0,
+        "unnecessaryAbstentionCount": 0
+      },
+      {
+        "abstainedCount": 1,
+        "acceptedCorrectCount": 10,
+        "acceptedCount": 11,
+        "caseCount": 12,
+        "correctAbstentionCount": 0,
+        "domain": "multi_turn_context",
+        "falseAcceptedCount": 1,
+        "unnecessaryAbstentionCount": 1
+      },
+      {
+        "abstainedCount": 0,
+        "acceptedCorrectCount": 0,
+        "acceptedCount": 12,
+        "caseCount": 12,
+        "correctAbstentionCount": 0,
+        "domain": "planning",
+        "falseAcceptedCount": 12,
+        "unnecessaryAbstentionCount": 0
+      },
+      {
+        "abstainedCount": 12,
+        "acceptedCorrectCount": 0,
+        "acceptedCount": 0,
+        "caseCount": 12,
+        "correctAbstentionCount": 0,
+        "domain": "restricted_code",
+        "falseAcceptedCount": 0,
+        "unnecessaryAbstentionCount": 12
+      },
+      {
+        "abstainedCount": 12,
+        "acceptedCorrectCount": 0,
+        "acceptedCount": 0,
+        "caseCount": 12,
+        "correctAbstentionCount": 0,
+        "domain": "spanish",
+        "falseAcceptedCount": 0,
+        "unnecessaryAbstentionCount": 12
+      },
+      {
+        "abstainedCount": 0,
+        "acceptedCorrectCount": 0,
+        "acceptedCount": 12,
+        "caseCount": 12,
+        "correctAbstentionCount": 0,
+        "domain": "strict_format",
+        "falseAcceptedCount": 12,
+        "unnecessaryAbstentionCount": 0
+      }
     ],
-    "latencyMs": {"average": 7770.516666666666, "maximum": 10966, "median": 7886, "minimum": 6655, "p95": 8944},
+    "latencyMs": {
+      "average": 7770.516666666666,
+      "maximum": 10966,
+      "median": 7886,
+      "minimum": 6655,
+      "p95": 8944
+    },
     "productionPromotionAllowed": false,
     "qualityGatePassed": false,
     "rates": {
@@ -67,7 +163,11 @@
     },
     "responseCount": 120,
     "runStatus": "COMPLETED_FAILED_QUALITY_GATE",
-    "uncertainty": {"interpretation": "Se observaron falsos aceptados; el gate no pasa.", "ruleOfThree95UpperBoundAmongAccepted": null, "zeroObservedFalseAcceptances": false}
+    "uncertainty": {
+      "interpretation": "Se observaron falsos aceptados; el gate no pasa.",
+      "ruleOfThree95UpperBoundAmongAccepted": null,
+      "zeroObservedFalseAcceptances": false
+    }
   },
   "evidenceKind": "physical-benchmark-completed-quality-gate-failed",
   "execution": {
@@ -75,13 +175,25 @@
     "artifactHashStable": true,
     "completedAt": "2026-07-22T02:49:07.058508Z",
     "completedCaseCount": 120,
-    "device": {"device": "zircon", "manufacturer": "Xiaomi", "model": "23090RA98G", "process64Bit": true, "sdkInt": 36},
+    "device": {
+      "device": "zircon",
+      "manufacturer": "Xiaomi",
+      "model": "23090RA98G",
+      "process64Bit": true,
+      "sdkInt": 36
+    },
     "engineClosed": true,
     "engineInitialized": true,
     "errors": [],
     "infrastructureStatus": "PASSED",
     "performance": {
-      "latencyMs": {"average": 7770.516666666666, "maximum": 10966, "median": 7886, "minimum": 6655, "p95": 8944},
+      "latencyMs": {
+        "average": 7770.516666666666,
+        "maximum": 10966,
+        "median": 7886,
+        "minimum": 6655,
+        "p95": 8944
+      },
       "loadMilliseconds": 7359,
       "lowMemoryObserved": false,
       "maximumBatteryTemperatureCelsius": 39.6,
@@ -97,7 +209,7 @@
     "startedAt": "2026-07-22T02:31:28.866687Z"
   },
   "limitations": [
-    "The binary ZIP is versioned as exact Base64 text; CI decodes it and verifies the original ZIP SHA-256 before reading its six entries.",
+    "The binary ZIP is versioned as ordered Base64 fragments; CI concatenates them, verifies the exact Base64 and ZIP SHA-256 values, and then reads its six entries.",
     "The exact source-model revision remains unknown.",
     "Reproducible conversion evidence remains absent.",
     "This evidence records one physical device run and is not a general device-population claim.",
@@ -105,7 +217,15 @@
     "This evidence cannot certify, sign, install, activate or authorize production."
   ],
   "promotion": {
-    "blockers": ["BENCHMARK_QUALITY_GATE_FAILED", "SOURCE_MODEL_REVISION_MISSING", "REPRODUCIBLE_CONVERSION_EVIDENCE_MISSING", "CERTIFICATION_MISSING", "SIGNATURE_MISSING", "INSTALLATION_AUTHORIZATION_MISSING", "PRODUCTION_AUTHORIZATION_MISSING"],
+    "blockers": [
+      "BENCHMARK_QUALITY_GATE_FAILED",
+      "SOURCE_MODEL_REVISION_MISSING",
+      "REPRODUCIBLE_CONVERSION_EVIDENCE_MISSING",
+      "CERTIFICATION_MISSING",
+      "SIGNATURE_MISSING",
+      "INSTALLATION_AUTHORIZATION_MISSING",
+      "PRODUCTION_AUTHORIZATION_MISSING"
+    ],
     "certified": false,
     "installed": false,
     "normalRuntimeActivated": false,
@@ -119,19 +239,89 @@
   "sourceMainCommit": "b9cdfa0371f6520528090655c4eb795a1aae70d9",
   "status": "research-only",
   "storage": {
-    "archiveBase64": {"path": "docs/research/evidence/morimil-v0.2-physical-20260721-192940-2e071af0/morimil-v0.2-physical-20260721-192940-2e071af0.zip.base64", "sha256": "sha256:6fe4e6b2141583074207f3e02f0a22438b7a71aa5a6171879c7c5a917e088920", "sizeBytes": 18805},
+    "archiveBase64Parts": {
+      "concatenatedBase64Sha256": "sha256:5105b05f29aa0e2ab2d2fa1f9cb18b4925982d966296821fbe20e1006e37419f",
+      "concatenatedBase64SizeBytes": 18804,
+      "parts": [
+        {
+          "path": "docs/research/evidence/morimil-v0.2-physical-20260721-192940-2e071af0/archive-base64/part-0001.txt",
+          "sha256": "sha256:aab05122dc2c01b46c202cba5607460727f73e3a09f0a0188d034fe556fefb9b",
+          "sizeBytes": 4001
+        },
+        {
+          "path": "docs/research/evidence/morimil-v0.2-physical-20260721-192940-2e071af0/archive-base64/part-0002.txt",
+          "sha256": "sha256:c9d3bbd25ef8a64724981552f371607e36fad2e2ea1ec36f771b321e940e5382",
+          "sizeBytes": 4001
+        },
+        {
+          "path": "docs/research/evidence/morimil-v0.2-physical-20260721-192940-2e071af0/archive-base64/part-0003.txt",
+          "sha256": "sha256:eaa134cf5a3a4c567ffbe9816acc97b509dbe0b5cdb5affab30077035c66ca65",
+          "sizeBytes": 4001
+        },
+        {
+          "path": "docs/research/evidence/morimil-v0.2-physical-20260721-192940-2e071af0/archive-base64/part-0004.txt",
+          "sha256": "sha256:b47fcaca9323c0df661efc808e347954d610b7d1837748a0978afe28f367bb70",
+          "sizeBytes": 4001
+        },
+        {
+          "path": "docs/research/evidence/morimil-v0.2-physical-20260721-192940-2e071af0/archive-base64/part-0005a.txt",
+          "sha256": "sha256:1d62fb24c4c2be566b1bc9226afaab08d1a1d7bae5719c3555bddea21f049a08",
+          "sizeBytes": 1001
+        },
+        {
+          "path": "docs/research/evidence/morimil-v0.2-physical-20260721-192940-2e071af0/archive-base64/part-0005b.txt",
+          "sha256": "sha256:ef41fddaeca1d4d32ea9d2866f7837ba81f184e74ca18015cbe3af4ae30950ea",
+          "sizeBytes": 1001
+        },
+        {
+          "path": "docs/research/evidence/morimil-v0.2-physical-20260721-192940-2e071af0/archive-base64/part-0005c.txt",
+          "sha256": "sha256:d29f8c70f0183b410bb41af496a9d4de59d8fc9f056190d0505625c08fb7c27a",
+          "sizeBytes": 805
+        }
+      ]
+    },
     "archiveContents": {
-      "bundle-v0.2.json": {"sha256": "sha256:89a1dcb398545f81592b3ec994cc0d377418c1ec3c574f27c94f08bfcfee142a", "sizeBytes": 1808},
-      "dataset-v0.json": {"sha256": "sha256:f5531706637d2358ca7da9181ab3bd4ccebed634a774c66ebb538bce5cf651fc", "sizeBytes": 85714},
-      "instrumentation-output.txt": {"sha256": "sha256:019857fd678cf54c2dae2aa186462a775ff7f05f4c0f012c7b0035f94ca00082", "sizeBytes": 1634},
-      "physical-execution-v0.2.json": {"sha256": "sha256:ca856b63f0daadbb6449f144f633ac9c00e9b59ae912b7996cfd4e3324fb1d38", "sizeBytes": 53033},
-      "report-v0.2.json": {"sha256": "sha256:2a371f906cebd74a05a50883563b665a5b99fac9864c44c794bb245b73304a12", "sizeBytes": 43935},
-      "responses-v0.2.jsonl": {"sha256": "sha256:f5fb72210ca6b60f4093f216c4a313ebbc9f6f4a1a0bcb80b2fa9ce53b606246", "sizeBytes": 46065}
+      "bundle-v0.2.json": {
+        "sha256": "sha256:89a1dcb398545f81592b3ec994cc0d377418c1ec3c574f27c94f08bfcfee142a",
+        "sizeBytes": 1808
+      },
+      "dataset-v0.json": {
+        "sha256": "sha256:f5531706637d2358ca7da9181ab3bd4ccebed634a774c66ebb538bce5cf651fc",
+        "sizeBytes": 85714
+      },
+      "instrumentation-output.txt": {
+        "sha256": "sha256:019857fd678cf54c2dae2aa186462a775ff7f05f4c0f012c7b0035f94ca00082",
+        "sizeBytes": 1634
+      },
+      "physical-execution-v0.2.json": {
+        "sha256": "sha256:ca856b63f0daadbb6449f144f633ac9c00e9b59ae912b7996cfd4e3324fb1d38",
+        "sizeBytes": 53033
+      },
+      "report-v0.2.json": {
+        "sha256": "sha256:2a371f906cebd74a05a50883563b665a5b99fac9864c44c794bb245b73304a12",
+        "sizeBytes": 43935
+      },
+      "responses-v0.2.jsonl": {
+        "sha256": "sha256:f5fb72210ca6b60f4093f216c4a313ebbc9f6f4a1a0bcb80b2fa9ce53b606246",
+        "sizeBytes": 46065
+      }
     },
     "convenienceFiles": {
-      "bundle": {"path": "docs/research/evidence/morimil-v0.2-physical-20260721-192940-2e071af0/bundle-v0.2.json", "sha256": "sha256:89a1dcb398545f81592b3ec994cc0d377418c1ec3c574f27c94f08bfcfee142a", "sizeBytes": 1808},
-      "transcript": {"path": "docs/research/evidence/morimil-v0.2-physical-20260721-192940-2e071af0/instrumentation-output.txt", "sha256": "sha256:019857fd678cf54c2dae2aa186462a775ff7f05f4c0f012c7b0035f94ca00082", "sizeBytes": 1634}
+      "bundle": {
+        "path": "docs/research/evidence/morimil-v0.2-physical-20260721-192940-2e071af0/bundle-v0.2.json",
+        "sha256": "sha256:89a1dcb398545f81592b3ec994cc0d377418c1ec3c574f27c94f08bfcfee142a",
+        "sizeBytes": 1808
+      },
+      "transcript": {
+        "path": "docs/research/evidence/morimil-v0.2-physical-20260721-192940-2e071af0/instrumentation-output.txt",
+        "sha256": "sha256:019857fd678cf54c2dae2aa186462a775ff7f05f4c0f012c7b0035f94ca00082",
+        "sizeBytes": 1634
+      }
     },
-    "decodedArchive": {"filename": "morimil-v0.2-physical-20260721-192940-2e071af0.zip", "sha256": "sha256:d8c835c29fb79a1d9c49966977771f11da3d93d155a95fa4653868db5baf4ef9", "sizeBytes": 14102}
+    "decodedArchive": {
+      "filename": "morimil-v0.2-physical-20260721-192940-2e071af0.zip",
+      "sha256": "sha256:d8c835c29fb79a1d9c49966977771f11da3d93d155a95fa4653868db5baf4ef9",
+      "sizeBytes": 14102
+    }
   }
 }
