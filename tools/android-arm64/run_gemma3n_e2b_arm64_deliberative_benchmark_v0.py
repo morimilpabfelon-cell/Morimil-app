@@ -53,6 +53,7 @@ HARNESS_CLASS = (
     "Gemma3nE2bArm64DeliberativeBenchmarkV0Test"
 )
 ENABLE_ARGUMENT = "morimilArm64DeliberativeBenchmarkEnabled"
+BENCHMARK_TIMEOUT_SECONDS = 65 * 60
 
 
 def evaluate(
@@ -121,6 +122,7 @@ def run(args: argparse.Namespace) -> int:
              "-e", "class", HARNESS_CLASS,
              f"{TEST_PACKAGE}/{INSTRUMENTATION_RUNNER}"],
             allow_failure=True,
+            timeout_seconds=BENCHMARK_TIMEOUT_SECONDS,
         )
         atomic_write_text(transcript, result.stdout)
         response_text = private_text(adb, DEVICE_RESPONSES, "response JSONL")
