@@ -12,8 +12,9 @@ REPORT_VERSION = "morimil.deliberative.loop-effort.benchmark.report.v0"
 COMPARISON_VERSION = "morimil.deliberative.loop-effort.benchmark.comparison.v0"
 STOP_REASONS = {
     "CONVERGED", "BUDGET_EXHAUSTED", "MEMORY_LIMIT", "THERMAL_LIMIT",
-    "ENERGY_LIMIT", "INVALID_STATE", "ENGINE_FAILURE",
+    "ENERGY_LIMIT", "INVALID_STATE", "ENGINE_FAILURE", "AUTHORITY_ABSTAINED",
 }
+STATE_KINDS = {"TEXTUAL_CONVERSATION", "LATENT_RECURRENT", "HYBRID_ROUTED"}
 
 
 def validate_response(record: dict[str, Any]) -> None:
@@ -34,7 +35,7 @@ def validate_response(record: dict[str, Any]) -> None:
         raise ValueError("abstained response needs null answer")
     if not isinstance(record["latencyMs"], int) or record["latencyMs"] < 0:
         raise ValueError("invalid latency")
-    if record["stateKind"] not in {"TEXTUAL_CONVERSATION", "LATENT_RECURRENT"}:
+    if record["stateKind"] not in STATE_KINDS:
         raise ValueError("invalid state kind")
     if not isinstance(record["completedIterations"], int) or not 0 <= record["completedIterations"] <= 8:
         raise ValueError("invalid iteration count")
