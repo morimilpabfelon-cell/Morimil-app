@@ -101,7 +101,7 @@ class IntuitiveMotorV0(
                     "intrinsic_motor:intuitive",
                     "motor_version:$capabilityVersion",
                     "blueprint_version:${MorimilIntrinsicMotorBlueprints.VERSION}",
-                    "request_state:released_by_core_contract"
+                    "request_state:request_scoped_contract"
                 )
             ).filter(String::isNotBlank).distinct()
         )
@@ -171,7 +171,7 @@ class MetacognitiveMotorV0(
                     "motor_version:$capabilityVersion",
                     "blueprint_version:${MorimilIntrinsicMotorBlueprints.VERSION}",
                     "verification_mode:blind",
-                    "request_state:released_by_core_contract"
+                    "request_state:request_scoped_contract"
                 )
             ).filter(String::isNotBlank).distinct()
         )
