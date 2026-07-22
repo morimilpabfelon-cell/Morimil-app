@@ -15,19 +15,10 @@ SOURCE_MAIN_COMMIT = "79eb5e31fe11611901048e80803c5c284f58e5cc"
 RUN_ID = "morimil-trimotor-v0.2-physical-20260722-043653-908d91aa"
 BASELINE_RUN_ID = "morimil-v0.2-physical-20260721-192940-2e071af0"
 MANIFEST_PATH = "docs/model-artifacts/morimil-trimotor-v0.2-physical-benchmark-evidence-v1.json"
-MANIFEST_DIGEST = "sha256:ae370beca419ff5bcd09d0d8fad7c107c291cb924fa0a85937d1337a4f7ad9aa"
+MANIFEST_DIGEST = "sha256:f411418b9aadb3bba61a4067d4db1ac4a5d63c26ea808d6a2edce0dabc8ba3c1"
 ARCHIVE_SHA256 = "sha256:799d29f130dda25981941c28a702f46c5be9a998fdb36cbc9c427532a9b3b8f1"
 BASE64_SHA256 = "sha256:7fed0bb02cf5378931cb1f160fb579ce2a7690095719d939bae0322df68ba7be"
 EVIDENCE_ROOT = "docs/research/evidence/morimil-trimotor-v0.2-physical-20260722-043653-908d91aa"
-PARTS = [
-    ("part-0001.txt", 4001, "126b45954343a2b7145c9a602f2c4839b8903e1f8afbd21c2a298e272c2c91cb"),
-    ("part-0002.txt", 4001, "eaa71c996fcaf117f80020184878583afc2d19189af4d64052d630f712131172"),
-    ("part-0003.txt", 4001, "b170807f820015dff9d96a1f6b80442229614b8f7c7e5aea951e33545d5d5944"),
-    ("part-0004.txt", 4001, "305cec73fe204e0c6b054665f1898b313bf079c4cd206167443e7f967a7061ed"),
-    ("part-0005.txt", 4001, "f15cd34d9f512205ef91e9db4cebf38858c89f9573455a1794398545a1851352"),
-    ("part-0006.txt", 4001, "79ce7e5229f606d32c06d8db1bd521a522894f8ac98dc6e4c3f44031e067662e"),
-    ("part-0007.txt", 1897, "470324706267e862ea9435271f93d3be626903637bbcefa9a7d2c82a767df744"),
-]
 CONTENTS = {
     "baseline-report-v0.2.json": (43935, "2a371f906cebd74a05a50883563b665a5b99fac9864c44c794bb245b73304a12"),
     "comparison-v0.2.json": (520, "5b850d760da8da950448e4ef932a39f8b41d5e6e6a11415cecd2f83446a8251f"),
@@ -89,37 +80,35 @@ def load_manifest(path: Path | None = None) -> dict[str, Any]:
 def decode_archive(manifest: dict[str, Any], repo: Path | None = None) -> dict[str, bytes]:
     repo = repo or root()
     stored = manifest.get("storage", {})
-    recorded_parts = stored.get("archiveBase64Parts", {}).get("parts")
-    expected_paths = [f"{EVIDENCE_ROOT}/archive-base64/{name}" for name, _, _ in PARTS]
-    if [item.get("path") for item in recorded_parts or []] != expected_paths:
+    parts = stored.get("archiveBase64Parts", {}).get("parts")
+    if not isinstance(parts, list) or len(parts) != 7:
         raise ValueError("manifest Base64 part set mismatch")
-    encoded_parts = []
-    for (name, size, digest), record in zip(PARTS, recorded_parts, strict=True):
-        path = repo / EVIDENCE_ROOT / "archive-base64" / name
-        raw = path.read_bytes()
-        if len(raw) != size or sha(raw) != f"sha256:{digest}":
-            raise ValueError(f"Base64 part mismatch: {name}")
-        if record.get("sizeBytes") != size or record.get("sha256") != f"sha256:{digest}":
-            raise ValueError(f"manifest Base64 metadata mismatch: {name}")
+    encoded_parts: list[bytes] = []
+    for index, record in enumerate(parts, 1):
+        expected = f"{EVIDENCE_ROOT}/archive-base64/part-{index:04d}.txt"
+        if record.get("path") != expected:
+            raise ValueError("manifest Base64 part set mismatch")
+        raw = (repo / expected).read_bytes()
+        if len(raw) != record.get("sizeBytes") or sha(raw) != record.get("sha256"):
+            raise ValueError(f"Base64 metadata or part mismatch: part-{index:04d}.txt")
         encoded_parts.append(b"".join(raw.split()))
     encoded = b"".join(encoded_parts)
-    if len(encoded) != 25896 or sha(encoded) != BASE64_SHA256:
+    meta = stored.get("archiveBase64Parts", {})
+    if len(encoded) != meta.get("concatenatedBase64SizeBytes") or sha(encoded) != BASE64_SHA256:
         raise ValueError("concatenated Base64 mismatch")
     archive = base64.b64decode(encoded, validate=True)
-    if len(archive) != 19421 or sha(archive) != ARCHIVE_SHA256:
-        raise ValueError("decoded ZIP mismatch")
     decoded = stored.get("decodedArchive", {})
-    if decoded.get("sizeBytes") != 19421 or decoded.get("sha256") != ARCHIVE_SHA256:
-        raise ValueError("manifest ZIP metadata mismatch")
+    if len(archive) != decoded.get("sizeBytes") or sha(archive) != ARCHIVE_SHA256:
+        raise ValueError("decoded ZIP mismatch")
     with zipfile.ZipFile(io.BytesIO(archive)) as handle:
         if set(handle.namelist()) != set(CONTENTS):
             raise ValueError("ZIP file set mismatch")
         entries = {name: handle.read(name) for name in handle.namelist()}
     for name, (size, digest) in CONTENTS.items():
+        record = stored.get("archiveContents", {}).get(name, {})
         if len(entries[name]) != size or sha(entries[name]) != f"sha256:{digest}":
             raise ValueError(f"ZIP content mismatch: {name}")
-        record = stored.get("archiveContents", {}).get(name, {})
-        if record.get("sizeBytes") != size or record.get("sha256") != f"sha256:{digest}":
+        if record != {"sha256": f"sha256:{digest}", "sizeBytes": size}:
             raise ValueError(f"manifest content metadata mismatch: {name}")
     convenience = {
         "bundle": ("bundle-trimotor-v0.2.json", 3752, "sha256:2259627efab4ed88dc4e276075d44c327a2a61b12522d4135f178fcb8992430e"),
@@ -151,10 +140,8 @@ def validate_manifest(value: dict[str, Any], repo: Path | None = None) -> None:
         raise ValueError("evidence identity mismatch")
     if value.get("runId") != RUN_ID or value.get("status") != "research-only":
         raise ValueError("run identity or status mismatch")
-    source_archive = value.get("sourceArchive", {})
-    if (source_archive.get("filename") != "morimil-trimotor-v0.2-physical-20260722-043653-908d91aa-freeze.zip"
-            or source_archive.get("sizeBytes") != 19421
-            or source_archive.get("sha256") != ARCHIVE_SHA256):
+    source = value.get("sourceArchive", {})
+    if source != {"filename": f"{RUN_ID}-freeze.zip", "sha256": ARCHIVE_SHA256, "sizeBytes": 19421}:
         raise ValueError("source archive identity mismatch")
     entries = decode_archive(value, repo)
     dataset = load_json(entries["dataset-v0.json"], "dataset")
@@ -172,14 +159,14 @@ def validate_manifest(value: dict[str, Any], repo: Path | None = None) -> None:
         raise ValueError("research gate or counts mismatch")
     if report.get("productionPromotionAllowed") is not False:
         raise ValueError("report cannot authorize production")
-    if comparison != {
-        "baselineRunId": BASELINE_RUN_ID,
-        "benchmarkVersion": report["benchmarkVersion"],
+    expected_comparison = {
+        "baselineRunId": BASELINE_RUN_ID, "benchmarkVersion": report["benchmarkVersion"],
         "candidateRunId": RUN_ID,
         "comparisonVersion": "morimil.deliberative.loop-effort.benchmark.comparison.v0",
         "datasetSha256": report["datasetSha256"], "outcome": "V0_3_SUPERIOR",
         "productionPromotionAllowed": False, "reasons": [], "status": "research-only",
-    }:
+    }
+    if comparison != expected_comparison:
         raise ValueError("comparison evidence mismatch")
     if physical.get("status") != "passed" or physical.get("completedCaseCount") != 120:
         raise ValueError("physical execution did not pass")
