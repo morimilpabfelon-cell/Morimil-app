@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "morimil://schemas/deliberative-v0.2-physical-benchmark-evidence-v1",
+  "title": "Morimil Deliberative v0.2 Physical Benchmark Evidence v1",
+  "description": "Research-only evidence for the completed physical run whose quality gate failed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact",
+    "authorityBoundary",
+    "benchmark",
+    "evidenceKind",
+    "execution",
+    "limitations",
+    "promotion",
+    "runId",
+    "schemaVersion",
+    "sourceMainCommit",
+    "status",
+    "storage"
+  ],
+  "properties": {
+    "artifact": {"type": "object"},
+    "authorityBoundary": {"type": "object"},
+    "benchmark": {"type": "object"},
+    "evidenceKind": {"const": "physical-benchmark-completed-quality-gate-failed"},
+    "execution": {"type": "object"},
+    "limitations": {"type": "array", "minItems": 6, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "promotion": {"type": "object"},
+    "runId": {"const": "morimil-v0.2-physical-20260721-192940-2e071af0"},
+    "schemaVersion": {"const": "morimil.deliberative.v0.2.physical-benchmark-evidence.v1"},
+    "sourceMainCommit": {"const": "b9cdfa0371f6520528090655c4eb795a1aae70d9"},
+    "status": {"const": "research-only"},
+    "storage": {"type": "object"}
+  }
+}
