@@ -56,17 +56,28 @@ The gate is no longer a placeholder for release verification. Morimil now implem
 
 Detailed algorithms and negative cases are documented in `docs/GENESIS_ULTRA_RELEASE_ADAPTER.md`.
 
-The remaining Android blocker is:
+The remaining Android integration blocker is:
 
 ```text
 transactional_birth_commit_not_integrated
 ```
 
+This blocker does not mean that the transactional store, recovery verifier or
+canonical post-birth append are missing. Those boundaries exist and are tested
+in isolation. It means that production onboarding still does not compose them
+into one authorized operation backed by production Guardian trust and secure
+Android Body-key provisioning.
+
 The pinned Genesis revision defines the normative seven-phase atomic birth, its `birth` transaction journal, recovery state, immutable first memory event and signed receipt. Morimil now has an isolated Room v10 persistence boundary for the one birth commit, exact artifacts and seven journal entries, including rollback when the commit marker is not reached. It also has a strict full-evidence verifier that parses every birth document and checks the Seed, Guardian, Body, memory, recovery, receipt and journal signatures against the pinned Genesis conformance vector. The atomic store accepts only the verified type-state, so a raw structurally valid bundle cannot cross the persistence entry point.
 
 The exact persisted `first_memory_event` artifact is now the one canonical living-memory root. It is not duplicated in the legacy `memory_events` table. Every restart audit parses the exact Seed manifest, Instance Identity, birth state, receipt and first event and fails closed unless their digests and continuity links match the immutable commit marker. A stronger recovery entry point reconstructs the original release and complete birth evidence from durable bytes, then reruns every Ed25519 verification using an explicitly supplied trusted Guardian epoch registry and Body public key. It evaluates the historical possession proof at the recorded birth instant rather than pretending that proof grants current authority.
 
-This is still not an enabled birth path. The correct post-birth canonical append bridge, current Body/key-epoch continuity checks and onboarding integration remain absent. The blocker therefore remains accurate at the integration boundary.
+This is still not an enabled birth path. The post-birth canonical append bridge
+and current Body/key-epoch continuity checks now exist inside the isolated
+activation boundary. Production Guardian trust provisioning, secure Android
+Body-key composition, signed export/restore continuity and end-to-end onboarding
+remain absent. The blocker therefore remains accurate at the production
+integration boundary.
 
 The gate must never be opened by changing a Boolean alone. Opening it requires a protocol-defined, crash-recoverable birth transaction and validated runtime evidence.
 
@@ -216,4 +227,9 @@ birth_ready =
   AND recovery_tests_valid
 ```
 
-The preparation conditions, isolated transaction boundary, first living-memory root and persisted-evidence recovery can be evaluated. Post-birth canonical append continuity and the end-to-end onboarding operation are not complete. Morimil may be developed and tested, but a new Genesis Instance must not be born.
+The preparation conditions, isolated transaction boundary, first living-memory
+root, persisted-evidence recovery and post-birth canonical append continuity can
+be evaluated. Production Guardian trust provisioning, secure Android Body-key
+composition, signed export/restore continuity and the end-to-end onboarding
+operation are not complete. Morimil may be developed and tested, but a new
+Genesis Instance must not be born.
