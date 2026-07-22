@@ -1,5 +1,6 @@
 package com.morimil.app.reasoning.intrinsic
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -14,6 +15,23 @@ class MorimilDeliberativeArtifactContractV02CandidateTest {
         assertFalse(MorimilDeliberativeArtifactContractV02Candidate.SIGNED)
         assertFalse(MorimilDeliberativeArtifactContractV02Candidate.INSTALLED)
         assertFalse(MorimilDeliberativeArtifactContractV02Candidate.PROMOTION_ALLOWED)
+    }
+
+    @Test
+    fun directUpstreamBinaryIsNotMisrepresentedAsMorimilConversion() {
+        val candidate = MorimilDeliberativeArtifactContractV02Candidate
+
+        assertEquals("DIRECT_UPSTREAM_BINARY_RENAME_ONLY", candidate.ACQUISITION_MODE)
+        assertFalse(candidate.CONVERSION_PERFORMED_BY_MORIMIL)
+        assertEquals(
+            "ba9ca88da013b537b6ed38108be609b8db1c3a16",
+            candidate.UPSTREAM_ARTIFACT_REVISION
+        )
+        assertEquals("google-ai-edge/gallery", candidate.OFFICIAL_ALLOWLIST_REPOSITORY)
+        assertEquals(
+            "126501c8849affcfb094d2c5b193aa5deb1434a6",
+            candidate.OFFICIAL_ALLOWLIST_REVISION
+        )
     }
 
     @Test(expected = IllegalArgumentException::class)
