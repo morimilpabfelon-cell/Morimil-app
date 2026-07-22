@@ -8,9 +8,19 @@ import re
 import shutil
 import sys
 import time
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Sequence
+
+BENCHMARK_TOOLS_DIR = Path(__file__).resolve().parents[1] / "benchmarks"
+if str(BENCHMARK_TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(BENCHMARK_TOOLS_DIR))
+
+from validate_v02_physical_benchmark_evidence_v1 import (  # noqa: E402
+    decode_archive as decode_v02_archive,
+    load_manifest as load_v02_manifest,
+)
 
 from physical_benchmark_adb_v0 import (
     Adb,
@@ -56,10 +66,71 @@ DEVICE_PHYSICAL_REPORT = (
     f"{DEVICE_ROOT}/output/physical-execution-trimotor-v0.2.json"
 )
 MOTOR_VERSION = "morimil-trimotor-v0.2-bounded-local-v0"
-BASELINE_REPORT = Path(
-    "docs/research/evidence/"
-    "morimil-v0.2-physical-20260721-192940-2e071af0/report-v0.2.json"
+BASELINE_MANIFEST = Path(
+    "docs/model-artifacts/"
+    "morimil-deliberative-v0.2-physical-benchmark-evidence-v1.json"
 )
+BASELINE_ARCHIVE_ENTRY = "report-v0.2.json"
+BASELINE_REPORT_SHA256 = (
+    "sha256:2a371f906cebd74a05a50883563b665a5b99fac9864c44c794bb245b73304a12"
+)
+LEGACY_SUPERIOR_OUTCOME = "V0_3_SUPERIOR"
+
+
+def instrumentation_failed(returncode: int, output: str) -> bool:
+    return bool(
+        returncode
+        or re.search(r"FAILURES!!!|INSTRUMENTATION_FAILED|shortMsg=", output)
+        or "OK (2 tests)" not in output
+    )
+
+
+def capture_failure_diagnostics(adb: Adb, run_dir: Path) -> None:
+    """Best-effort capture before private staging is removed."""
+    diagnostics = (
+        (
+            "exit-info.txt",
+            "Capture Morimil exit info",
+            ["shell", "dumpsys", "activity", "exit-info", TARGET_PACKAGE],
+        ),
+        (
+            "logcat-tail.txt",
+            "Capture recent device logcat",
+            ["logcat", "-d", "-v", "threadtime", "-t", "2500"],
+        ),
+    )
+    for filename, label, args in diagnostics:
+        try:
+            result = adb.run(
+                label,
+                args,
+                allow_failure=True,
+                timeout_seconds=60,
+            )
+            atomic_write_text(run_dir / filename, result.stdout)
+        except (RunnerError, OSError, ValueError):
+            # The instrumentation transcript remains the primary evidence.
+            pass
+
+
+def materialize_frozen_baseline(root: Path, run_dir: Path) -> Path:
+    manifest_path = (root / BASELINE_MANIFEST).resolve()
+    if not manifest_path.is_file():
+        fail(f"frozen v0.2 evidence manifest missing: {manifest_path}")
+    manifest = load_v02_manifest(manifest_path)
+    entries = decode_v02_archive(manifest, root)
+    raw = entries.get(BASELINE_ARCHIVE_ENTRY)
+    if raw is None:
+        fail("frozen v0.2 baseline report is missing from immutable evidence")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as error:
+        fail(f"frozen v0.2 baseline report is not UTF-8: {error}")
+    baseline = run_dir / BASELINE_ARCHIVE_ENTRY
+    atomic_write_text(baseline, text)
+    if sha256_file(baseline) != BASELINE_REPORT_SHA256:
+        fail("materialized frozen v0.2 baseline report digest mismatch")
+    return baseline
 
 
 def evaluate(
@@ -67,25 +138,39 @@ def evaluate(
     run_dir: Path,
     responses: Path,
     run_id: str,
-) -> tuple[Path, Path, Path]:
+) -> tuple[Path, Path, Path, Path]:
     cli = root / "tools/benchmarks/morimil_deliberative_benchmark_v0.py"
     dataset = run_dir / "dataset-v0.json"
     report = run_dir / "report-trimotor-v0.2.json"
     comparison = run_dir / "comparison-v0.2.json"
-    command("Generate frozen dataset", [
-        sys.executable, str(cli), "generate", "--output", str(dataset)
-    ])
+    command(
+        "Generate frozen dataset",
+        [sys.executable, str(cli), "generate", "--output", str(dataset)],
+    )
     if sha256_file(dataset) != EXPECTED_DATASET_SHA256:
         fail("generated tri-motor dataset digest mismatch")
-    command("Check frozen dataset", [
-        sys.executable, str(cli), "check", "--dataset", str(dataset)
-    ])
-    command("Evaluate tri-motor responses", [
-        sys.executable, str(cli), "evaluate",
-        "--dataset", str(dataset), "--responses", str(responses),
-        "--run-id", run_id, "--motor-version", MOTOR_VERSION,
-        "--output", str(report),
-    ])
+    command(
+        "Check frozen dataset",
+        [sys.executable, str(cli), "check", "--dataset", str(dataset)],
+    )
+    command(
+        "Evaluate tri-motor responses",
+        [
+            sys.executable,
+            str(cli),
+            "evaluate",
+            "--dataset",
+            str(dataset),
+            "--responses",
+            str(responses),
+            "--run-id",
+            run_id,
+            "--motor-version",
+            MOTOR_VERSION,
+            "--output",
+            str(report),
+        ],
+    )
     value = json.loads(report.read_text(encoding="utf-8"))
     if (
         value.get("benchmarkVersion") != EXPECTED_BENCHMARK_VERSION
@@ -93,20 +178,41 @@ def evaluate(
         or value.get("caseCount") != EXPECTED_CASE_COUNT
         or value.get("productionPromotionAllowed") is not False
     ):
-        fail("tri-motor evaluator identity or production boundary mismatch")
+        fail("tri-motor evaluator identity or activation boundary mismatch")
 
-    baseline = (root / BASELINE_REPORT).resolve()
-    if not baseline.is_file():
-        fail(f"frozen v0.2 baseline report missing: {baseline}")
-    command("Compare tri-motor result with frozen v0.2 baseline", [
-        sys.executable, str(cli), "compare",
-        "--baseline", str(baseline), "--candidate", str(report),
-        "--output", str(comparison),
-    ])
+    baseline = materialize_frozen_baseline(root, run_dir)
+    command(
+        "Compare tri-motor result with frozen v0.2 baseline",
+        [
+            sys.executable,
+            str(cli),
+            "compare",
+            "--baseline",
+            str(baseline),
+            "--candidate",
+            str(report),
+            "--output",
+            str(comparison),
+        ],
+    )
     comparison_value = json.loads(comparison.read_text(encoding="utf-8"))
     if comparison_value.get("productionPromotionAllowed") is not False:
-        fail("tri-motor comparison attempted to authorize production")
-    return dataset, report, comparison
+        fail("tri-motor comparison attempted to authorize activation")
+    return dataset, report, comparison, baseline
+
+
+def runner_self_test() -> int:
+    self_test()
+    if instrumentation_failed(0, "OK (2 tests)\n"):
+        fail("successful instrumentation was classified as failed")
+    if not instrumentation_failed(0, "shortMsg=Process crashed\n"):
+        fail("instrumentation crash was not detected")
+    with tempfile.TemporaryDirectory() as temporary:
+        baseline = materialize_frozen_baseline(root=Path(__file__).resolve().parents[2], run_dir=Path(temporary))
+        if baseline.name != BASELINE_ARCHIVE_ENTRY or sha256_file(baseline) != BASELINE_REPORT_SHA256:
+            fail("frozen baseline self-test mismatch")
+    print("MORIMIL TRIMOTOR PHYSICAL RUNNER SELF-TEST: PASS")
+    return 0
 
 
 def run(args: argparse.Namespace) -> int:
@@ -137,31 +243,46 @@ def run(args: argparse.Namespace) -> int:
         stage_artifact(adb, artifact, temporary)
         result = adb.run(
             "Execute opt-in physical tri-motor benchmark",
-            ["shell", "am", "instrument", "-w", "-r",
-             "-e", ENABLE_ARGUMENT, "true",
-             "-e", "class", HARNESS_CLASS,
-             f"{TEST_PACKAGE}/{INSTRUMENTATION_RUNNER}"],
+            [
+                "shell",
+                "am",
+                "instrument",
+                "-w",
+                "-r",
+                "-e",
+                ENABLE_ARGUMENT,
+                "true",
+                "-e",
+                "class",
+                HARNESS_CLASS,
+                f"{TEST_PACKAGE}/{INSTRUMENTATION_RUNNER}",
+            ],
             allow_failure=True,
             timeout_seconds=BENCHMARK_TIMEOUT_SECONDS,
         )
         atomic_write_text(transcript, result.stdout)
-        response_text = private_text(adb, DEVICE_RESPONSES, "tri-motor response JSONL")
-        physical_text = private_text(adb, DEVICE_PHYSICAL_REPORT, "tri-motor physical report")
+        if instrumentation_failed(result.returncode, result.stdout):
+            capture_failure_diagnostics(adb, run_dir)
+            fail(
+                "Android tri-motor instrumentation failed; inspect "
+                f"{transcript} and captured diagnostics"
+            )
+
+        response_text = private_text(
+            adb, DEVICE_RESPONSES, "tri-motor response JSONL"
+        )
+        physical_text = private_text(
+            adb, DEVICE_PHYSICAL_REPORT, "tri-motor physical report"
+        )
         atomic_write_text(responses, response_text)
         atomic_write_text(physical, physical_text)
-        if (
-            result.returncode
-            or re.search(r"FAILURES!!!|INSTRUMENTATION_FAILED|shortMsg=", result.stdout)
-            or "OK (2 tests)" not in result.stdout
-        ):
-            fail("Android tri-motor instrumentation failed; inspect extracted outputs")
 
         records = parse_jsonl(response_text)
         physical_value = json.loads(physical_text)
         if not isinstance(physical_value, dict):
             fail("tri-motor physical report is not an object")
         validate_physical_report(physical_value)
-        dataset, report, comparison = evaluate(root, run_dir, responses, run_id)
+        dataset, report, comparison, baseline = evaluate(root, run_dir, responses, run_id)
         report_value = json.loads(report.read_text(encoding="utf-8"))
         comparison_value = json.loads(comparison.read_text(encoding="utf-8"))
         files = {
@@ -171,6 +292,7 @@ def run(args: argparse.Namespace) -> int:
             "comparison": comparison,
             "physicalExecution": physical,
             "transcript": transcript,
+            "baselineReport": baseline,
         }
         bundle = {
             "schemaVersion": "morimil.trimotor.benchmark.physical-bundle.v0",
@@ -181,6 +303,7 @@ def run(args: argparse.Namespace) -> int:
                 "filename": EXPECTED_FILENAME,
                 "sizeBytes": EXPECTED_SIZE_BYTES,
                 "sha256": artifact_hash,
+                "sourceModelRevision": physical_value.get("sourceModelRevision"),
             },
             "benchmark": {
                 "version": EXPECTED_BENCHMARK_VERSION,
@@ -188,23 +311,65 @@ def run(args: argparse.Namespace) -> int:
                 "caseCount": EXPECTED_CASE_COUNT,
                 "responseCount": len(records),
                 "researchGatePassed": bool(report_value["researchGatePassed"]),
-                "falseAcceptedCount": report_value["counts"]["falseAcceptedCount"],
+                "falseAcceptedCount": report_value["counts"][
+                    "falseAcceptedCount"
+                ],
+                "acceptedCorrectCount": report_value["counts"][
+                    "acceptedCorrectCount"
+                ],
+                "abstainedCount": report_value["counts"]["abstainedCount"],
+                "strictFormatPassCount": report_value["counts"][
+                    "strictFormatPassCount"
+                ],
+                "strictFormatCaseCount": report_value["counts"][
+                    "strictFormatCaseCount"
+                ],
             },
             "trimotor": {
                 "motorVersion": MOTOR_VERSION,
+                "triMotorRuntimeVersion": physical_value[
+                    "triMotorRuntimeVersion"
+                ],
+                "benchmarkAdapterVersion": physical_value[
+                    "benchmarkAdapterVersion"
+                ],
+                "intuitiveCoreVersion": physical_value["intuitiveCoreVersion"],
+                "deliberativeArtifactVersion": physical_value[
+                    "deliberativeArtifactVersion"
+                ],
+                "metacognitiveCoreVersion": physical_value[
+                    "metacognitiveCoreVersion"
+                ],
                 "hybridAuthorityEnabled": True,
                 "roleActivationCounts": physical_value["roleActivationCounts"],
-                "authorityStatusCounts": physical_value["authorityStatusCounts"],
-                "openedConversationCount": physical_value["openedConversationCount"],
-                "closedConversationCount": physical_value["closedConversationCount"],
+                "authorityStatusCounts": physical_value[
+                    "authorityStatusCounts"
+                ],
+                "openedConversationCount": physical_value[
+                    "openedConversationCount"
+                ],
+                "closedConversationCount": physical_value[
+                    "closedConversationCount"
+                ],
             },
             "comparison": {
                 "baselineRunId": comparison_value["baselineRunId"],
+                "candidateRunId": comparison_value["candidateRunId"],
                 "outcome": comparison_value["outcome"],
+                "outcomeSemantics": (
+                    "Legacy comparator label: superior candidate under the "
+                    "frozen v0.3 research contract; it does not claim that a "
+                    "trained neural v0.3 model exists."
+                ),
                 "reasons": comparison_value["reasons"],
+                "status": comparison_value["status"],
             },
             "files": {
-                name: {"name": path.name, "sha256": sha256_file(path)}
+                name: {
+                    "name": path.name,
+                    "sha256": sha256_file(path),
+                    "sizeBytes": path.stat().st_size,
+                }
                 for name, path in files.items()
             },
             "authorityBoundary": {
@@ -217,6 +382,7 @@ def run(args: argparse.Namespace) -> int:
             "signed": False,
             "installed": False,
             "normalRuntimeActivated": False,
+            "personalRuntimeActivationAuthorized": False,
             "productionAuthorization": False,
             "productionPromotionAllowed": False,
         }
@@ -224,11 +390,18 @@ def run(args: argparse.Namespace) -> int:
         print("\nMORIMIL TRIMOTOR V0.2 PHYSICAL BENCHMARK COMPLETED")
         print(f"Responses:       {len(records)}/120")
         print(f"Research gate:   {report_value['researchGatePassed']}")
-        print(f"False accepted:  {report_value['counts']['falseAcceptedCount']}")
+        print(
+            "False accepted:  "
+            f"{report_value['counts']['falseAcceptedCount']}"
+        )
         print(f"Comparison:      {comparison_value['outcome']}")
+        if comparison_value["outcome"] == LEGACY_SUPERIOR_OUTCOME:
+            print(
+                "Comparison note: legacy label only; no trained neural v0.3 "
+                "model is claimed"
+            )
         print(f"Directory:       {run_dir}")
-        print("Normal runtime:  BLOCKED")
-        print("Production:      BLOCKED")
+        print("Personal runtime activation: BLOCKED")
         return 0
     finally:
         cleanup(adb, temporary)
@@ -250,7 +423,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
-        return self_test() if args.self_test else run(args)
+        return runner_self_test() if args.self_test else run(args)
     except (RunnerError, OSError, ValueError, json.JSONDecodeError) as error:
         print(f"STOPPED: {error}", file=sys.stderr)
         return 1
