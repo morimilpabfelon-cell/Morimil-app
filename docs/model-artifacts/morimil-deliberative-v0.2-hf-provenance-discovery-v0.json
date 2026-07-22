@@ -1,0 +1,70 @@
+{
+  "authorityBoundary": {
+    "identityAuthority": false,
+    "lifecycleAuthority": false,
+    "memoryWriteCapability": false,
+    "normalRuntimeActivated": false
+  },
+  "huggingFace": {
+    "artifactFilename": "gemma-3n-E2B-it-int4.litertlm",
+    "artifactRevision": "ba9ca88da013b537b6ed38108be609b8db1c3a16",
+    "artifactSizeBytes": 3655827456,
+    "gated": true,
+    "licenseId": "gemma",
+    "observedRepositorySnapshot": "c03b6f60b8da6c5400b6838a2cf26420f80c0a01",
+    "repository": "google/gemma-3n-E2B-it-litert-lm"
+  },
+  "localCandidate": {
+    "artifactSha256": "sha256:2ed7bc3a0026c93d5b8a4544b352d9d00cd66ff0bac3ef6a20ac3d2cba4010d6",
+    "artifactSizeBytes": 3655827456,
+    "filename": "morimil-deliberative-v0.2.candidate.litertlm"
+  },
+  "observedAtUtc": "2026-07-22T14:05:43Z",
+  "officialGoogleAllowlist": {
+    "modelFile": "gemma-3n-E2B-it-int4.litertlm",
+    "modelFileRevision": "ba9ca88da013b537b6ed38108be609b8db1c3a16",
+    "modelId": "google/gemma-3n-E2B-it-litert-lm",
+    "path": "model_allowlists/1_0_15.json",
+    "repository": "google-ai-edge/gallery",
+    "revision": "126501c8849affcfb094d2c5b193aa5deb1434a6",
+    "sizeInBytes": 3655827456
+  },
+  "officialPublisher": "Google",
+  "promotion": {
+    "blockers": [
+      "HUGGING_FACE_LFS_SHA_CAPTURE_MISSING",
+      "UPSTREAM_BASE_CHECKPOINT_REVISION_UNDISCLOSED",
+      "CERTIFICATION_MISSING",
+      "SIGNATURE_MISSING",
+      "INSTALLATION_AUTHORIZATION_MISSING",
+      "PERSONAL_RUNTIME_ACTIVATION_AUTHORIZATION_MISSING"
+    ],
+    "certified": false,
+    "installed": false,
+    "personalRuntimeActivationAuthorized": false,
+    "promotionAllowed": false,
+    "signed": false
+  },
+  "provenanceClassification": {
+    "acquisitionMode": "DIRECT_UPSTREAM_BINARY_RENAME_ONLY",
+    "conversionPerformedByMorimil": false,
+    "renameOnly": true,
+    "reproducibleAcquisitionEvidence": false,
+    "reproducibleConversionEvidence": false,
+    "sourceModelId": "google/gemma-3n-E2B-it",
+    "sourceModelRevision": null,
+    "sourceModelRevisionStatus": "UPSTREAM_NOT_DISCLOSED",
+    "upstreamByteIdentityVerified": false
+  },
+  "requiredAuthenticatedCapture": {
+    "requiredChecks": [
+      "resolved Hub revision equals the pinned artifact revision",
+      "Hub LFS SHA-256 equals the local candidate SHA-256",
+      "Hub LFS size equals 3655827456 bytes",
+      "repository remains gated under the Gemma license"
+    ],
+    "tool": "tools/model-artifacts/capture_gemma3n_e2b_hf_provenance_v0.py"
+  },
+  "schemaVersion": "morimil.deliberative.v0.2.hf-provenance-discovery.v0",
+  "status": "DISCOVERED_PENDING_AUTHENTICATED_HUB_LFS_CAPTURE"
+}
