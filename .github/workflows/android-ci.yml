@@ -35,6 +35,8 @@ jobs:
           python -m unittest discover -s tools/benchmarks -p 'test_*.py'
           python tools/benchmarks/morimil_deliberative_benchmark_v0.py check
           python tools/benchmarks/validate_v02_baseline_evidence_v0.py check
+          python tools/benchmarks/validate_v02_physical_benchmark_evidence_v1.py check
+          python tools/benchmarks/validate_trimotor_v02_physical_benchmark_evidence_v1.py check
 
       - name: Test Android arm64 host tools
         run: |
