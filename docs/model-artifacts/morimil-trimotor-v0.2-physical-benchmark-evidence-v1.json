@@ -1,0 +1,362 @@
+{
+  "artifact": {
+    "artifactVersion": "morimil-deliberative-v0.2",
+    "backend": "cpu",
+    "filename": "morimil-deliberative-v0.2.candidate.litertlm",
+    "profileVersion": "morimil.deliberative.artifact.contract.v0.2-candidate",
+    "requiredAbi": "arm64-v8a",
+    "runtimeVersion": "0.14.0",
+    "sha256": "sha256:2ed7bc3a0026c93d5b8a4544b352d9d00cd66ff0bac3ef6a20ac3d2cba4010d6",
+    "sizeBytes": 3655827456,
+    "sourceModelRevision": null
+  },
+  "authorityBoundary": {
+    "externalMotorMayBecomeIdentity": false,
+    "identityAuthority": false,
+    "intrinsicMotorsOwnedByMorimil": true,
+    "lifecycleAuthority": false,
+    "memoryWriteCapability": false,
+    "requestStateReleased": true
+  },
+  "benchmark": {
+    "benchmarkVersion": "morimil.deliberative.loop-effort.benchmark.smoke.v0",
+    "caseCount": 120,
+    "counts": {
+      "abstainedCount": 48,
+      "acceptedCorrectCount": 72,
+      "acceptedCount": 72,
+      "capabilityBoundaryPassCount": 120,
+      "claimVerificationCaseCount": 12,
+      "claimVerificationPassCount": 12,
+      "correctAbstentionCount": 12,
+      "falseAcceptedCount": 0,
+      "instructionCaseCount": 120,
+      "instructionComplianceCount": 84,
+      "stateReleasePassCount": 120,
+      "strictFormatCaseCount": 24,
+      "strictFormatPassCount": 24,
+      "unnecessaryAbstentionCount": 36
+    },
+    "datasetSha256": "sha256:f5531706637d2358ca7da9181ab3bd4ccebed634a774c66ebb538bce5cf651fc",
+    "domainBreakdown": [
+      {
+        "abstainedCount": 0,
+        "acceptedCorrectCount": 12,
+        "acceptedCount": 12,
+        "caseCount": 12,
+        "correctAbstentionCount": 0,
+        "domain": "adversarial_consensus",
+        "falseAcceptedCount": 0,
+        "unnecessaryAbstentionCount": 0
+      },
+      {
+        "abstainedCount": 0,
+        "acceptedCorrectCount": 12,
+        "acceptedCount": 12,
+        "caseCount": 12,
+        "correctAbstentionCount": 0,
+        "domain": "arithmetic",
+        "falseAcceptedCount": 0,
+        "unnecessaryAbstentionCount": 0
+      },
+      {
+        "abstainedCount": 0,
+        "acceptedCorrectCount": 12,
+        "acceptedCount": 12,
+        "caseCount": 12,
+        "correctAbstentionCount": 0,
+        "domain": "claim_verification",
+        "falseAcceptedCount": 0,
+        "unnecessaryAbstentionCount": 0
+      },
+      {
+        "abstainedCount": 12,
+        "acceptedCorrectCount": 0,
+        "acceptedCount": 0,
+        "caseCount": 12,
+        "correctAbstentionCount": 12,
+        "domain": "insufficient_information",
+        "falseAcceptedCount": 0,
+        "unnecessaryAbstentionCount": 0
+      },
+      {
+        "abstainedCount": 12,
+        "acceptedCorrectCount": 0,
+        "acceptedCount": 0,
+        "caseCount": 12,
+        "correctAbstentionCount": 0,
+        "domain": "logic",
+        "falseAcceptedCount": 0,
+        "unnecessaryAbstentionCount": 12
+      },
+      {
+        "abstainedCount": 0,
+        "acceptedCorrectCount": 12,
+        "acceptedCount": 12,
+        "caseCount": 12,
+        "correctAbstentionCount": 0,
+        "domain": "multi_turn_context",
+        "falseAcceptedCount": 0,
+        "unnecessaryAbstentionCount": 0
+      },
+      {
+        "abstainedCount": 12,
+        "acceptedCorrectCount": 0,
+        "acceptedCount": 0,
+        "caseCount": 12,
+        "correctAbstentionCount": 0,
+        "domain": "planning",
+        "falseAcceptedCount": 0,
+        "unnecessaryAbstentionCount": 12
+      },
+      {
+        "abstainedCount": 0,
+        "acceptedCorrectCount": 12,
+        "acceptedCount": 12,
+        "caseCount": 12,
+        "correctAbstentionCount": 0,
+        "domain": "restricted_code",
+        "falseAcceptedCount": 0,
+        "unnecessaryAbstentionCount": 0
+      },
+      {
+        "abstainedCount": 12,
+        "acceptedCorrectCount": 0,
+        "acceptedCount": 0,
+        "caseCount": 12,
+        "correctAbstentionCount": 0,
+        "domain": "spanish",
+        "falseAcceptedCount": 0,
+        "unnecessaryAbstentionCount": 12
+      },
+      {
+        "abstainedCount": 0,
+        "acceptedCorrectCount": 12,
+        "acceptedCount": 12,
+        "caseCount": 12,
+        "correctAbstentionCount": 0,
+        "domain": "strict_format",
+        "falseAcceptedCount": 0,
+        "unnecessaryAbstentionCount": 0
+      }
+    ],
+    "latencyMs": {
+      "average": 6389.25,
+      "maximum": 19184,
+      "median": 2,
+      "minimum": 0,
+      "p95": 18049
+    },
+    "productionPromotionAllowed": false,
+    "qualityGatePassed": true,
+    "rates": {
+      "abstentionPrecision": 0.25,
+      "abstentionRate": 0.4,
+      "acceptancePrecision": 1.0,
+      "acceptedCorrectRate": 0.6,
+      "capabilityBoundaryPassRate": 1.0,
+      "claimVerificationPassRate": 1.0,
+      "falseAcceptanceObservedRate": 0.0,
+      "instructionComplianceRate": 0.7,
+      "stateReleasePassRate": 1.0,
+      "strictFormatPassRate": 1.0
+    },
+    "responseCount": 120,
+    "runStatus": "COMPLETED_PASSED_RESEARCH_GATE",
+    "uncertainty": {
+      "interpretation": "No se observaron falsos aceptados; esto no demuestra una tasa real de cero.",
+      "ruleOfThree95UpperBoundAmongAccepted": 0.041666666666666664,
+      "zeroObservedFalseAcceptances": true
+    }
+  },
+  "comparison": {
+    "baselineRunId": "morimil-v0.2-physical-20260721-192940-2e071af0",
+    "candidateRunId": "morimil-trimotor-v0.2-physical-20260722-043653-908d91aa",
+    "outcome": "V0_3_SUPERIOR",
+    "outcomeSemantics": "Legacy comparator label meaning that this candidate satisfied the frozen superiority conditions. It does not identify the candidate as a trained neural v0.3 model.",
+    "productionPromotionAllowed": false,
+    "reasons": [],
+    "status": "research-only"
+  },
+  "evidenceKind": "physical-trimotor-benchmark-completed-research-gate-passed",
+  "execution": {
+    "allConversationsClosed": true,
+    "allRequestStatesReleased": true,
+    "artifactHashStable": true,
+    "authorityStatusCounts": {
+      "ABSTAINED": 48,
+      "ACCEPTED_DETERMINISTIC": 72
+    },
+    "closedConversationCount": 48,
+    "completedAt": "2026-07-22T11:53:21.488593Z",
+    "completedCaseCount": 120,
+    "device": {
+      "device": "zircon",
+      "manufacturer": "Xiaomi",
+      "model": "23090RA98G",
+      "process64Bit": true,
+      "sdkInt": 36
+    },
+    "engineClosed": true,
+    "engineInitialized": true,
+    "errors": [],
+    "infrastructureStatus": "PASSED",
+    "openedConversationCount": 48,
+    "performance": {
+      "latencyMs": {
+        "average": 6389.25,
+        "maximum": 19184,
+        "median": 2,
+        "minimum": 0,
+        "p95": 18049
+      },
+      "loadMilliseconds": 7914,
+      "lowMemoryObserved": false,
+      "maximumBatteryTemperatureCelsius": 38.4,
+      "maximumThermalStatus": 0,
+      "maximumThermalStatusName": "none",
+      "minimumSystemAvailableBytes": 5676789760,
+      "peakNativePssKilobytes": 973384,
+      "peakTotalPssKilobytes": 2705581,
+      "totalBenchmarkMilliseconds": 883211
+    },
+    "physicalReportStatus": "passed",
+    "requestedCaseCount": 120,
+    "roleActivationCounts": {
+      "DELIBERATIVE": 48,
+      "INTUITIVE": 72,
+      "METACOGNITIVE": 72
+    },
+    "startedAt": "2026-07-22T11:38:38.274194Z"
+  },
+  "limitations": [
+    "The exact owner-supplied ZIP is versioned as ordered Base64 fragments; CI concatenates them, verifies the Base64 and ZIP SHA-256 values, and reads all seven entries.",
+    "The exact raw v0.2 baseline is already inside the immutable v0.2 evidence archive; the host runner materializes and verifies it before comparison.",
+    "Reproducible conversion evidence remains absent.",
+    "The bounded Metacognitive core cannot independently verify open logic, Spanish generation or planning, so 36 answer-required cases were conservatively abstained.",
+    "V0_3_SUPERIOR is a legacy comparator outcome label, not evidence that a trained neural v0.3 model exists.",
+    "This evidence cannot certify, sign, install or authorize activation of Morimil's personal runtime."
+  ],
+  "promotion": {
+    "blockers": [
+      "SOURCE_MODEL_REVISION_MISSING",
+      "REPRODUCIBLE_CONVERSION_EVIDENCE_MISSING",
+      "CERTIFICATION_MISSING",
+      "SIGNATURE_MISSING",
+      "INSTALLATION_AUTHORIZATION_MISSING",
+      "PERSONAL_RUNTIME_ACTIVATION_AUTHORIZATION_MISSING"
+    ],
+    "certified": false,
+    "installed": false,
+    "normalRuntimeActivated": false,
+    "personalRuntimeActivationAuthorized": false,
+    "productionAuthorization": false,
+    "productionPromotionAllowed": false,
+    "reproducibleConversionEvidence": false,
+    "signed": false
+  },
+  "runId": "morimil-trimotor-v0.2-physical-20260722-043653-908d91aa",
+  "schemaVersion": "morimil.trimotor.v0.2.physical-benchmark-evidence.v1",
+  "sourceArchive": {
+    "filename": "morimil-trimotor-v0.2-physical-20260722-043653-908d91aa-freeze.zip",
+    "sha256": "sha256:799d29f130dda25981941c28a702f46c5be9a998fdb36cbc9c427532a9b3b8f1",
+    "sizeBytes": 19421
+  },
+  "sourceMainCommit": "79eb5e31fe11611901048e80803c5c284f58e5cc",
+  "status": "research-only",
+  "storage": {
+    "archiveBase64Parts": {
+      "concatenatedBase64Sha256": "sha256:7fed0bb02cf5378931cb1f160fb579ce2a7690095719d939bae0322df68ba7be",
+      "concatenatedBase64SizeBytes": 25896,
+      "parts": [
+        {
+          "path": "docs/research/evidence/morimil-trimotor-v0.2-physical-20260722-043653-908d91aa/archive-base64/part-0001.txt",
+          "sha256": "sha256:126b45954343a2b7145c9a602f2c4839b8903e1f8afbd21c2a298e272c2c91cb",
+          "sizeBytes": 4001
+        },
+        {
+          "path": "docs/research/evidence/morimil-trimotor-v0.2-physical-20260722-043653-908d91aa/archive-base64/part-0002.txt",
+          "sha256": "sha256:eaa71c996fcaf117f80020184878583afc2d19189af4d64052d630f712131172",
+          "sizeBytes": 4001
+        },
+        {
+          "path": "docs/research/evidence/morimil-trimotor-v0.2-physical-20260722-043653-908d91aa/archive-base64/part-0003.txt",
+          "sha256": "sha256:b170807f820015dff9d96a1f6b80442229614b8f7c7e5aea951e33545d5d5944",
+          "sizeBytes": 4001
+        },
+        {
+          "path": "docs/research/evidence/morimil-trimotor-v0.2-physical-20260722-043653-908d91aa/archive-base64/part-0004.txt",
+          "sha256": "sha256:305cec73fe204e0c6b054665f1898b313bf079c4cd206167443e7f967a7061ed",
+          "sizeBytes": 4001
+        },
+        {
+          "path": "docs/research/evidence/morimil-trimotor-v0.2-physical-20260722-043653-908d91aa/archive-base64/part-0005.txt",
+          "sha256": "sha256:f15cd34d9f512205ef91e9db4cebf38858c89f9573455a1794398545a1851352",
+          "sizeBytes": 4001
+        },
+        {
+          "path": "docs/research/evidence/morimil-trimotor-v0.2-physical-20260722-043653-908d91aa/archive-base64/part-0006.txt",
+          "sha256": "sha256:79ce7e5229f606d32c06d8db1bd521a522894f8ac98dc6e4c3f44031e067662e",
+          "sizeBytes": 4001
+        },
+        {
+          "path": "docs/research/evidence/morimil-trimotor-v0.2-physical-20260722-043653-908d91aa/archive-base64/part-0007.txt",
+          "sha256": "sha256:470324706267e862ea9435271f93d3be626903637bbcefa9a7d2c82a767df744",
+          "sizeBytes": 1897
+        }
+      ]
+    },
+    "archiveContents": {
+      "baseline-report-v0.2.json": {
+        "sha256": "sha256:2a371f906cebd74a05a50883563b665a5b99fac9864c44c794bb245b73304a12",
+        "sizeBytes": 43935
+      },
+      "comparison-v0.2.json": {
+        "sha256": "sha256:5b850d760da8da950448e4ef932a39f8b41d5e6e6a11415cecd2f83446a8251f",
+        "sizeBytes": 520
+      },
+      "dataset-v0.json": {
+        "sha256": "sha256:f5531706637d2358ca7da9181ab3bd4ccebed634a774c66ebb538bce5cf651fc",
+        "sizeBytes": 85714
+      },
+      "instrumentation-output.txt": {
+        "sha256": "sha256:dcadc8dcb0612f0d4bfe887b834b7b8104a21518077befdc2bf2d20ece7ca150",
+        "sizeBytes": 1645
+      },
+      "physical-execution-trimotor-v0.2.json": {
+        "sha256": "sha256:5d6a1f11fbb04990aa280b801d4d02b29bf5ae2db0d52c51e6729064b4eac8fb",
+        "sizeBytes": 53428
+      },
+      "report-trimotor-v0.2.json": {
+        "sha256": "sha256:a7800a7992c99f0ab1294ea7892348413e9de1f8d4fd61056d898acebbf5393a",
+        "sizeBytes": 43371
+      },
+      "responses-trimotor-v0.2.jsonl": {
+        "sha256": "sha256:7461727a8e78aa54d98a180ce1916af81a55ee5d01bb368836f4c1a21b15187b",
+        "sizeBytes": 204065
+      }
+    },
+    "convenienceFiles": {
+      "bundle": {
+        "path": "docs/research/evidence/morimil-trimotor-v0.2-physical-20260722-043653-908d91aa/bundle-trimotor-v0.2.json",
+        "sha256": "sha256:2259627efab4ed88dc4e276075d44c327a2a61b12522d4135f178fcb8992430e",
+        "sizeBytes": 3752
+      },
+      "comparison": {
+        "path": "docs/research/evidence/morimil-trimotor-v0.2-physical-20260722-043653-908d91aa/comparison-v0.2.json",
+        "sha256": "sha256:5b850d760da8da950448e4ef932a39f8b41d5e6e6a11415cecd2f83446a8251f",
+        "sizeBytes": 520
+      },
+      "transcript": {
+        "path": "docs/research/evidence/morimil-trimotor-v0.2-physical-20260722-043653-908d91aa/instrumentation-output.txt",
+        "sha256": "sha256:dcadc8dcb0612f0d4bfe887b834b7b8104a21518077befdc2bf2d20ece7ca150",
+        "sizeBytes": 1645
+      }
+    },
+    "decodedArchive": {
+      "filename": "morimil-trimotor-v0.2-physical-20260722-043653-908d91aa-freeze.zip",
+      "sha256": "sha256:799d29f130dda25981941c28a702f46c5be9a998fdb36cbc9c427532a9b3b8f1",
+      "sizeBytes": 19421
+    }
+  }
+}
