@@ -4,8 +4,9 @@ package com.morimil.app.reasoning.intrinsic
  * Research-only identity profile for the acquired Gemma 3n E2B LiteRT-LM candidate.
  *
  * This is deliberately not a signed artifact contract and cannot authorize loading,
- * installation or promotion. The exact base-model source revision and reproducible
- * conversion evidence are still missing.
+ * installation or promotion. Morimil acquired a prebuilt upstream binary and did not
+ * perform model conversion. Authenticated Hub LFS byte-identity evidence and the
+ * producer's exact base-checkpoint revision remain separate provenance gates.
  */
 object MorimilDeliberativeArtifactContractV02Candidate {
     const val PROFILE_VERSION = "morimil.deliberative.artifact.contract.v0.2-candidate"
@@ -16,8 +17,19 @@ object MorimilDeliberativeArtifactContractV02Candidate {
     const val ARCHITECTURE_ID = "google.gemma3n.text.e2b.it"
     const val SOURCE_MODEL_ID = "google/gemma-3n-E2B-it"
     const val UPSTREAM_REPOSITORY = "google/gemma-3n-E2B-it-litert-lm"
+
+    /** Repository snapshot previously observed during acquisition. */
     const val UPSTREAM_REPOSITORY_REVISION = "c03b6f60b8da6c5400b6838a2cf26420f80c0a01"
+
+    /** Exact file revision pinned by Google's official AI Edge Gallery allowlist. */
+    const val UPSTREAM_ARTIFACT_REVISION = "ba9ca88da013b537b6ed38108be609b8db1c3a16"
     const val UPSTREAM_ARTIFACT_FILENAME = "gemma-3n-E2B-it-int4.litertlm"
+    const val OFFICIAL_ALLOWLIST_REPOSITORY = "google-ai-edge/gallery"
+    const val OFFICIAL_ALLOWLIST_REVISION = "126501c8849affcfb094d2c5b193aa5deb1434a6"
+    const val OFFICIAL_ALLOWLIST_PATH = "model_allowlists/1_0_15.json"
+    const val ACQUISITION_MODE = "DIRECT_UPSTREAM_BINARY_RENAME_ONLY"
+    const val CONVERSION_PERFORMED_BY_MORIMIL = false
+
     const val ARTIFACT_SHA256 =
         "sha256:2ed7bc3a0026c93d5b8a4544b352d9d00cd66ff0bac3ef6a20ac3d2cba4010d6"
     const val ARTIFACT_SIZE_BYTES = 3_655_827_456L
