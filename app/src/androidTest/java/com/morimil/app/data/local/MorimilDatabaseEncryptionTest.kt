@@ -55,9 +55,7 @@ class MorimilDatabaseEncryptionTest {
         assertEquals(databaseFile.absolutePath, prepared.absolutePath)
         assertFalse(hasPlaintextHeader(prepared))
         assertFalse(canOpenWithoutPassphrase(prepared))
-        migrationArtifacts().forEach { artifact ->
-            assertFalse("Migration artifact remained: ${artifact.name}", artifact.exists())
-        }
+        assertNoMigrationArtifacts()
 
         var encrypted: CipherDatabase? = null
         try {
@@ -78,6 +76,22 @@ class MorimilDatabaseEncryptionTest {
             }
         } finally {
             encrypted?.close()
+        }
+
+        val preparedAgain = MorimilDatabaseEncryption.prepareDatabaseFile(
+            context = context,
+            databaseName = TEST_DATABASE_NAME,
+            passphrase = PASSPHRASE.copyOf()
+        )
+        assertEquals(prepared.absolutePath, preparedAgain.absolutePath)
+        assertFalse(hasPlaintextHeader(preparedAgain))
+        assertFalse(canOpenWithoutPassphrase(preparedAgain))
+        assertNoMigrationArtifacts()
+    }
+
+    private fun assertNoMigrationArtifacts() {
+        migrationArtifacts().forEach { artifact ->
+            assertFalse("Migration artifact remained: ${artifact.name}", artifact.exists())
         }
     }
 
