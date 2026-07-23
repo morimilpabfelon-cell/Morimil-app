@@ -45,6 +45,28 @@ class HybridAuthorityPresentationV0Test {
     }
 
     @Test
+    fun deterministicLogicUsesSpecificSafeRouteLabel() {
+        val presentation = HybridAuthorityPresentationV0.from(
+            finalizationStatus = TriMotorFinalizationStatus.ACCEPTED_BY_AUTHORITY,
+            authorityDecision = HybridAuthorityDecision(
+                route = HybridAuthorityRoute.DETERMINISTIC_LOGIC,
+                status = HybridAuthorityStatus.ACCEPTED_DETERMINISTIC,
+                acceptedContent = "FINAL:ANA",
+                authorityVersion = HybridAuthorityRouterV0.VERSION,
+                findings = listOf("order=ana>bruno>carla")
+            )
+        )
+
+        assertEquals(
+            HybridAuthorityPresentationStatus.ACCEPTED_DETERMINISTIC,
+            presentation.status
+        )
+        assertEquals("orden lógico determinista", presentation.routeLabel)
+        assertFalse(presentation.explanation.contains("ana>bruno>carla"))
+        assertFalse(presentation.explanation.contains("FINAL:ANA"))
+    }
+
+    @Test
     fun abstentionDoesNotExposeRawFindings() {
         val presentation = HybridAuthorityPresentationV0.from(
             finalizationStatus = TriMotorFinalizationStatus.ABSTAINED_BY_AUTHORITY,
