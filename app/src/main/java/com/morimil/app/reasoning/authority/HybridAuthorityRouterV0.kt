@@ -34,7 +34,9 @@ class HybridAuthorityRouterV0 {
             HybridAuthorityTaskKind.LOGIC -> deterministicDecision(
                 route = HybridAuthorityRoute.DETERMINISTIC_LOGIC,
                 result = DeterministicClosedOrderAuthorityV0.solve(request.prompt),
-                request = request
+                request = request,
+                unsupportedRoute = HybridAuthorityRoute.UNSUPPORTED,
+                unsupportedFinding = "hybrid_authority_task_unknown"
             )
 
             HybridAuthorityTaskKind.SPANISH,
@@ -50,7 +52,9 @@ class HybridAuthorityRouterV0 {
     private fun deterministicDecision(
         route: HybridAuthorityRoute,
         result: DeterministicAuthorityResult,
-        request: HybridAuthorityRequest
+        request: HybridAuthorityRequest,
+        unsupportedRoute: HybridAuthorityRoute = route,
+        unsupportedFinding: String? = null
     ): HybridAuthorityDecision {
         val advisory = StrictFinalConsensusV0.evaluate(
             directReply = request.directReply,
@@ -59,9 +63,10 @@ class HybridAuthorityRouterV0 {
 
         if (!result.success || result.value == null) {
             return HybridAuthorityDecision.abstain(
-                route = route,
+                route = unsupportedRoute,
                 reason = result.reason,
                 findings = listOfNotNull(
+                    unsupportedFinding,
                     result.trace,
                     advisory.finding()
                 )
