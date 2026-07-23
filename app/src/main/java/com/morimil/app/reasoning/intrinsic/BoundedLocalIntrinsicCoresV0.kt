@@ -113,8 +113,8 @@ private fun boundedDeterministicDecision(
         ReasoningTaskKind.RESTRICTED_CODE -> HybridAuthorityTaskKind.RESTRICTED_CODE
         ReasoningTaskKind.CLAIM_VERIFICATION -> HybridAuthorityTaskKind.CLAIM_VERIFICATION
         ReasoningTaskKind.LOGIC -> HybridAuthorityTaskKind.LOGIC
+        ReasoningTaskKind.INSTRUCTION -> HybridAuthorityTaskKind.INSTRUCTION
         ReasoningTaskKind.SPANISH,
-        ReasoningTaskKind.INSTRUCTION,
         ReasoningTaskKind.UNKNOWN -> throw IllegalArgumentException(
             "bounded_local_task_kind_unsupported:${taskKind.name.lowercase()}"
         )

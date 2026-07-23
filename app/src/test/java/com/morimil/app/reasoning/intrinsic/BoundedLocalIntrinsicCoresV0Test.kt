@@ -57,6 +57,19 @@ class BoundedLocalIntrinsicCoresV0Test {
     }
 
     @Test
+    fun intuitiveCoreExecutesExactInstructionLocally() = runBlocking {
+        val output = BoundedLocalIntuitiveCoreV0().compute(
+            intuitiveInput(
+                taskKind = ReasoningTaskKind.INSTRUCTION,
+                prompt = "Calcula 12 - 5 y devuelve exactamente FINAL:<resultado>."
+            )
+        ).getOrThrow()
+
+        assertEquals("FINAL:7", output.content)
+        assertTrue(output.findings.contains("deterministic_exact_instruction_subtraction"))
+    }
+
+    @Test
     fun metacognitiveCoreRecomputesCheckableClaimFromOriginalPrompt() = runBlocking {
         val output = BoundedLocalMetacognitiveCoreV0().compute(
             MetacognitiveCoreInputV0(
@@ -71,6 +84,25 @@ class BoundedLocalIntrinsicCoresV0Test {
         assertEquals("FINAL:54", output.content)
         assertTrue(output.findings.contains("deterministic_claim_multiplication"))
         assertTrue(output.findings.contains("intrinsic_core:metacognitive_bounded_local"))
+        assertTrue(
+            output.findings.contains("verification_mode:blind_deterministic_recomputation")
+        )
+    }
+
+    @Test
+    fun metacognitiveCoreRecomputesExactLiteralInstructionBlindly() = runBlocking {
+        val output = BoundedLocalMetacognitiveCoreV0().compute(
+            MetacognitiveCoreInputV0(
+                systemPrompt = "Verifica localmente.",
+                history = emptyList(),
+                taskComplexity = ReasoningTaskComplexity.DEEP_ANALYSIS,
+                taskKind = ReasoningTaskKind.INSTRUCTION,
+                authorityPrompt = "Devuelve exactamente FINAL:AZUL y nada más."
+            )
+        ).getOrThrow()
+
+        assertEquals("FINAL:AZUL", output.content)
+        assertTrue(output.findings.contains("deterministic_exact_instruction_literal"))
         assertTrue(
             output.findings.contains("verification_mode:blind_deterministic_recomputation")
         )
@@ -107,6 +139,22 @@ class BoundedLocalIntrinsicCoresV0Test {
         assertTrue(result.isFailure)
         assertEquals(
             "bounded_local_authority_abstained:deterministic_closed_order_not_unique",
+            result.exceptionOrNull()?.message
+        )
+    }
+
+    @Test
+    fun malformedExactInstructionFailsClosed() = runBlocking {
+        val result = BoundedLocalIntuitiveCoreV0().compute(
+            intuitiveInput(
+                taskKind = ReasoningTaskKind.INSTRUCTION,
+                prompt = "Devuelve exactamente FINAL:azul y nada más."
+            )
+        )
+
+        assertTrue(result.isFailure)
+        assertEquals(
+            "bounded_local_authority_abstained:deterministic_exact_instruction_literal_not_canonical",
             result.exceptionOrNull()?.message
         )
     }

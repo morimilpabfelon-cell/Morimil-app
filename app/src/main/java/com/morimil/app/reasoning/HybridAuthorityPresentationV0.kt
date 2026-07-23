@@ -88,7 +88,8 @@ object HybridAuthorityPresentationV0 {
                     decision.route == HybridAuthorityRoute.DETERMINISTIC_ARITHMETIC ||
                         decision.route == HybridAuthorityRoute.RESTRICTED_CODE ||
                         decision.route == HybridAuthorityRoute.DETERMINISTIC_CLAIM_CHECK ||
-                        decision.route == HybridAuthorityRoute.DETERMINISTIC_LOGIC
+                        decision.route == HybridAuthorityRoute.DETERMINISTIC_LOGIC ||
+                        decision.route == HybridAuthorityRoute.DETERMINISTIC_INSTRUCTION
                 ) { "deterministic_status_requires_deterministic_route" }
                 HybridAuthorityPresentationStatus.ACCEPTED_DETERMINISTIC
             }
@@ -135,6 +136,7 @@ object HybridAuthorityPresentationV0 {
             HybridAuthorityRoute.RESTRICTED_CODE -> "código restringido"
             HybridAuthorityRoute.DETERMINISTIC_CLAIM_CHECK -> "verificación determinista"
             HybridAuthorityRoute.DETERMINISTIC_LOGIC -> "orden lógico determinista"
+            HybridAuthorityRoute.DETERMINISTIC_INSTRUCTION -> "instrucción exacta determinista"
             HybridAuthorityRoute.STRICT_GENERATIVE_CONSENSUS -> "consenso estricto"
             HybridAuthorityRoute.UNSUPPORTED -> "ruta no compatible"
         }

@@ -17,17 +17,17 @@ ARITHMETIC
 RESTRICTED_CODE
 CLAIM_VERIFICATION
 LOGIC (closed arrival-order grammar only)
+INSTRUCTION (exact literal or exact subtraction grammar only)
 ```
 
 The following remain unsupported and fail closed:
 
 ```text
 SPANISH
-INSTRUCTION
 UNKNOWN
 ```
 
-General syllogisms and malformed or ambiguous order prompts also fail closed even when classified as `LOGIC`.
+General syllogisms, planning, free-form instructions and malformed or ambiguous prompts also fail closed even when their broad task kind is known.
 
 ## Intuitive behavior
 
@@ -43,18 +43,24 @@ print(sum([1, 2, 3]))
 Ana llegó antes que Bruno y Bruno antes que Carla.
 ¿Quién llegó primero?
   -> FINAL:ANA
+
+Calcula 12 - 5 y devuelve exactamente FINAL:<resultado>.
+  -> FINAL:7
+
+Devuelve exactamente FINAL:AZUL y nada más.
+  -> FINAL:AZUL
 ```
 
-It does not execute Python or arbitrary code. Order logic is solved through a unique topological sort, not through generated text.
+It does not execute Python or arbitrary code. Order logic is solved through a unique topological sort, and exact instructions are verified by a complete local grammar.
 
 ## Metacognitive behavior
 
 The Metacognitive core receives the original prompt but no primary candidate. It recomputes bounded tasks independently from that prompt.
 
 ```text
-primary Deliberative candidate:  FINAL:CARLA
-blind deterministic result:      FINAL:ANA
-final Morimil authority result:  FINAL:ANA
+primary Deliberative candidate:  FINAL:ROJO
+blind deterministic result:      FINAL:AZUL
+final Morimil authority result:  FINAL:AZUL
 ```
 
 For unsupported generative tasks it refuses to manufacture agreement and returns failure to the coordinator.
@@ -105,6 +111,7 @@ They are request-scoped computation organs. Morimil retains identity, memory, co
 real bounded Intuitive computation:          yes
 real blind Metacognitive recomputation:      yes, research-only
 closed-order deterministic logic:            yes
+exact deterministic instruction grammar:     yes
 request-persistent core state:                no
 general neural Intuitive model:              no
 general neural Metacognitive model:          no

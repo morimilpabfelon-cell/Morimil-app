@@ -6,7 +6,8 @@ import java.math.BigInteger
  * Routes one bounded reasoning result to the component that is allowed to decide it.
  *
  * Neural replies are advisory on deterministic routes. They never gain authority over
- * arithmetic, restricted code semantics, locally checkable claims or closed order logic.
+ * arithmetic, restricted code semantics, locally checkable claims, closed order logic
+ * or exact instruction formatting.
  */
 class HybridAuthorityRouterV0 {
     fun decide(request: HybridAuthorityRequest): HybridAuthorityDecision {
@@ -39,8 +40,15 @@ class HybridAuthorityRouterV0 {
                 unsupportedFinding = "hybrid_authority_task_unknown"
             )
 
-            HybridAuthorityTaskKind.SPANISH,
-            HybridAuthorityTaskKind.INSTRUCTION -> strictConsensusDecision(request)
+            HybridAuthorityTaskKind.INSTRUCTION -> deterministicDecision(
+                route = HybridAuthorityRoute.DETERMINISTIC_INSTRUCTION,
+                result = DeterministicExactInstructionAuthorityV0.solve(request.prompt),
+                request = request,
+                unsupportedRoute = HybridAuthorityRoute.UNSUPPORTED,
+                unsupportedFinding = "hybrid_authority_task_unknown"
+            )
+
+            HybridAuthorityTaskKind.SPANISH -> strictConsensusDecision(request)
 
             HybridAuthorityTaskKind.UNKNOWN -> HybridAuthorityDecision.abstain(
                 route = HybridAuthorityRoute.UNSUPPORTED,
@@ -131,6 +139,7 @@ enum class HybridAuthorityRoute {
     RESTRICTED_CODE,
     DETERMINISTIC_CLAIM_CHECK,
     DETERMINISTIC_LOGIC,
+    DETERMINISTIC_INSTRUCTION,
     STRICT_GENERATIVE_CONSENSUS,
     UNSUPPORTED
 }

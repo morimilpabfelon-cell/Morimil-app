@@ -43,7 +43,7 @@ object ReasoningTaskKindClassifierV0 {
             SPANISH_PATTERNS.any { pattern -> pattern.containsMatchIn(prompt) } ->
                 ReasoningTaskKind.SPANISH
 
-            INSTRUCTION_PATTERNS.any { pattern -> pattern.containsMatchIn(prompt) } ->
+            INSTRUCTION_PATTERNS.any { pattern -> pattern.matches(prompt) } ->
                 ReasoningTaskKind.INSTRUCTION
 
             else -> ReasoningTaskKind.UNKNOWN
@@ -134,9 +134,14 @@ object ReasoningTaskKindClassifierV0 {
         Regex("""a\s+la\s+izquierda\s+de""", RegexOption.IGNORE_CASE)
     )
 
+    private const val INSTRUCTION_INTEGER = "(?:0|-?[1-9][0-9]{0,63})"
     private val INSTRUCTION_PATTERNS = listOf(
-        Regex("""devuelve\s+exactamente\s+FINAL:""", RegexOption.IGNORE_CASE),
-        Regex("""usando\s+exactamente\s+FINAL:""", RegexOption.IGNORE_CASE)
+        Regex(
+            """^devuelve\s+exactamente\s+final:(?:[a-z][a-z0-9_-]{0,31}|$INSTRUCTION_INTEGER)\s+y\s+nada\s+mas\.?$"""
+        ),
+        Regex(
+            """^calcula\s+$INSTRUCTION_INTEGER\s*-\s*$INSTRUCTION_INTEGER\s+y\s+devuelve\s+exactamente\s+final:<resultado>\.?$"""
+        )
     )
 }
 
@@ -154,9 +159,9 @@ enum class TriMotorFinalizationStatus {
 /**
  * Only routes backed by exact local computation may reach the authority router.
  *
- * LOGIC is admitted only for the closed-order grammar verified by the router. SPANISH
- * and INSTRUCTION remain useful classifications for motor selection and research
- * telemetry, but generated replies are not independent proof and must abstain.
+ * LOGIC and INSTRUCTION are admitted only for their closed deterministic grammars.
+ * SPANISH remains useful for motor selection and research telemetry, but generated
+ * replies are not independent proof and must abstain at the final-authority boundary.
  */
 internal fun ReasoningTaskKind.toHybridAuthorityTaskKind(): HybridAuthorityTaskKind {
     return when (this) {
@@ -164,8 +169,8 @@ internal fun ReasoningTaskKind.toHybridAuthorityTaskKind(): HybridAuthorityTaskK
         ReasoningTaskKind.RESTRICTED_CODE -> HybridAuthorityTaskKind.RESTRICTED_CODE
         ReasoningTaskKind.CLAIM_VERIFICATION -> HybridAuthorityTaskKind.CLAIM_VERIFICATION
         ReasoningTaskKind.LOGIC -> HybridAuthorityTaskKind.LOGIC
+        ReasoningTaskKind.INSTRUCTION -> HybridAuthorityTaskKind.INSTRUCTION
         ReasoningTaskKind.SPANISH,
-        ReasoningTaskKind.INSTRUCTION,
         ReasoningTaskKind.UNKNOWN -> HybridAuthorityTaskKind.UNKNOWN
     }
 }

@@ -67,6 +67,28 @@ class HybridAuthorityPresentationV0Test {
     }
 
     @Test
+    fun deterministicInstructionUsesSpecificSafeRouteLabel() {
+        val presentation = HybridAuthorityPresentationV0.from(
+            finalizationStatus = TriMotorFinalizationStatus.ACCEPTED_BY_AUTHORITY,
+            authorityDecision = HybridAuthorityDecision(
+                route = HybridAuthorityRoute.DETERMINISTIC_INSTRUCTION,
+                status = HybridAuthorityStatus.ACCEPTED_DETERMINISTIC,
+                acceptedContent = "FINAL:7",
+                authorityVersion = HybridAuthorityRouterV0.VERSION,
+                findings = listOf("12-5=7;format=FINAL:<resultado>")
+            )
+        )
+
+        assertEquals(
+            HybridAuthorityPresentationStatus.ACCEPTED_DETERMINISTIC,
+            presentation.status
+        )
+        assertEquals("instrucción exacta determinista", presentation.routeLabel)
+        assertFalse(presentation.explanation.contains("12-5=7"))
+        assertFalse(presentation.explanation.contains("FINAL:7"))
+    }
+
+    @Test
     fun abstentionDoesNotExposeRawFindings() {
         val presentation = HybridAuthorityPresentationV0.from(
             finalizationStatus = TriMotorFinalizationStatus.ABSTAINED_BY_AUTHORITY,

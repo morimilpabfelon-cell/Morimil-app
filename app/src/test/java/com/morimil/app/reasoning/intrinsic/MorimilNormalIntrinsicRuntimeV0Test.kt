@@ -82,6 +82,53 @@ class MorimilNormalIntrinsicRuntimeV0Test {
     }
 
     @Test
+    fun exactInstructionRunsLocallyWithoutTemporaryProvider() = runBlocking {
+        var externalCalls = 0
+        val kernel = kernel(
+            externalProvider = TemporaryExternalReasoningProvider {
+                externalCalls += 1
+                Result.success("temporary external reply")
+            }
+        )
+
+        val result = kernel.reason(
+            kernelRequest("Calcula 12 - 5 y devuelve exactamente FINAL:<resultado>.")
+        )
+
+        assertEquals("FINAL:7", result.reply)
+        assertEquals(0, externalCalls)
+        assertEquals(ReasoningExecutionOrigin.MORIMIL_INTRINSIC, result.state.executionOrigin)
+        assertTrue(
+            result.state.criticFindings.contains("deterministic_exact_instruction_subtraction")
+        )
+        assertTrue(
+            result.state.modelBackendLabel.contains(BoundedLocalIntuitiveCoreV0.VERSION)
+        )
+    }
+
+    @Test
+    fun malformedInstructionFailsClosedAndPreservesFallback() = runBlocking {
+        var externalCalls = 0
+        val kernel = kernel(
+            externalProvider = TemporaryExternalReasoningProvider {
+                externalCalls += 1
+                Result.success("temporary external reply")
+            }
+        )
+
+        val result = kernel.reason(
+            kernelRequest("Devuelve exactamente FINAL:azul y nada más.")
+        )
+
+        assertEquals("temporary external reply", result.reply)
+        assertEquals(1, externalCalls)
+        assertEquals(ReasoningExecutionOrigin.TEMPORARY_EXTERNAL, result.state.executionOrigin)
+        assertTrue(
+            result.state.trace.any { event -> event.stage == "intrinsic_motor_unavailable" }
+        )
+    }
+
+    @Test
     fun unsupportedGenerativeTaskFailsClosedAndPreservesFallback() = runBlocking {
         var externalCalls = 0
         val kernel = kernel(
