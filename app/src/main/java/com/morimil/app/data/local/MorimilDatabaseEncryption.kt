@@ -111,7 +111,6 @@ internal object MorimilDatabaseEncryption {
             )
             encryptedAttached = true
             source.rawExecSQL("SELECT sqlcipher_export('encrypted')")
-            source.rawExecSQL("PRAGMA encrypted.user_version = $sourceVersion")
         } finally {
             if (encryptedAttached) {
                 runCatching { source?.rawExecSQL("DETACH DATABASE encrypted") }
@@ -119,6 +118,7 @@ internal object MorimilDatabaseEncryption {
             source?.close()
         }
 
+        setEncryptedDatabaseVersion(encryptedTemp, passphrase, sourceVersion)
         verifyEncryptedDatabase(encryptedTemp, passphrase, sourceVersion)
         deleteSidecars(databaseFile)
 
@@ -185,6 +185,26 @@ internal object MorimilDatabaseEncryption {
                     "Plaintext database WAL is busy; refusing a partial encryption migration."
                 }
             }
+        }
+    }
+
+    private fun setEncryptedDatabaseVersion(
+        databaseFile: File,
+        passphrase: ByteArray,
+        version: Int
+    ) {
+        var database: CipherDatabase? = null
+        try {
+            database = CipherDatabase.openDatabase(
+                databaseFile.absolutePath,
+                passphrase,
+                null,
+                CipherDatabase.OPEN_READWRITE,
+                null
+            )
+            database.version = version
+        } finally {
+            database?.close()
         }
     }
 
