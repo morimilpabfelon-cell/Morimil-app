@@ -160,13 +160,14 @@ class HybridAuthorityRuntimeIntegrationV0Test {
         )
         assertFalse(requireNotNull(result.authorityDecision).accepted)
         assertEquals(
-            HybridAuthorityRoute.STRICT_GENERATIVE_CONSENSUS,
+            HybridAuthorityRoute.UNSUPPORTED,
             result.authorityDecision?.route
         )
         assertEquals(
             TriMotorFinalizationStatus.ABSTAINED_BY_AUTHORITY,
             result.finalizationStatus
         )
+        assertTrue(result.findings.contains("hybrid_authority_task_unknown"))
     }
 
     @Test
