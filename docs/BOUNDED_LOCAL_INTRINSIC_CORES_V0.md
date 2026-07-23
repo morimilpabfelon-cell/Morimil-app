@@ -1,6 +1,6 @@
 # Bounded local intrinsic cores v0
 
-Status: research-only executable cores. Normal Morimil runtime activation remains disabled.
+Status: executable bounded cores. The Intuitive core is active in normal runtime; the Metacognitive core remains research-only.
 
 ## Purpose
 
@@ -70,6 +70,18 @@ MetacognitiveMotorV0(BoundedLocalMetacognitiveCoreV0)
 
 The factory does not locate, download, install, sign or activate a Deliberative artifact. The caller must supply the Deliberative motor explicitly.
 
+## Normal runtime activation
+
+`MorimilNormalIntrinsicRuntimeV0` registers exactly:
+
+```text
+INTUITIVE -> IntuitiveMotorV0(BoundedLocalIntuitiveCoreV0)
+```
+
+Normal Chat now tries this local motor first. It can answer only the deterministic routes listed above. Unsupported, malformed or ambiguous requests fail closed and continue through the existing temporary-external or deterministic fallback path.
+
+This activation does not register Deliberative or Metacognitive and does not enable `HybridAuthorityRuntimePolicy`.
+
 ## Freedom boundary
 
 The cores expose no:
@@ -82,10 +94,9 @@ memory or repository writer
 identity or Genesis writer
 lifecycle authority
 installer or downloader
-normal-runtime activation
 ```
 
-They are stateless computation organs. Morimil retains identity, memory, continuity and final authority.
+They are stateless computation organs. Morimil retains identity, memory, continuity and final authority. Normal-runtime registration is performed outside the cores by a narrow registry with an exact role allowlist.
 
 ## What this establishes
 
@@ -97,20 +108,11 @@ request-persistent core state:                no
 general neural Intuitive model:              no
 general neural Metacognitive model:          no
 physical tri-motor benchmark:                 not executed
-normal Chat activation:                       false
+normal Chat bounded Intuitive activation:     true
+normal Chat Deliberative activation:           false
+normal Chat Metacognitive activation:          false
 ```
 
 ## Next evidence gate
 
-After merge, the next valid experiment is a benchmark adapter that feeds the frozen 120-case dataset through the bounded research runtime and records:
-
-```text
-primaryCandidate
-verifierCandidate
-authorityDecision
-finalReply
-falseAcceptedCount
-abstention counts by domain
-```
-
-No installation or normal activation is authorized by this document.
+The next valid activation step is not to broaden the Intuitive parser silently. It is to register another intrinsic role only after its artifact, resource limits, behavior and authority boundary pass a separate review and physical Android validation.
