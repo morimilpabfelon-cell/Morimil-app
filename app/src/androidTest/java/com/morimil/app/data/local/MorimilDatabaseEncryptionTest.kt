@@ -25,12 +25,12 @@ class MorimilDatabaseEncryptionTest {
     @Before
     fun setUp() {
         System.loadLibrary("sqlcipher")
-        CipherDatabase.deleteDatabase(databaseFile)
+        deleteTestFiles()
     }
 
     @After
     fun cleanUp() {
-        CipherDatabase.deleteDatabase(databaseFile)
+        deleteTestFiles()
     }
 
     @Test
@@ -55,6 +55,9 @@ class MorimilDatabaseEncryptionTest {
         assertEquals(databaseFile.absolutePath, prepared.absolutePath)
         assertFalse(hasPlaintextHeader(prepared))
         assertFalse(canOpenWithoutPassphrase(prepared))
+        migrationArtifacts().forEach { artifact ->
+            assertFalse("Migration artifact remained: ${artifact.name}", artifact.exists())
+        }
 
         var encrypted: CipherDatabase? = null
         try {
@@ -76,6 +79,21 @@ class MorimilDatabaseEncryptionTest {
         } finally {
             encrypted?.close()
         }
+    }
+
+    private fun deleteTestFiles() {
+        CipherDatabase.deleteDatabase(databaseFile)
+        migrationArtifacts().forEach { artifact ->
+            CipherDatabase.deleteDatabase(artifact)
+        }
+    }
+
+    private fun migrationArtifacts(): List<File> {
+        val parent = requireNotNull(databaseFile.parentFile)
+        return listOf(
+            File(parent, "${databaseFile.name}.encrypted.tmp"),
+            File(parent, "${databaseFile.name}.plaintext.backup")
+        )
     }
 
     private fun hasPlaintextHeader(file: File): Boolean {
