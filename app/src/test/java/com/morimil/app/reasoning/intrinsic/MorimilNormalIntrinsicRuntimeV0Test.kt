@@ -55,6 +55,33 @@ class MorimilNormalIntrinsicRuntimeV0Test {
     }
 
     @Test
+    fun exactClosedOrderLogicRunsLocallyWithoutTemporaryProvider() = runBlocking {
+        var externalCalls = 0
+        val kernel = kernel(
+            externalProvider = TemporaryExternalReasoningProvider {
+                externalCalls += 1
+                Result.success("temporary external reply")
+            }
+        )
+
+        val result = kernel.reason(
+            kernelRequest(
+                "Ana llegó antes que Bruno y Bruno antes que Carla. ¿Quién llegó primero?"
+            )
+        )
+
+        assertEquals("FINAL:ANA", result.reply)
+        assertEquals(0, externalCalls)
+        assertEquals(ReasoningExecutionOrigin.MORIMIL_INTRINSIC, result.state.executionOrigin)
+        assertTrue(
+            result.state.criticFindings.contains("deterministic_closed_order_unique_topology")
+        )
+        assertTrue(
+            result.state.modelBackendLabel.contains(BoundedLocalIntuitiveCoreV0.VERSION)
+        )
+    }
+
+    @Test
     fun unsupportedGenerativeTaskFailsClosedAndPreservesFallback() = runBlocking {
         var externalCalls = 0
         val kernel = kernel(
