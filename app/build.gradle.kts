@@ -191,6 +191,8 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-core:2.22.0")
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.14.0")
     implementation("com.google.crypto.tink:tink-android:1.23.0")
+    implementation("androidx.sqlite:sqlite:2.6.2")
+    implementation("net.zetetic:sqlcipher-android:4.15.0@aar")
 
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion")
