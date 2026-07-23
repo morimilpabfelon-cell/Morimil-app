@@ -37,22 +37,26 @@ When enabled in explicit research construction:
 
 - the verifier runs blind with `candidateReply = null`;
 - deterministic routes treat neural outputs as advisory;
-- generative routes require strict `FINAL:<value>` consensus;
-- disagreement, invalid format, unknown task kind, or missing prompt produces abstention;
+- only arithmetic, restricted-code semantics and locally checkable claims may reach an accepting authority route;
+- `LOGIC`, `SPANISH` and `INSTRUCTION` remain motor-selection classifications but are downgraded to `UNKNOWN` at the final-authority boundary;
+- matching generated `FINAL:<value>` replies remain advisory and cannot authorize a final answer;
+- unsupported task kind, missing prompt, malformed deterministic input or unavailable deterministic proof produces abstention;
 - abstention returns no generated final reply (`reply == ""`) and records `ABSTAINED_BY_AUTHORITY`.
 
 ## Conservative task classification
 
-`ReasoningTaskKindClassifierV0` recognizes only bounded patterns already supported by the router:
+`ReasoningTaskKindClassifierV0` recognizes:
 
 - arithmetic;
 - restricted Python semantics;
 - locally checkable claims;
-- bounded logic;
-- bounded Spanish relation questions;
+- bounded logic-like prompts;
+- bounded Spanish relation prompts;
 - exact-output instructions.
 
-Ambiguous input remains `UNKNOWN`. The kernel records the classification and passes the clean user input as the authority prompt. Classification alone does not enable the router.
+Classification does not grant authority. The first three categories may be reduced to exact local computation. Logic, Spanish and instruction classifications remain useful for activation and telemetry only; they cannot be finalized until a separate deterministic verifier exists for the specific task.
+
+Ambiguous input remains `UNKNOWN`. The kernel records the classification and passes the clean user input as the authority prompt.
 
 ## Safety boundary
 
@@ -65,16 +69,16 @@ This integration adds no:
 - signing key;
 - production feature activation.
 
-The router decides only over request-scoped candidate text. Morimil retains identity, local memory, continuity, goals, lifecycle, and final authority.
+The authority layer decides only over request-scoped candidate text and exact local reductions. Agreement between generated candidates is not proof. Morimil retains identity, local memory, continuity, goals, lifecycle and final authority.
 
-## Required before enabling
+## Required before broader acceptance
 
-Runtime enablement remains blocked by:
+Any new accepting route requires:
 
-1. exact signed artifact provenance;
-2. Android arm64 functional validation;
-3. memory, latency, thermal, and battery measurements;
-4. long-context and resource-release testing;
-5. adversarial and out-of-distribution evaluation;
+1. a deterministic or independently checkable verifier for the exact task;
+2. adversarial tests demonstrating zero false acceptance in the bounded domain;
+3. explicit output grammar and normalization rules;
+4. resource-release and capability-boundary tests;
+5. physical Android validation where local inference is involved;
 6. explicit UI handling for structured abstention;
-7. production review of every deterministic parser and route.
+7. review of every parser, reduction and authority transition.
