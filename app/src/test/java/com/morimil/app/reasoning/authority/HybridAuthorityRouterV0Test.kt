@@ -108,12 +108,61 @@ class HybridAuthorityRouterV0Test {
     }
 
     @Test
-    fun strictConsensusAcceptsLogicSpanishAndInstructionOnlyWhenOutputsMatch() {
+    fun closedOrderLogicOverridesMatchingWrongGeneratedReplies() {
+        val first = router.decide(
+            HybridAuthorityRequest(
+                taskKind = HybridAuthorityTaskKind.LOGIC,
+                prompt = "Ana llegó antes que Bruno y Bruno antes que Carla. ¿Quién llegó primero?",
+                directReply = "FINAL:CARLA",
+                verifierReply = "FINAL:CARLA"
+            )
+        )
+        val last = router.decide(
+            HybridAuthorityRequest(
+                taskKind = HybridAuthorityTaskKind.LOGIC,
+                prompt = "Ana llegó antes que Bruno y Bruno antes que Carla. ¿Quién llegó último?",
+                directReply = "FINAL:ANA",
+                verifierReply = "FINAL:ANA"
+            )
+        )
+
+        assertEquals("FINAL:ANA", first.acceptedContent)
+        assertEquals("FINAL:CARLA", last.acceptedContent)
+        assertEquals(HybridAuthorityRoute.DETERMINISTIC_LOGIC, first.route)
+        assertEquals(HybridAuthorityRoute.DETERMINISTIC_LOGIC, last.route)
+        assertEquals(HybridAuthorityStatus.ACCEPTED_DETERMINISTIC, first.status)
+        assertTrue(first.findings.any { it.contains("order=ana>bruno>carla") })
+    }
+
+    @Test
+    fun closedOrderLogicRejectsCyclesTiesAndExtraText() {
+        val prompts = listOf(
+            "Ana llegó antes que Bruno y Bruno antes que Ana. ¿Quién llegó primero?",
+            "Ana llegó antes que Carla y Bruno antes que Carla. ¿Quién llegó primero?",
+            "Ana llegó antes que Bruno y Bruno antes que Carla. ¿Quién llegó primero? Explica.",
+            "Ana llegó antes que Ana y Ana antes que Carla. ¿Quién llegó primero?"
+        )
+
+        prompts.forEach { prompt ->
+            val decision = router.decide(
+                HybridAuthorityRequest(
+                    taskKind = HybridAuthorityTaskKind.LOGIC,
+                    prompt = prompt,
+                    directReply = "FINAL:ANA",
+                    verifierReply = "FINAL:ANA"
+                )
+            )
+
+            assertFalse(decision.accepted)
+            assertNull(decision.acceptedContent)
+            assertEquals(HybridAuthorityRoute.DETERMINISTIC_LOGIC, decision.route)
+            assertEquals(HybridAuthorityStatus.ABSTAINED, decision.status)
+        }
+    }
+
+    @Test
+    fun strictConsensusAcceptsSpanishAndInstructionOnlyWhenOutputsMatch() {
         val accepted = listOf(
-            Case(HybridAuthorityTaskKind.LOGIC, "logic-1", "FINAL:NO", "FINAL:NO", "FINAL:NO"),
-            Case(HybridAuthorityTaskKind.LOGIC, "logic-2", "FINAL:SI", "FINAL:SI", "FINAL:SI"),
-            Case(HybridAuthorityTaskKind.LOGIC, "logic-3", "FINAL:SI", "FINAL:SI", "FINAL:SI"),
-            Case(HybridAuthorityTaskKind.LOGIC, "logic-4", "FINAL:NO", "FINAL:NO", "FINAL:NO"),
             Case(HybridAuthorityTaskKind.SPANISH, "spanish-2", "FINAL:B", "FINAL:B", "FINAL:B"),
             Case(HybridAuthorityTaskKind.SPANISH, "spanish-3", "FINAL:A", "FINAL:A", "FINAL:A"),
             Case(HybridAuthorityTaskKind.SPANISH, "spanish-4", "FINAL:B", "FINAL:B", "FINAL:B"),
@@ -152,8 +201,8 @@ class HybridAuthorityRouterV0Test {
     fun strictConsensusRejectsDisagreementAndWhitespaceInsideFinalProtocol() {
         val disagreement = router.decide(
             HybridAuthorityRequest(
-                taskKind = HybridAuthorityTaskKind.LOGIC,
-                prompt = "logic disagreement",
+                taskKind = HybridAuthorityTaskKind.SPANISH,
+                prompt = "spanish disagreement",
                 directReply = "FINAL:SI",
                 verifierReply = "FINAL:NO"
             )
