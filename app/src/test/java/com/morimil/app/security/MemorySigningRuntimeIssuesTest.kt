@@ -7,24 +7,24 @@ import org.junit.Test
 
 class MemorySigningRuntimeIssuesTest {
     @Test
-    fun keystoreFallbackIssueIsCountedAndClearable() {
-        MemorySigningRuntimeIssues.clearKeystoreSigningFallback("test")
+    fun keystoreFailureIssueIsCountedAndClearable() {
+        MemorySigningRuntimeIssues.clearKeystoreSigningFailure("test")
 
-        MemorySigningRuntimeIssues.reportKeystoreSigningFallback(
+        MemorySigningRuntimeIssues.reportKeystoreSigningFailure(
             keyAlias = "test_alias",
             error = IllegalStateException("hardware unavailable")
         )
-        MemorySigningRuntimeIssues.reportKeystoreSigningFallback(
+        MemorySigningRuntimeIssues.reportKeystoreSigningFailure(
             keyAlias = "test_alias",
             error = IllegalStateException("hardware unavailable")
         )
 
         val issue = requireNotNull(MemorySigningRuntimeIssues.latestIssue.value)
-        assertEquals(MemorySigningRuntimeIssues.KEYSTORE_FALLBACK_COMPONENT, issue.component)
+        assertEquals(MemorySigningRuntimeIssues.KEYSTORE_FAILURE_COMPONENT, issue.component)
         assertEquals(2, issue.failureCount)
-        assertTrue(issue.message.contains("unsigned fallback"))
+        assertTrue(issue.message.contains("memory append was blocked"))
 
-        MemorySigningRuntimeIssues.clearKeystoreSigningFallback("test_alias")
+        MemorySigningRuntimeIssues.clearKeystoreSigningFailure("test_alias")
 
         assertNull(MemorySigningRuntimeIssues.latestIssue.value)
     }

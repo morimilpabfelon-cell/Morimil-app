@@ -4,15 +4,16 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import com.morimil.app.core.memory.MemoryEventSignatureVerifier
 import com.morimil.app.core.memory.MemoryEventSigner
+import com.morimil.app.core.memory.MemoryEventSigningException
 import com.morimil.app.core.memory.MemoryIntegrityCore
 import com.morimil.app.core.memory.MemorySignatureEpochRecorder
 import com.morimil.app.core.memory.NoopMemorySignatureEpochPolicy
 import com.morimil.app.core.memory.SignedMemoryEvent
-import com.morimil.app.core.memory.UnsignedMemoryEventSigner
 import java.nio.charset.StandardCharsets
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.PrivateKey
+import java.security.PublicKey
 import java.security.Signature
 import java.security.spec.ECGenParameterSpec
 import java.util.Base64
@@ -21,25 +22,35 @@ class AndroidKeyStoreMemoryEventSigner(
     private val keyAlias: String = MEMORY_EVENT_KEY_ALIAS,
     private val signingIssueReporter: MemorySigningIssueReporter = MemorySigningRuntimeIssues,
     private val signatureEpochRecorder: MemorySignatureEpochRecorder = NoopMemorySignatureEpochPolicy,
-    private val privateKeyProvider: (() -> PrivateKey)? = null
+    private val privateKeyProvider: (() -> PrivateKey)? = null,
+    private val publicKeyProvider: (() -> PublicKey)? = null
 ) : MemoryEventSigner, MemoryEventSignatureVerifier {
     override fun signEventHash(eventHash: String): SignedMemoryEvent {
-        return runCatching {
+        return try {
+            require(eventHash.isNotBlank()) { "Memory event hash must not be blank." }
             val privateKey = privateKeyProvider?.invoke() ?: ensurePrivateKey()
-            val signer = Signature.getInstance(SIGNATURE_ALGORITHM).apply {
+            val signatureBytes = Signature.getInstance(SIGNATURE_ALGORITHM).run {
                 initSign(privateKey)
                 update(signaturePayload(eventHash))
+                sign()
             }
-            val eventSignature = Base64.getEncoder().encodeToString(signer.sign())
-            signatureEpochRecorder.recordSignedEvent(eventHash)
-            signingIssueReporter.clearKeystoreSigningFallback(keyAlias)
-            SignedMemoryEvent(
+            verifyGeneratedSignature(eventHash, signatureBytes)
+
+            val signedEvent = SignedMemoryEvent(
                 signatureAlgorithm = MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_ANDROID_KEYSTORE_EC,
-                eventSignature = eventSignature
+                eventSignature = Base64.getEncoder().encodeToString(signatureBytes)
             )
-        }.getOrElse { error ->
-            signingIssueReporter.reportKeystoreSigningFallback(keyAlias, error)
-            UnsignedMemoryEventSigner.signEventHash(eventHash)
+
+            signatureEpochRecorder.recordSignedEvent(eventHash)
+            signingIssueReporter.clearKeystoreSigningFailure(keyAlias)
+            signedEvent
+        } catch (error: Throwable) {
+            runCatching { signingIssueReporter.reportKeystoreSigningFailure(keyAlias, error) }
+            if (error is MemoryEventSigningException) throw error
+            throw MemoryEventSigningException(
+                "Memory append blocked because Keystore signing failed for $keyAlias.",
+                error
+            )
         }
     }
 
@@ -59,16 +70,25 @@ class AndroidKeyStoreMemoryEventSigner(
         if (eventSignature.isNullOrBlank()) return "missing_event_signature"
 
         return runCatching<String?> {
-            val publicKey = keyStore().getCertificate(keyAlias)?.publicKey
-                ?: return@runCatching "signature_key_missing"
-            val verifier = Signature.getInstance(SIGNATURE_ALGORITHM).apply {
-                initVerify(publicKey)
-                update(signaturePayload(eventHash))
-            }
             val signatureBytes = Base64.getDecoder().decode(eventSignature)
-            if (verifier.verify(signatureBytes)) null else "event_signature_mismatch"
+            if (verifySignature(eventHash, signatureBytes)) null else "event_signature_mismatch"
         }.getOrElse { error ->
             "event_signature_error:${error::class.java.simpleName}"
+        }
+    }
+
+    private fun verifyGeneratedSignature(eventHash: String, signatureBytes: ByteArray) {
+        check(verifySignature(eventHash, signatureBytes)) {
+            "Generated memory signature could not be verified with its public key."
+        }
+    }
+
+    private fun verifySignature(eventHash: String, signatureBytes: ByteArray): Boolean {
+        val publicKey = publicKeyProvider?.invoke() ?: ensurePublicKey()
+        return Signature.getInstance(SIGNATURE_ALGORITHM).run {
+            initVerify(publicKey)
+            update(signaturePayload(eventHash))
+            verify(signatureBytes)
         }
     }
 
@@ -92,6 +112,13 @@ class AndroidKeyStoreMemoryEventSigner(
         generator.initialize(spec)
         generator.generateKeyPair()
         return store.getKey(keyAlias, null) as PrivateKey
+    }
+
+    private fun ensurePublicKey(): PublicKey {
+        return keyStore().getCertificate(keyAlias)?.publicKey
+            ?: throw MemoryEventSigningException(
+                "Memory append blocked because the signing public key is missing for $keyAlias."
+            )
     }
 
     private fun keyStore(): KeyStore {
