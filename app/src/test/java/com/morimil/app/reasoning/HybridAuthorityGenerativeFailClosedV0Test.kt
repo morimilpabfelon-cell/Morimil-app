@@ -13,14 +13,17 @@ import org.junit.Test
 
 class HybridAuthorityGenerativeFailClosedV0Test {
     @Test
-    fun onlyClosedOrderLogicReachesItsDeterministicAuthorityKind() {
+    fun onlyClosedDeterministicGrammarsReachTheirAuthorityKinds() {
         assertEquals(HybridAuthorityTaskKind.LOGIC, ReasoningTaskKind.LOGIC.toHybridAuthorityTaskKind())
+        assertEquals(
+            HybridAuthorityTaskKind.INSTRUCTION,
+            ReasoningTaskKind.INSTRUCTION.toHybridAuthorityTaskKind()
+        )
         assertEquals(HybridAuthorityTaskKind.UNKNOWN, ReasoningTaskKind.SPANISH.toHybridAuthorityTaskKind())
-        assertEquals(HybridAuthorityTaskKind.UNKNOWN, ReasoningTaskKind.INSTRUCTION.toHybridAuthorityTaskKind())
     }
 
     @Test
-    fun matchingGeneratedRepliesStillAbstainForUnverifiedGenerativeKinds() = runBlocking {
+    fun matchingGeneratedRepliesStillAbstainForUnverifiedOrMalformedKinds() = runBlocking {
         val cases = listOf(
             ReasoningTaskKind.SPANISH to "Texto abierto en español.",
             ReasoningTaskKind.INSTRUCTION to "Devuelve exactamente FINAL:AZUL."
@@ -60,6 +63,25 @@ class HybridAuthorityGenerativeFailClosedV0Test {
 
         assertEquals("FINAL:ANA", result.reply)
         assertEquals(HybridAuthorityRoute.DETERMINISTIC_LOGIC, result.authorityDecision?.route)
+        assertEquals(HybridAuthorityStatus.ACCEPTED_DETERMINISTIC, result.authorityDecision?.status)
+        assertEquals(TriMotorFinalizationStatus.ACCEPTED_BY_AUTHORITY, result.finalizationStatus)
+    }
+
+    @Test
+    fun exactInstructionIgnoresMatchingWrongGeneratedReplies() = runBlocking {
+        val coordinator = coordinator(
+            primaryReply = "FINAL:ROJO",
+            verifierReply = "FINAL:ROJO"
+        )
+        val result = coordinator.reason(
+            request(
+                ReasoningTaskKind.INSTRUCTION,
+                "Devuelve exactamente FINAL:AZUL y nada más."
+            )
+        ).getOrThrow()
+
+        assertEquals("FINAL:AZUL", result.reply)
+        assertEquals(HybridAuthorityRoute.DETERMINISTIC_INSTRUCTION, result.authorityDecision?.route)
         assertEquals(HybridAuthorityStatus.ACCEPTED_DETERMINISTIC, result.authorityDecision?.status)
         assertEquals(TriMotorFinalizationStatus.ACCEPTED_BY_AUTHORITY, result.finalizationStatus)
     }
