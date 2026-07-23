@@ -76,7 +76,7 @@ These figures describe the frozen physical execution only. They must not be sile
 
 ## Current adapter contract
 
-The current adapter adds deterministic authority for the twelve frozen `closed-order-v0` logic cases. The frozen dataset is not modified; only the request routing changes:
+The current adapter adds deterministic authority for the twelve frozen `closed-order-v0` logic cases and routes the twelve existing `strict_format` cases through the exact-instruction authority. The dataset is not modified, and the total routing counts remain:
 
 ```text
 84 bounded cases:
@@ -84,7 +84,7 @@ The current adapter adds deterministic authority for the twelve frozen `closed-o
   logic (closed arrival-order grammar only)
   restricted_code
   claim_verification
-  strict_format
+  strict_format (exact subtraction and FINAL:<resultado> grammar)
   adversarial_consensus
   multi_turn_context
 
@@ -94,14 +94,16 @@ The current adapter adds deterministic authority for the twelve frozen `closed-o
   insufficient_information
 ```
 
-Expected contract delta:
+Expected delta relative to the historical physical contract:
 
 ```text
 bounded:    72 -> 84
 generative: 48 -> 36
 ```
 
-This is a code and test contract, not new physical evidence. A new opt-in run on a physical ARM64 Android device is required before claiming 84 accepted correct, 36 abstained, updated role counts, latency, memory, battery or thermal results.
+The exact-instruction change does not alter these counts. It removes the benchmark adapter's previous arithmetic rewriting for `strict_format` and instead verifies the original frozen instruction directly.
+
+This remains a code and test contract, not new physical evidence. A new opt-in run on a physical ARM64 Android device is required before claiming 84 accepted correct, 36 abstained, updated role counts, latency, memory, battery or thermal results.
 
 ## Current authority flow
 
@@ -118,6 +120,8 @@ open or unsupported task
 ```
 
 For the closed-order logic domain, generated candidates are advisory. The final answer comes from a unique topological ordering of the parsed relation graph. Cycles, ties, malformed relations and unsupported wording abstain.
+
+For `strict_format`, the original prompt must match the complete subtraction grammar and canonical `FINAL:<resultado>` placeholder. The local authority computes the subtraction and owns the final format. Altered placeholders, extra prose, unsupported operations and non-canonical integers abstain.
 
 ## Output contract
 
@@ -218,7 +222,7 @@ stateReleasePassCount == 120
 capabilityBoundaryPassCount == 120
 ```
 
-The historical physical run passed all four conditions. The updated adapter must pass them again in a separate physical execution before its new routing counts become physical evidence.
+The historical physical run passed all four conditions. The updated adapter must pass them again in a separate physical execution before its current routing and authority ownership become physical evidence.
 
 Passing the research gate does not certify, sign, install or authorize activation of Morimil's personal runtime.
 
