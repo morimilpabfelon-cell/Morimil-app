@@ -146,14 +146,22 @@ enum class TriMotorFinalizationStatus {
     ABSTAINED_BY_AUTHORITY
 }
 
+/**
+ * Only routes backed by exact local computation may reach the authority router.
+ *
+ * LOGIC, SPANISH and INSTRUCTION remain useful classifications for motor selection
+ * and research telemetry, but matching generated replies are not independent proof.
+ * They are therefore downgraded to UNKNOWN at the final-authority boundary and must
+ * abstain until a separate deterministic verifier is implemented for the task.
+ */
 internal fun ReasoningTaskKind.toHybridAuthorityTaskKind(): HybridAuthorityTaskKind {
     return when (this) {
         ReasoningTaskKind.ARITHMETIC -> HybridAuthorityTaskKind.ARITHMETIC
         ReasoningTaskKind.RESTRICTED_CODE -> HybridAuthorityTaskKind.RESTRICTED_CODE
         ReasoningTaskKind.CLAIM_VERIFICATION -> HybridAuthorityTaskKind.CLAIM_VERIFICATION
-        ReasoningTaskKind.LOGIC -> HybridAuthorityTaskKind.LOGIC
-        ReasoningTaskKind.SPANISH -> HybridAuthorityTaskKind.SPANISH
-        ReasoningTaskKind.INSTRUCTION -> HybridAuthorityTaskKind.INSTRUCTION
+        ReasoningTaskKind.LOGIC,
+        ReasoningTaskKind.SPANISH,
+        ReasoningTaskKind.INSTRUCTION,
         ReasoningTaskKind.UNKNOWN -> HybridAuthorityTaskKind.UNKNOWN
     }
 }
