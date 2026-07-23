@@ -50,11 +50,21 @@ request
   -> activation policy
   -> intuitive or deliberative primary candidate
   -> blind metacognitive candidate when verification is requested
-  -> HybridAuthorityRouterV0
-  -> deterministic acceptance, strict consensus or abstention
+  -> exact local authority reduction when available
+  -> deterministic acceptance or abstention
 ```
 
-The research runtime always enables hybrid authority. Neural agreement is not accepted on deterministic routes. Unknown, unsupported, malformed or disagreeing generative results abstain.
+The research runtime always enables hybrid authority. Neural agreement is advisory only. It cannot authorize logic, Spanish, planning or exact-output instruction answers, even when both generated candidates match.
+
+Only these routes may accept:
+
+```text
+ARITHMETIC
+RESTRICTED_CODE
+CLAIM_VERIFICATION
+```
+
+They accept through deterministic local computation rather than model consensus. `LOGIC`, `SPANISH`, `INSTRUCTION`, malformed requests and unknown tasks abstain until an independently checkable verifier exists for the exact task.
 
 ## Construction
 
@@ -70,7 +80,7 @@ The caller must supply real local cores. This runtime does not download a model 
 
 ## Normal-runtime boundary
 
-Normal application construction now uses:
+Normal application construction uses:
 
 ```kotlin
 MorimilNormalIntrinsicRuntimeV0.createCoordinator()
@@ -93,17 +103,18 @@ HybridAuthorityRuntimePolicy enablement
 
 Unsupported or malformed requests from the bounded Intuitive core fail closed and retain the existing external or deterministic fallback behavior.
 
-## Validation in the original research runtime
+## Validation
 
 Tests require:
 
 - exactly all three intrinsic roles are registered in the isolated research runtime;
 - light arithmetic may use Intuitive, but deterministic authority overrides an incorrect candidate;
-- deep logic uses Deliberative plus blind Metacognitive verification;
-- matching strict candidates may be accepted;
-- disagreement produces an empty final reply and structured abstention;
+- deep logic uses Deliberative plus blind Metacognitive computation but always abstains at final authority;
+- matching generated candidates remain visible only as research evidence and cannot be finalized;
+- disagreement also produces an empty final reply and structured abstention;
 - Intuitive cannot verify a candidate;
 - Metacognitive cannot see a candidate;
+- request-scoped deliberative state is released after acceptance or abstention;
 - the research-runtime surface exposes no provider, memory, identity, lifecycle, installer or downloader capability;
 - the normal `HybridAuthorityRuntimePolicy()` default remains false.
 
@@ -116,9 +127,10 @@ bounded Metacognitive core:                   implemented, research-only
 Deliberative normal-runtime activation:       false
 Metacognitive normal-runtime activation:      false
 full tri-motor normal-runtime activation:     false
+generative consensus authority:               disabled
 general neural Intuitive artifact:            not supplied
 general neural Metacognitive artifact:        not supplied
 artifact certification/signature/install:     false
 ```
 
-The next activation requires a separate PR with explicit evidence, resource limits, physical Android validation and an unchanged Morimil authority boundary.
+Any later accepting generative route requires a separate PR containing a deterministic or independently checkable verifier, adversarial evidence with zero false acceptance, physical validation where applicable and an unchanged Morimil authority boundary.

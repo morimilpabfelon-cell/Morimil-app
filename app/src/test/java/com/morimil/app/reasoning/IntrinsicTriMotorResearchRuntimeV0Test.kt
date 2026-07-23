@@ -28,10 +28,7 @@ class IntrinsicTriMotorResearchRuntimeV0Test {
     fun researchRuntimeRegistersExactlyThreeIntrinsicRoles() {
         val fixture = fixture()
 
-        assertEquals(
-            ReasoningMotorRole.entries.toSet(),
-            fixture.runtime.availableRoles()
-        )
+        assertEquals(ReasoningMotorRole.entries.toSet(), fixture.runtime.availableRoles())
         assertEquals(
             "morimil.intrinsic-trimotor.research-runtime.v0",
             fixture.runtime.runtimeVersion
@@ -74,7 +71,7 @@ class IntrinsicTriMotorResearchRuntimeV0Test {
     }
 
     @Test
-    fun deepLogicUsesDeliberativeAndBlindMetacognitiveConsensus() = runBlocking {
+    fun matchingGenerativeCandidatesRemainAdvisoryAndAuthorityAbstains() = runBlocking {
         val fixture = fixture(
             deliberativeReply = "FINAL:SI",
             metacognitiveReply = "FINAL:SI"
@@ -88,7 +85,7 @@ class IntrinsicTriMotorResearchRuntimeV0Test {
             )
         ).getOrThrow()
 
-        assertEquals("FINAL:SI", result.reply)
+        assertEquals("", result.reply)
         assertEquals(
             listOf(
                 ReasoningMotorRole.DELIBERATIVE,
@@ -98,14 +95,13 @@ class IntrinsicTriMotorResearchRuntimeV0Test {
         )
         assertEquals("FINAL:SI", result.primaryCandidate)
         assertEquals("FINAL:SI", result.verifierCandidate)
+        assertEquals(HybridAuthorityRoute.UNSUPPORTED, result.authorityDecision?.route)
+        assertEquals(HybridAuthorityStatus.ABSTAINED, result.authorityDecision?.status)
         assertEquals(
-            HybridAuthorityRoute.STRICT_GENERATIVE_CONSENSUS,
-            result.authorityDecision?.route
+            TriMotorFinalizationStatus.ABSTAINED_BY_AUTHORITY,
+            result.finalizationStatus
         )
-        assertEquals(
-            HybridAuthorityStatus.ACCEPTED_STRICT_CONSENSUS,
-            result.authorityDecision?.status
-        )
+        assertTrue(result.findings.contains("hybrid_authority_task_unknown"))
         assertEquals(
             "Todos los A son B. Todos los B son C. Devuelve FINAL:SI si se sigue.",
             fixture.metacognitiveCore.lastInput?.authorityPrompt
@@ -115,7 +111,7 @@ class IntrinsicTriMotorResearchRuntimeV0Test {
     }
 
     @Test
-    fun deepGenerativeDisagreementAbstainsWithoutExposingCandidate() = runBlocking {
+    fun deepGenerativeDisagreementAlsoAbstainsWithoutExposingCandidate() = runBlocking {
         val fixture = fixture(
             deliberativeReply = "FINAL:SI",
             metacognitiveReply = "FINAL:NO"
@@ -131,10 +127,12 @@ class IntrinsicTriMotorResearchRuntimeV0Test {
 
         assertEquals("", result.reply)
         assertFalse(requireNotNull(result.authorityDecision).accepted)
+        assertEquals(HybridAuthorityRoute.UNSUPPORTED, result.authorityDecision?.route)
         assertEquals(
             TriMotorFinalizationStatus.ABSTAINED_BY_AUTHORITY,
             result.finalizationStatus
         )
+        assertTrue(fixture.deliberativeCore.released)
     }
 
     @Test
@@ -278,7 +276,10 @@ class IntrinsicTriMotorResearchRuntimeV0Test {
             return Result.success(
                 RequestScopedIntrinsicCoreOutputV0(
                     content = reply,
-                    findings = listOf("metacognitive_core:test")
+                    findings = listOf(
+                        "metacognitive_core:test",
+                        "verification_mode:blind"
+                    )
                 )
             )
         }
