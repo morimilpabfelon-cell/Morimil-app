@@ -9,7 +9,6 @@ import com.morimil.app.core.memory.MemoryIntegrityCore
 import com.morimil.app.core.memory.MemorySignatureEpochRecorder
 import com.morimil.app.core.memory.NoopMemorySignatureEpochPolicy
 import com.morimil.app.core.memory.SignedMemoryEvent
-import com.morimil.app.core.memory.requirePersistableSignature
 import java.nio.charset.StandardCharsets
 import java.security.KeyPairGenerator
 import java.security.KeyStore
@@ -40,7 +39,7 @@ class AndroidKeyStoreMemoryEventSigner(
             val signedEvent = SignedMemoryEvent(
                 signatureAlgorithm = MemoryIntegrityCore.MEMORY_EVENT_SIGNATURE_ALGORITHM_ANDROID_KEYSTORE_EC,
                 eventSignature = Base64.getEncoder().encodeToString(signatureBytes)
-            ).requirePersistableSignature()
+            )
 
             signatureEpochRecorder.recordSignedEvent(eventHash)
             signingIssueReporter.clearKeystoreSigningFailure(keyAlias)
