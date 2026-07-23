@@ -1,6 +1,6 @@
 # Intrinsic tri-motor research runtime v0
 
-Status: **research-only, isolated, normal runtime disabled**
+Status: **full tri-motor remains research-only and isolated**
 
 ## Purpose
 
@@ -12,7 +12,9 @@ DELIBERATIVE
 METACOGNITIVE
 ```
 
-It enables `HybridAuthorityRuntimePolicy` only inside the isolated research object. It does not modify `MorimilAppContainer`, install an artifact, activate normal Chat construction or grant a model authority over Morimil.
+It enables `HybridAuthorityRuntimePolicy` only inside the isolated research object. It does not install an artifact, grant a model authority over Morimil or activate the full tri-motor in normal Chat.
+
+A separate later registry, `MorimilNormalIntrinsicRuntimeV0`, activates only the bounded local Intuitive role in normal runtime. That narrow activation does not make this research runtime production-active.
 
 ## Motor boundaries
 
@@ -38,7 +40,8 @@ It enables `HybridAuthorityRuntimePolicy` only inside the isolated research obje
 - receives the task and authority prompt without the primary candidate;
 - rejects candidate-aware verification;
 - produces an independent candidate for the authority layer;
-- cannot accept its own output.
+- cannot accept its own output;
+- remains inactive in normal runtime.
 
 ## Authority flow
 
@@ -51,7 +54,7 @@ request
   -> deterministic acceptance, strict consensus or abstention
 ```
 
-The runtime always enables hybrid authority. Neural agreement is not accepted on deterministic routes. Unknown, unsupported, malformed or disagreeing generative results abstain.
+The research runtime always enables hybrid authority. Neural agreement is not accepted on deterministic routes. Unknown, unsupported, malformed or disagreeing generative results abstain.
 
 ## Construction
 
@@ -63,23 +66,38 @@ val researchRuntime = IntrinsicTriMotorResearchRuntimeV0.create(
 )
 ```
 
-The caller must supply real local cores. This PR does not invent weights, download a model or claim that Intuitive and Metacognitive neural artifacts already exist.
+The caller must supply real local cores. This runtime does not download a model or claim that a general neural Intuitive, Deliberative or Metacognitive artifact is installed.
 
 ## Normal-runtime boundary
 
-The application container remains unchanged and continues to construct:
+Normal application construction now uses:
 
 ```kotlin
-IntrinsicTriMotorCoordinator()
+MorimilNormalIntrinsicRuntimeV0.createCoordinator()
 ```
 
-with no intrinsic motors registered. The default hybrid-authority policy remains disabled. Moving this research runtime into normal Morimil use requires separate evidence and explicit authorization.
+That registry contains exactly one role:
 
-## Validation in this PR
+```text
+INTUITIVE -> IntuitiveMotorV0(BoundedLocalIntuitiveCoreV0)
+```
+
+The following remain disabled in normal Chat:
+
+```text
+DELIBERATIVE
+METACOGNITIVE
+full tri-motor research runtime
+HybridAuthorityRuntimePolicy enablement
+```
+
+Unsupported or malformed requests from the bounded Intuitive core fail closed and retain the existing external or deterministic fallback behavior.
+
+## Validation in the original research runtime
 
 Tests require:
 
-- exactly all three intrinsic roles are registered;
+- exactly all three intrinsic roles are registered in the isolated research runtime;
 - light arithmetic may use Intuitive, but deterministic authority overrides an incorrect candidate;
 - deep logic uses Deliberative plus blind Metacognitive verification;
 - matching strict candidates may be accepted;
@@ -89,15 +107,18 @@ Tests require:
 - the research-runtime surface exposes no provider, memory, identity, lifecycle, installer or downloader capability;
 - the normal `HybridAuthorityRuntimePolicy()` default remains false.
 
-## Explicitly not completed
+## Current completion state
 
 ```text
-real Intuitive core artifact:              not supplied
-real Metacognitive core artifact:          not supplied
-120-case tri-motor benchmark:              not executed
-physical Android tri-motor run:            not executed
-normal runtime activation:                 false
-artifact certification/signature/install:  false
+bounded Intuitive core:                       implemented
+bounded Intuitive normal-runtime activation:  true
+bounded Metacognitive core:                   implemented, research-only
+Deliberative normal-runtime activation:       false
+Metacognitive normal-runtime activation:      false
+full tri-motor normal-runtime activation:     false
+general neural Intuitive artifact:            not supplied
+general neural Metacognitive artifact:        not supplied
+artifact certification/signature/install:     false
 ```
 
-The next evidence step is to supply explicit local research cores and run the frozen 120-case benchmark against Morimil's final authority result rather than the raw Gemma reply.
+The next activation requires a separate PR with explicit evidence, resource limits, physical Android validation and an unchanged Morimil authority boundary.
