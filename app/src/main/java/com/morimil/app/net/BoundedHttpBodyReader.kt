@@ -10,7 +10,15 @@ internal object BoundedHttpBodyReader {
         declaredLength: Long,
         maxBytes: Int
     ): String {
-        if (stream == null) return ""
+        return readBytes(stream, declaredLength, maxBytes).toString(Charsets.UTF_8)
+    }
+
+    fun readBytes(
+        stream: InputStream?,
+        declaredLength: Long,
+        maxBytes: Int
+    ): ByteArray {
+        if (stream == null) return ByteArray(0)
         require(maxBytes > 0) { "maxBytes debe ser positivo." }
         require(declaredLength < 0L || declaredLength <= maxBytes.toLong()) {
             "La respuesta HTTP excede el limite permitido de $maxBytes bytes."
@@ -35,7 +43,7 @@ internal object BoundedHttpBodyReader {
                 output.write(buffer, 0, read)
             }
         }
-        return output.toString(Charsets.UTF_8.name())
+        return output.toByteArray()
     }
 
     private const val BUFFER_SIZE = 8 * 1024
