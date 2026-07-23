@@ -1,11 +1,9 @@
 package com.morimil.app.net
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.net.HttpURLConnection
-import java.net.URL
 import java.net.URLDecoder
 import java.net.URLEncoder
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class NetEvidenceProvider(
     private val fetcher: NetRawFetcher = HttpNetRawFetcher(),
@@ -69,7 +67,7 @@ class NetEvidenceProvider(
             return null
         }
         notes += "browser_ok:${shortUrl(url)}"
-        return sourceBlock(url, text, mode = "browser")
+        return sourceBlock(url, text, mode = "browser_isolated")
     }
 
     private fun resolveLookupTargets(query: String): NetTargetResolution {
@@ -163,74 +161,34 @@ data class NetTargetResolution(
 )
 
 class HttpNetRawFetcher(
-    private val connectTimeoutMillis: Int = 10_000,
-    private val readTimeoutMillis: Int = 20_000
+    connectTimeoutMillis: Long = 10_000L,
+    readTimeoutMillis: Long = 20_000L
 ) : NetRawFetcher {
+    private val transport = SafeHttpTransport(
+        connectTimeoutMillis = connectTimeoutMillis,
+        readTimeoutMillis = readTimeoutMillis,
+        callTimeoutMillis = connectTimeoutMillis + readTimeoutMillis
+    )
+
     override fun fetch(rawUrl: String): NetFetchResult {
-        return fetchWithRedirects(rawUrl = rawUrl, redirectCount = 0)
-    }
-
-    private fun fetchWithRedirects(rawUrl: String, redirectCount: Int): NetFetchResult {
-        val policy = NetSourcePolicy.validateUrl(rawUrl)
-        if (!policy.allowed) return NetFetchResult(ok = false, error = policy.reason)
-
-        return runCatching {
-            val url = URL(rawUrl)
-            val connection = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = connectTimeoutMillis
-                readTimeout = readTimeoutMillis
-                instanceFollowRedirects = false
-                setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.7")
-                setRequestProperty("Accept-Language", "es-PE,es;q=0.9,en;q=0.8")
-                setRequestProperty("Cache-Control", "no-cache")
-                setRequestProperty("User-Agent", MOBILE_USER_AGENT)
-            }
-            try {
-                val code = connection.responseCode
-                if (code in HTTP_REDIRECT_CODES) {
-                    if (redirectCount >= MAX_REDIRECTS) return NetFetchResult(ok = false, error = "redirect_limit")
-                    val location = connection.getHeaderField("Location")
-                        ?: return NetFetchResult(ok = false, error = "redirect_without_location")
-                    val nextUrl = URL(url, location).toExternalForm()
-                    val redirectPolicy = NetSourcePolicy.validateUrl(nextUrl)
-                    if (!redirectPolicy.allowed) {
-                        return NetFetchResult(ok = false, error = "redirect_denied:${redirectPolicy.reason}")
-                    }
-                    return fetchWithRedirects(nextUrl, redirectCount + 1)
-                }
-
-                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-                val boundedBody = BoundedHttpBodyReader.read(
-                    stream = stream,
-                    declaredLength = connection.contentLengthLong,
-                    maxBytes = if (code in 200..299) MAX_RAW_BYTES else MAX_ERROR_BYTES
-                )
-                val body = if (code in 200..299) {
-                    boundedBody.take(MAX_RAW_CHARS)
-                } else {
-                    boundedBody.take(MAX_ERROR_CHARS)
-                }
-                if (code !in 200..299) {
-                    NetFetchResult(ok = false, error = "http_$code:${body.take(160)}")
-                } else {
-                    NetFetchResult(ok = true, body = body)
-                }
-            } finally {
-                connection.disconnect()
-            }
-        }.getOrElse { error ->
-            NetFetchResult(ok = false, error = "${error::class.java.simpleName}:${error.message.orEmpty().take(160)}")
+        val response = transport.fetch(
+            rawUrl = rawUrl,
+            maxSuccessBytes = MAX_RAW_BYTES,
+            maxErrorBytes = MAX_ERROR_BYTES,
+            maxRedirects = MAX_REDIRECTS
+        )
+        return if (response.ok) {
+            NetFetchResult(ok = true, body = response.bodyText().take(MAX_RAW_CHARS))
+        } else {
+            NetFetchResult(ok = false, error = response.error.orEmpty().take(MAX_ERROR_CHARS))
         }
     }
 
-    companion object {
-        private const val MAX_RAW_BYTES = 512 * 1024
-        private const val MAX_ERROR_BYTES = 64 * 1024
-        private const val MAX_RAW_CHARS = 250_000
-        private const val MAX_ERROR_CHARS = 16_000
-        private const val MAX_REDIRECTS = 3
-        private val HTTP_REDIRECT_CODES = setOf(301, 302, 303, 307, 308)
-        private const val MOBILE_USER_AGENT = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Mobile Safari/537.36"
+    private companion object {
+        const val MAX_RAW_BYTES = 512 * 1024
+        const val MAX_ERROR_BYTES = 64 * 1024
+        const val MAX_RAW_CHARS = 250_000
+        const val MAX_ERROR_CHARS = 16_000
+        const val MAX_REDIRECTS = 3
     }
 }
