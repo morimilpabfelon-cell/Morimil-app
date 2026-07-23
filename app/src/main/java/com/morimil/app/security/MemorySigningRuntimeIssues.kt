@@ -19,6 +19,12 @@ interface MemorySigningIssueReporter {
 object MemorySigningRuntimeIssues : MemorySigningIssueReporter {
     const val KEYSTORE_FAILURE_COMPONENT = "memory_signature.keystore_failure"
 
+    @Deprecated(
+        message = "Unsigned fallback is no longer permitted; use KEYSTORE_FAILURE_COMPONENT.",
+        replaceWith = ReplaceWith("KEYSTORE_FAILURE_COMPONENT")
+    )
+    const val KEYSTORE_FALLBACK_COMPONENT = KEYSTORE_FAILURE_COMPONENT
+
     private val _latestIssue = MutableStateFlow<MemorySigningRuntimeIssue?>(null)
     val latestIssue: StateFlow<MemorySigningRuntimeIssue?> = _latestIssue.asStateFlow()
 
