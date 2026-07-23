@@ -1,0 +1,99 @@
+{
+  "authorityBoundary": {
+    "genesisAuthority": false,
+    "identityAuthority": false,
+    "installationAuthority": false,
+    "lifecycleAuthority": false,
+    "memoryWriteCapability": false,
+    "normalRuntimeActivated": false
+  },
+  "captureToolVersion": "morimil.lotus-feasibility-preflight.v0",
+  "capturedAtUtc": "2026-07-23T05:21:53.198092Z",
+  "evidenceKind": "lotus-reference-provenance-and-feasibility-preflight",
+  "execution": {
+    "gpuUsed": false,
+    "modelInferenceRun": false,
+    "privateDataUsed": false,
+    "remoteTeacherInvoked": false,
+    "trainingRun": false
+  },
+  "huggingFaceReference": {
+    "baseModelId": "meta-llama/Llama-3.2-3B-Instruct",
+    "declaredLicenseTag": "mit",
+    "gated": false,
+    "modelId": "yingfanbot/gsm-lotus-llama3b",
+    "revision": "b392d2cb7aaa73475b93028221523c47f49f66a2",
+    "verifiedFiles": {
+      "model-00001-of-00002.safetensors": {
+        "sha256": "sha256:3f1584a6c78ba8d1a3913c2c69b76821af9159bd555f9c8a4a8bb5a4e3ffb346",
+        "sizeBytes": 4965817528
+      },
+      "model-00002-of-00002.safetensors": {
+        "sha256": "sha256:e120a6207fcf88e80ae3f269dd49716966aedd2a51db2522b4013c89d1ad75b4",
+        "sizeBytes": 1459729952
+      },
+      "tokenizer.json": {
+        "sha256": "sha256:33b6804858a48cd76783fcefe02ce74635cfca73d6154610484193e4b7a8441a",
+        "sizeBytes": 17210491
+      }
+    },
+    "weightsDownloaded": false
+  },
+  "promotion": {
+    "blockers": [
+      "DESKTOP_REPRODUCTION_NOT_RUN",
+      "NON_MATH_TRANSFER_UNPROVEN",
+      "BASE_MODEL_LICENSE_CHAIN_REVIEW_REQUIRED",
+      "TRAINING_DATA_LICENSE_CHAIN_REVIEW_REQUIRED",
+      "GEMMA3N_ADAPTATION_NOT_IMPLEMENTED",
+      "ANDROID_LATENT_RUNTIME_NOT_IMPLEMENTED",
+      "ANDROID_HIDDEN_STATE_REINJECTION_UNAVAILABLE",
+      "PHYSICAL_ARM64_EVIDENCE_MISSING"
+    ],
+    "certified": false,
+    "installed": false,
+    "promotionAllowed": false,
+    "signed": false
+  },
+  "runtimeFeasibility": {
+    "androidLatentRuntimeStatus": "NOT_IMPLEMENTED",
+    "desktopReproductionStatus": "NOT_RUN",
+    "gemma3nAdaptationStatus": "NOT_IMPLEMENTED",
+    "morimilCurrentAdapterSharesBackboneInsideLatentLoop": false,
+    "morimilCurrentAdapterStateKind": "TEXTUAL_CONVERSATION",
+    "morimilCurrentAdapterSupportsHiddenStateReinjection": false,
+    "nonMathTransferStatus": "UNPROVEN",
+    "preflightDecision": "REFERENCE_VERIFIED_EXPERIMENT_BLOCKED",
+    "upstreamDesktopLatentLoopPresent": true,
+    "upstreamHiddenStateReinjectionPresent": true,
+    "upstreamSharedBackboneLoopPresent": true
+  },
+  "schemaVersion": "morimil.lotus.feasibility-preflight.v0",
+  "status": "research-only",
+  "upstreamExperimentProfile": {
+    "backbone": "Llama-3.2-3B-Instruct",
+    "cuda": "12.8",
+    "domain": "gsm8k-mathematical-reasoning",
+    "latentWidth": 25,
+    "loopIterations": 6,
+    "profileIsMorimilDefault": false,
+    "python": "3.12",
+    "pytorch": "2.7.0"
+  },
+  "upstreamSource": {
+    "cleanCheckout": true,
+    "commit": "eb77e2f7909c5006f58ff0ad7cd6629b942caa9e",
+    "licenseId": "MIT",
+    "repository": "https://github.com/yingfan-bot/lotus.git",
+    "requiredFileSha256": {
+      "LICENSE": "sha256:9f1abe28a25b5f6f95c58a81a647de3fa72ff6388d228c59bddd079255709989",
+      "README.md": "sha256:ab5b17d8d196ab523e990ce7b162999631bbe07fe99a7501ef82ede7954100fc",
+      "args/base/lotus.yaml": "sha256:18b9061735341aee50aa1fb61f644874e13db9b5dead212671c993ff01cb0ad9",
+      "args/gsm8k_lotus_llama3b.yaml": "sha256:323078a966c2240ac4cf99ce0c2086adba232273819ef3ba819d3089d8052220",
+      "environment.yml": "sha256:f5b4795d39f4ea6098e53341c2134b311b90b938a7aa6a01837a54ca3096bd92",
+      "requirements.txt": "sha256:5c134f2a5f3cf484ed8eee43a7c79e9eeba1d96358ed9013f9d107507c4846f1",
+      "scripts/eval.py": "sha256:e5c2db7ac48c8f8806842565ca01f2ea736ca585ec08c5f9af048540b6bb0fdc",
+      "scripts/lotus.py": "sha256:a0d03ac726a4063e3e2d033fda7efb47b266ce3166f2bdc9149e077be46bbc5b"
+    }
+  }
+}
