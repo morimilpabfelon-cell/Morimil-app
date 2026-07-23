@@ -13,23 +13,16 @@ import org.junit.Test
 
 class HybridAuthorityGenerativeFailClosedV0Test {
     @Test
-    fun generativeTaskKindsCannotReachConsensusAcceptanceRoute() {
-        val generativeKinds = listOf(
-            ReasoningTaskKind.LOGIC,
-            ReasoningTaskKind.SPANISH,
-            ReasoningTaskKind.INSTRUCTION
-        )
-
-        generativeKinds.forEach { kind ->
-            assertEquals(HybridAuthorityTaskKind.UNKNOWN, kind.toHybridAuthorityTaskKind())
-        }
+    fun onlyClosedOrderLogicReachesItsDeterministicAuthorityKind() {
+        assertEquals(HybridAuthorityTaskKind.LOGIC, ReasoningTaskKind.LOGIC.toHybridAuthorityTaskKind())
+        assertEquals(HybridAuthorityTaskKind.UNKNOWN, ReasoningTaskKind.SPANISH.toHybridAuthorityTaskKind())
+        assertEquals(HybridAuthorityTaskKind.UNKNOWN, ReasoningTaskKind.INSTRUCTION.toHybridAuthorityTaskKind())
     }
 
     @Test
-    fun matchingGeneratedRepliesAbstainForEveryGenerativeKind() = runBlocking {
+    fun matchingGeneratedRepliesStillAbstainForUnverifiedGenerativeKinds() = runBlocking {
         val cases = listOf(
-            ReasoningTaskKind.LOGIC to "Todos los A son B. Todos los B son C.",
-            ReasoningTaskKind.SPANISH to "Ana llego antes que Luis.",
+            ReasoningTaskKind.SPANISH to "Texto abierto en español.",
             ReasoningTaskKind.INSTRUCTION to "Devuelve exactamente FINAL:AZUL."
         )
 
@@ -50,6 +43,25 @@ class HybridAuthorityGenerativeFailClosedV0Test {
             )
             assertTrue(result.findings.contains("hybrid_authority_task_unknown"))
         }
+    }
+
+    @Test
+    fun closedOrderLogicIgnoresMatchingWrongGeneratedReplies() = runBlocking {
+        val coordinator = coordinator(
+            primaryReply = "FINAL:CARLA",
+            verifierReply = "FINAL:CARLA"
+        )
+        val result = coordinator.reason(
+            request(
+                ReasoningTaskKind.LOGIC,
+                "Ana llegó antes que Bruno y Bruno antes que Carla. ¿Quién llegó primero?"
+            )
+        ).getOrThrow()
+
+        assertEquals("FINAL:ANA", result.reply)
+        assertEquals(HybridAuthorityRoute.DETERMINISTIC_LOGIC, result.authorityDecision?.route)
+        assertEquals(HybridAuthorityStatus.ACCEPTED_DETERMINISTIC, result.authorityDecision?.status)
+        assertEquals(TriMotorFinalizationStatus.ACCEPTED_BY_AUTHORITY, result.finalizationStatus)
     }
 
     @Test
