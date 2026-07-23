@@ -35,10 +35,6 @@ internal object MorimilTriMotorBenchmarkAdapterV0 {
         """calcula\s+(-?\d+)\s*\+\s*(-?\d+)\s*\*\s*(-?\d+)""",
         RegexOption.IGNORE_CASE
     )
-    private val strictSubtraction = Regex(
-        """calcula\s+(-?\d+)\s*-\s*(-?\d+)""",
-        RegexOption.IGNORE_CASE
-    )
     private val adversarialArithmetic = Regex(
         """verifica\s+(-?\d+)\s*-\s*(-?\d+)\s*\*\s*(-?\d+)""",
         RegexOption.IGNORE_CASE
@@ -91,17 +87,13 @@ internal object MorimilTriMotorBenchmarkAdapterV0 {
                 )
             }
 
-            "strict_format" -> {
-                val match = requireMatch(strictSubtraction, benchmarkCase.prompt, benchmarkCase.caseId)
-                boundedPlan(
-                    history = history,
-                    taskKind = ReasoningTaskKind.ARITHMETIC,
-                    authorityPrompt = "Calcula ${match.groupValues[1]} menos " +
-                        "${match.groupValues[2]} por 1.",
-                    outputProfile = TriMotorBenchmarkOutputProfileV0.STRICT_FINAL_INTEGER,
-                    reduction = "strict_subtraction_to_subtract_multiply"
-                )
-            }
+            "strict_format" -> boundedPlan(
+                history = history,
+                taskKind = ReasoningTaskKind.INSTRUCTION,
+                authorityPrompt = benchmarkCase.prompt,
+                outputProfile = TriMotorBenchmarkOutputProfileV0.STRICT_FINAL_INTEGER,
+                reduction = "exact_instruction_subtraction_v0"
+            )
 
             "adversarial_consensus" -> {
                 val match = requireMatch(
