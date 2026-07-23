@@ -12,23 +12,23 @@ data class MemorySigningRuntimeIssue(
 )
 
 interface MemorySigningIssueReporter {
-    fun reportKeystoreSigningFallback(keyAlias: String, error: Throwable)
-    fun clearKeystoreSigningFallback(keyAlias: String)
+    fun reportKeystoreSigningFailure(keyAlias: String, error: Throwable)
+    fun clearKeystoreSigningFailure(keyAlias: String)
 }
 
 object MemorySigningRuntimeIssues : MemorySigningIssueReporter {
-    const val KEYSTORE_FALLBACK_COMPONENT = "memory_signature.keystore_fallback"
+    const val KEYSTORE_FAILURE_COMPONENT = "memory_signature.keystore_failure"
 
     private val _latestIssue = MutableStateFlow<MemorySigningRuntimeIssue?>(null)
     val latestIssue: StateFlow<MemorySigningRuntimeIssue?> = _latestIssue.asStateFlow()
 
-    override fun reportKeystoreSigningFallback(keyAlias: String, error: Throwable) {
+    override fun reportKeystoreSigningFailure(keyAlias: String, error: Throwable) {
         val previous = _latestIssue.value
         val failureMessage = buildFailureMessage(keyAlias, error)
         _latestIssue.value = MemorySigningRuntimeIssue(
-            component = KEYSTORE_FALLBACK_COMPONENT,
+            component = KEYSTORE_FAILURE_COMPONENT,
             message = failureMessage,
-            failureCount = if (previous?.component == KEYSTORE_FALLBACK_COMPONENT) {
+            failureCount = if (previous?.component == KEYSTORE_FAILURE_COMPONENT) {
                 previous.failureCount + 1
             } else {
                 1
@@ -37,14 +37,14 @@ object MemorySigningRuntimeIssues : MemorySigningIssueReporter {
         )
     }
 
-    override fun clearKeystoreSigningFallback(keyAlias: String) {
-        if (_latestIssue.value?.component == KEYSTORE_FALLBACK_COMPONENT) {
+    override fun clearKeystoreSigningFailure(keyAlias: String) {
+        if (_latestIssue.value?.component == KEYSTORE_FAILURE_COMPONENT) {
             _latestIssue.value = null
         }
     }
 
     private fun buildFailureMessage(keyAlias: String, error: Throwable): String {
         val errorLabel = error.message?.take(140) ?: error::class.java.simpleName
-        return "Keystore signing failed for $keyAlias; runtime used unsigned fallback: $errorLabel"
+        return "Keystore signing failed for $keyAlias; memory append was blocked: $errorLabel"
     }
 }
