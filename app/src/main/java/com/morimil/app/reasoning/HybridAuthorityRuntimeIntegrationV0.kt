@@ -116,7 +116,12 @@ object ReasoningTaskKindClassifierV0 {
         )
     )
 
+    private val CLOSED_ORDER_ENTITY = "[a-z][a-z0-9_-]{0,31}"
     private val LOGIC_PATTERNS = listOf(
+        Regex(
+            """^$CLOSED_ORDER_ENTITY\s+llego\s+antes\s+que\s+$CLOSED_ORDER_ENTITY\s+y\s+$CLOSED_ORDER_ENTITY\s+antes\s+que\s+$CLOSED_ORDER_ENTITY\.\s*¿?quien\s+llego\s+(primero|ultimo)\s*\??$""",
+            RegexOption.IGNORE_CASE
+        ),
         Regex("""todos\s+los\s+.+\s+son\s+.+""", RegexOption.IGNORE_CASE),
         Regex("""ningun(?:a)?\s+.+\s+es\s+.+""", RegexOption.IGNORE_CASE),
         Regex("""algunos?\s+.+\s+son\s+.+""", RegexOption.IGNORE_CASE)
@@ -149,17 +154,16 @@ enum class TriMotorFinalizationStatus {
 /**
  * Only routes backed by exact local computation may reach the authority router.
  *
- * LOGIC, SPANISH and INSTRUCTION remain useful classifications for motor selection
- * and research telemetry, but matching generated replies are not independent proof.
- * They are therefore downgraded to UNKNOWN at the final-authority boundary and must
- * abstain until a separate deterministic verifier is implemented for the task.
+ * LOGIC is admitted only for the closed-order grammar verified by the router. SPANISH
+ * and INSTRUCTION remain useful classifications for motor selection and research
+ * telemetry, but generated replies are not independent proof and must abstain.
  */
 internal fun ReasoningTaskKind.toHybridAuthorityTaskKind(): HybridAuthorityTaskKind {
     return when (this) {
         ReasoningTaskKind.ARITHMETIC -> HybridAuthorityTaskKind.ARITHMETIC
         ReasoningTaskKind.RESTRICTED_CODE -> HybridAuthorityTaskKind.RESTRICTED_CODE
         ReasoningTaskKind.CLAIM_VERIFICATION -> HybridAuthorityTaskKind.CLAIM_VERIFICATION
-        ReasoningTaskKind.LOGIC,
+        ReasoningTaskKind.LOGIC -> HybridAuthorityTaskKind.LOGIC
         ReasoningTaskKind.SPANISH,
         ReasoningTaskKind.INSTRUCTION,
         ReasoningTaskKind.UNKNOWN -> HybridAuthorityTaskKind.UNKNOWN

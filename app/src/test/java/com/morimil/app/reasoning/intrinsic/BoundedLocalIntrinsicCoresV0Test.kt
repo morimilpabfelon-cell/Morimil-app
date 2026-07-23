@@ -44,6 +44,19 @@ class BoundedLocalIntrinsicCoresV0Test {
     }
 
     @Test
+    fun intuitiveCoreComputesClosedOrderLogicLocally() = runBlocking {
+        val output = BoundedLocalIntuitiveCoreV0().compute(
+            intuitiveInput(
+                taskKind = ReasoningTaskKind.LOGIC,
+                prompt = "Ana llegó antes que Bruno y Bruno antes que Carla. ¿Quién llegó primero?"
+            )
+        ).getOrThrow()
+
+        assertEquals("FINAL:ANA", output.content)
+        assertTrue(output.findings.contains("deterministic_closed_order_unique_topology"))
+    }
+
+    @Test
     fun metacognitiveCoreRecomputesCheckableClaimFromOriginalPrompt() = runBlocking {
         val output = BoundedLocalMetacognitiveCoreV0().compute(
             MetacognitiveCoreInputV0(
@@ -64,26 +77,42 @@ class BoundedLocalIntrinsicCoresV0Test {
     }
 
     @Test
-    fun generativeTaskFailsClosedInsteadOfInventingConsensus() = runBlocking {
+    fun unverifiedGenerativeTaskStillFailsClosed() = runBlocking {
         val result = BoundedLocalMetacognitiveCoreV0().compute(
             MetacognitiveCoreInputV0(
                 systemPrompt = "Verifica localmente.",
                 history = emptyList(),
                 taskComplexity = ReasoningTaskComplexity.DEEP_ANALYSIS,
-                taskKind = ReasoningTaskKind.LOGIC,
-                authorityPrompt = "Todos los A son B. Todos los B son C."
+                taskKind = ReasoningTaskKind.SPANISH,
+                authorityPrompt = "Explica libremente el texto."
             )
         )
 
         assertTrue(result.isFailure)
         assertEquals(
-            "bounded_local_task_kind_unsupported:logic",
+            "bounded_local_task_kind_unsupported:spanish",
             result.exceptionOrNull()?.message
         )
     }
 
     @Test
-    fun malformedBoundedPromptFailsClosed() = runBlocking {
+    fun malformedClosedOrderPromptFailsClosed() = runBlocking {
+        val result = BoundedLocalIntuitiveCoreV0().compute(
+            intuitiveInput(
+                taskKind = ReasoningTaskKind.LOGIC,
+                prompt = "Ana llegó antes que Carla y Bruno antes que Carla. ¿Quién llegó primero?"
+            )
+        )
+
+        assertTrue(result.isFailure)
+        assertEquals(
+            "bounded_local_authority_abstained:deterministic_closed_order_not_unique",
+            result.exceptionOrNull()?.message
+        )
+    }
+
+    @Test
+    fun malformedArithmeticPromptFailsClosed() = runBlocking {
         val result = BoundedLocalIntuitiveCoreV0().compute(
             intuitiveInput(
                 taskKind = ReasoningTaskKind.ARITHMETIC,

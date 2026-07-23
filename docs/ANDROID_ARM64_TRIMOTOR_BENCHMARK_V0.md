@@ -1,54 +1,34 @@
 # Android ARM64 tri-motor benchmark v0
 
-Status: **research-only harness implemented and physically executed; research gate passed**.
+Status: **research-only harness physically executed for the historical 72/48 routing contract**.
 
-The frozen execution and all raw text evidence are documented in:
+The immutable execution and raw evidence are documented in:
 
 ```text
 docs/research/MORIMIL_TRIMOTOR_V02_PHYSICAL_BENCHMARK_EVIDENCE_V1.md
 ```
 
-This benchmark sends the frozen 120-case dataset through Morimil's isolated tri-motor
-research runtime:
-
-```text
-Bounded closed tasks
-  -> Intuitive bounded local core
-  -> Metacognitive blind deterministic recomputation
-  -> Hybrid authority
-
-Open or unsupported tasks
-  -> Deliberative v0.2 LiteRT-LM candidate
-  -> Metacognitive bounded verifier attempt
-  -> Hybrid authority
-  -> structured abstention when independent verification is unavailable
-```
-
-It does not activate Morimil's normal personal runtime, install a model for daily use,
-write memory, alter identity or control lifecycle state.
+The benchmark sends the frozen 120-case dataset through Morimil's isolated tri-motor research runtime. It does not activate Morimil's normal personal runtime, install a model for daily use, write memory, alter identity or control lifecycle state.
 
 ## Frozen identities
 
 ```text
-main base for harness:  a38d0652565cd786486ea5c97e573851e7249d84
-merged harness commit:  79eb5e31fe11611901048e80803c5c284f58e5cc
-benchmark version:      morimil.deliberative.loop-effort.benchmark.smoke.v0
-dataset SHA-256:        sha256:f5531706637d2358ca7da9181ab3bd4ccebed634a774c66ebb538bce5cf651fc
-case count:             120
-artifact version:       morimil-deliberative-v0.2
-artifact filename:      morimil-deliberative-v0.2.candidate.litertlm
-artifact size:          3,655,827,456 bytes
-artifact SHA-256:       sha256:2ed7bc3a0026c93d5b8a4544b352d9d00cd66ff0bac3ef6a20ac3d2cba4010d6
+main base for historical harness:  a38d0652565cd786486ea5c97e573851e7249d84
+merged historical harness commit:  79eb5e31fe11611901048e80803c5c284f58e5cc
+benchmark version:                  morimil.deliberative.loop-effort.benchmark.smoke.v0
+dataset SHA-256:                    sha256:f5531706637d2358ca7da9181ab3bd4ccebed634a774c66ebb538bce5cf651fc
+case count:                         120
+artifact version:                   morimil-deliberative-v0.2
+artifact filename:                  morimil-deliberative-v0.2.candidate.litertlm
+artifact size:                      3,655,827,456 bytes
+artifact SHA-256:                   sha256:2ed7bc3a0026c93d5b8a4544b352d9d00cd66ff0bac3ef6a20ac3d2cba4010d6
 ```
 
-The original Deliberative-only benchmark remains the immutable comparison baseline.
-The runner decodes its exact raw `report-v0.2.json` from the already-versioned v0.2
-evidence archive, verifies SHA-256, and materializes it inside the new run directory.
+The frozen dataset and its digest remain unchanged. The original Deliberative-only benchmark also remains the immutable comparison baseline.
 
-## Routing plan
+## Historical physical routing contract
 
-The routing plan is derived only from the closed synthetic request. It never reads
-`acceptedAnswers` or `expectedDisposition` while producing an answer.
+The completed physical run used this routing plan:
 
 ```text
 72 bounded cases:
@@ -66,11 +46,9 @@ The routing plan is derived only from the closed synthetic request. It never rea
   insufficient_information
 ```
 
-The 72 bounded cases use Intuitive plus Metacognitive. The other 48 invoke the
-Deliberative candidate; when the bounded Metacognitive core cannot independently
-verify them, authority abstains.
+The 72 bounded cases used local Intuitive computation and blind deterministic Metacognitive recomputation. The other 48 invoked the Deliberative candidate and abstained when independent verification was unavailable.
 
-## Frozen physical result
+## Historical physical result
 
 ```text
 run id:                     morimil-trimotor-v0.2-physical-20260722-043653-908d91aa
@@ -84,7 +62,7 @@ request state released:     120/120
 capability boundary:        120/120
 ```
 
-Role coverage:
+Historical role coverage:
 
 ```text
 INTUITIVE:                  72
@@ -93,6 +71,53 @@ METACOGNITIVE:              72
 opened conversations:       48
 closed conversations:       48
 ```
+
+These figures describe the frozen physical execution only. They must not be silently rewritten after routing code changes.
+
+## Current adapter contract
+
+The current adapter adds deterministic authority for the twelve frozen `closed-order-v0` logic cases. The frozen dataset is not modified; only the request routing changes:
+
+```text
+84 bounded cases:
+  arithmetic
+  logic (closed arrival-order grammar only)
+  restricted_code
+  claim_verification
+  strict_format
+  adversarial_consensus
+  multi_turn_context
+
+36 generative or unsupported cases:
+  spanish
+  planning
+  insufficient_information
+```
+
+Expected contract delta:
+
+```text
+bounded:    72 -> 84
+generative: 48 -> 36
+```
+
+This is a code and test contract, not new physical evidence. A new opt-in run on a physical ARM64 Android device is required before claiming 84 accepted correct, 36 abstained, updated role counts, latency, memory, battery or thermal results.
+
+## Current authority flow
+
+```text
+bounded closed task
+  -> local bounded Intuitive core
+  -> optional blind deterministic Metacognitive recomputation in research runtime
+  -> deterministic hybrid authority
+
+open or unsupported task
+  -> Deliberative research candidate when requested
+  -> bounded verifier attempt
+  -> structured abstention when deterministic verification is unavailable
+```
+
+For the closed-order logic domain, generated candidates are advisory. The final answer comes from a unique topological ordering of the parsed relation graph. Cycles, ties, malformed relations and unsupported wording abstain.
 
 ## Output contract
 
@@ -111,14 +136,15 @@ capability boundaries
 latency and deliberative iteration count
 ```
 
-The response state kind is `HYBRID_ROUTED`. `AUTHORITY_ABSTAINED` is a valid
-fail-closed stop reason.
+The response state kind is `HYBRID_ROUTED`. `AUTHORITY_ABSTAINED` is a valid fail-closed stop reason.
 
-The physical report requires:
+## Physical report requirements
+
+A completed physical report requires:
 
 ```text
 all 120 cases completed
-all three roles activated at least once
+all required roles activated according to the current routing plan
 opened conversations == closed conversations
 request state released for every case
 artifact hash stable before and after execution
@@ -131,8 +157,7 @@ productionAuthorization == false
 promotionAllowed == false
 ```
 
-The final two fields are legacy fail-closed compatibility fields. Public production is
-not Morimil's target.
+The final two fields are legacy fail-closed compatibility fields. Public production is not Morimil's target.
 
 ## Host execution
 
@@ -180,8 +205,7 @@ instrumentation-output.txt
 bundle-trimotor-v0.2.json
 ```
 
-A failed instrumentation run retains the transcript and best-effort diagnostics in the
-run directory before private staging is removed.
+A failed instrumentation run retains its transcript and best-effort diagnostics before private staging is removed.
 
 ## Research gate
 
@@ -194,35 +218,17 @@ stateReleasePassCount == 120
 capabilityBoundaryPassCount == 120
 ```
 
-The frozen physical run passed all four conditions.
+The historical physical run passed all four conditions. The updated adapter must pass them again in a separate physical execution before its new routing counts become physical evidence.
 
-Passing this gate does not certify, sign, install or authorize activation of Morimil's
-personal runtime.
-
-## Comparison label
-
-The frozen comparator returned:
-
-```text
-V0_3_SUPERIOR
-```
-
-This is a legacy outcome label from the comparative v0.3 research contract. It means
-that the candidate satisfied the frozen superiority conditions. It does not claim that
-a trained neural v0.3 model exists. The candidate is:
-
-```text
-Deliberative v0.2
-+ bounded Intuitive core
-+ bounded Metacognitive core
-+ hybrid authority
-```
+Passing the research gate does not certify, sign, install or authorize activation of Morimil's personal runtime.
 
 ## Explicitly not claimed
 
 ```text
+new 84/36 physical result:          false
 trained neural v0.3 model:          false
-normal Morimil activation:          false
+normal Morimil Deliberative:        false
+normal Morimil Metacognitive:       false
 personal runtime authorization:     false
 artifact certification:             false
 artifact signature:                 false

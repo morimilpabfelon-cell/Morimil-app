@@ -12,6 +12,7 @@ internal enum class TriMotorBenchmarkOutputProfileV0 {
     INTEGER,
     STRICT_FINAL_INTEGER,
     CLAIM_BOOLEAN,
+    EXACT_TOKEN,
     GENERATIVE_FAIL_CLOSED
 }
 
@@ -27,8 +28,8 @@ internal data class TriMotorBenchmarkPlanV0(
  */
 internal object MorimilTriMotorBenchmarkAdapterV0 {
     const val VERSION = "morimil.trimotor.benchmark-adapter.v0"
-    const val BOUNDED_CASE_COUNT = 72
-    const val GENERATIVE_CASE_COUNT = 48
+    const val BOUNDED_CASE_COUNT = 84
+    const val GENERATIVE_CASE_COUNT = 36
 
     private val arithmetic = Regex(
         """calcula\s+(-?\d+)\s*\+\s*(-?\d+)\s*\*\s*(-?\d+)""",
@@ -133,7 +134,14 @@ internal object MorimilTriMotorBenchmarkAdapterV0 {
                 )
             }
 
-            "logic" -> generativePlan(history, ReasoningTaskKind.LOGIC, benchmarkCase.prompt)
+            "logic" -> boundedPlan(
+                history = history,
+                taskKind = ReasoningTaskKind.LOGIC,
+                authorityPrompt = benchmarkCase.prompt,
+                outputProfile = TriMotorBenchmarkOutputProfileV0.EXACT_TOKEN,
+                reduction = "closed_order_unique_topology_v0"
+            )
+
             "spanish" -> generativePlan(history, ReasoningTaskKind.SPANISH, benchmarkCase.prompt)
             "planning" -> generativePlan(history, ReasoningTaskKind.INSTRUCTION, benchmarkCase.prompt)
             "insufficient_information" -> generativePlan(
@@ -169,6 +177,7 @@ internal object MorimilTriMotorBenchmarkAdapterV0 {
                 "0" -> "FALSO"
                 else -> error("trimotor_claim_truth_bit_invalid:$value")
             }
+            TriMotorBenchmarkOutputProfileV0.EXACT_TOKEN -> normalizeToken(value)
             TriMotorBenchmarkOutputProfileV0.GENERATIVE_FAIL_CLOSED ->
                 MorimilDeliberativeBenchmarkDatasetV0.ABSTAIN_TOKEN
         }
@@ -230,5 +239,12 @@ internal object MorimilTriMotorBenchmarkAdapterV0 {
     private fun normalizeInteger(value: String): String {
         require(integer.matches(value)) { "trimotor_authority_integer_invalid:$value" }
         return BigInteger(value).toString()
+    }
+
+    private fun normalizeToken(value: String): String {
+        require(value.matches(Regex("[A-Z][A-Z0-9_-]{0,31}"))) {
+            "trimotor_authority_token_invalid:$value"
+        }
+        return value
     }
 }

@@ -4,37 +4,34 @@ Status: executable bounded cores. The Intuitive core is active in normal runtime
 
 ## Purpose
 
-This change supplies the first real, non-fake implementations behind the Intuitive and Metacognitive motor shells introduced by PR #36.
+`BoundedLocalIntuitiveCoreV0` and `BoundedLocalMetacognitiveCoreV0` provide stateless local computation behind the intrinsic motor interfaces.
 
-They are deliberately bounded and deterministic. They do not claim general language understanding, neural independence or a completed tri-motor organism.
+They do not claim general language understanding, neural independence or a completed tri-motor organism.
 
-```text
-BoundedLocalIntuitiveCoreV0
-BoundedLocalMetacognitiveCoreV0
-```
+## Accepted deterministic task kinds
 
-Both cores use Morimil's existing `HybridAuthorityRouterV0` only for routes where exact local computation already exists:
+Both cores use `HybridAuthorityRouterV0` only where exact local computation exists:
 
 ```text
 ARITHMETIC
 RESTRICTED_CODE
 CLAIM_VERIFICATION
+LOGIC (closed arrival-order grammar only)
 ```
 
-The following task kinds fail closed:
+The following remain unsupported and fail closed:
 
 ```text
-LOGIC
 SPANISH
 INSTRUCTION
 UNKNOWN
 ```
 
+General syllogisms and malformed or ambiguous order prompts also fail closed even when classified as `LOGIC`.
+
 ## Intuitive behavior
 
-The Intuitive core reads the original authority prompt and produces a result only when the bounded deterministic authority accepts it.
-
-Examples:
+The Intuitive core reads the original authority prompt and produces a result only when deterministic authority accepts it.
 
 ```text
 Calcula 15 menos 2 por 6...
@@ -42,25 +39,29 @@ Calcula 15 menos 2 por 6...
 
 print(sum([1, 2, 3]))
   -> FINAL:6
+
+Ana llegó antes que Bruno y Bruno antes que Carla.
+¿Quién llegó primero?
+  -> FINAL:ANA
 ```
 
-It does not execute Python or arbitrary code. Restricted-code results come from fixed parsers and exact local semantics.
+It does not execute Python or arbitrary code. Order logic is solved through a unique topological sort, not through generated text.
 
 ## Metacognitive behavior
 
-The Metacognitive core receives the original prompt but no primary candidate. It recomputes the bounded task independently from that prompt.
+The Metacognitive core receives the original prompt but no primary candidate. It recomputes bounded tasks independently from that prompt.
 
 ```text
-primary Deliberative candidate:  FINAL:13
-blind Metacognitive result:      FINAL:3
-final Morimil authority result:  FINAL:3
+primary Deliberative candidate:  FINAL:CARLA
+blind deterministic result:      FINAL:ANA
+final Morimil authority result:  FINAL:ANA
 ```
 
-This is genuine deterministic recomputation, not model consensus. For generative tasks it refuses to manufacture agreement and returns failure to the coordinator, which causes authority abstention where appropriate.
+For unsupported generative tasks it refuses to manufacture agreement and returns failure to the coordinator.
 
 ## Research runtime factory
 
-`BoundedLocalTriMotorResearchRuntimeFactoryV0` creates the isolated runtime using:
+`BoundedLocalTriMotorResearchRuntimeFactoryV0` creates the isolated research runtime using:
 
 ```text
 IntuitiveMotorV0(BoundedLocalIntuitiveCoreV0)
@@ -68,7 +69,7 @@ DeliberativeMotorV0(explicitly supplied core)
 MetacognitiveMotorV0(BoundedLocalMetacognitiveCoreV0)
 ```
 
-The factory does not locate, download, install, sign or activate a Deliberative artifact. The caller must supply the Deliberative motor explicitly.
+The factory does not locate, download, install, sign or activate a Deliberative artifact.
 
 ## Normal runtime activation
 
@@ -78,9 +79,9 @@ The factory does not locate, download, install, sign or activate a Deliberative 
 INTUITIVE -> IntuitiveMotorV0(BoundedLocalIntuitiveCoreV0)
 ```
 
-Normal Chat now tries this local motor first. It can answer only the deterministic routes listed above. Unsupported, malformed or ambiguous requests fail closed and continue through the existing temporary-external or deterministic fallback path.
+Normal Chat can answer the deterministic routes above locally. Unsupported, malformed or ambiguous requests continue through the existing temporary-external or deterministic fallback path.
 
-This activation does not register Deliberative or Metacognitive and does not enable `HybridAuthorityRuntimePolicy`.
+This does not register Deliberative or Metacognitive and does not enable the full hybrid research runtime.
 
 ## Freedom boundary
 
@@ -96,23 +97,20 @@ lifecycle authority
 installer or downloader
 ```
 
-They are stateless computation organs. Morimil retains identity, memory, continuity and final authority. Normal-runtime registration is performed outside the cores by a narrow registry with an exact role allowlist.
+They are request-scoped computation organs. Morimil retains identity, memory, continuity and final authority.
 
-## What this establishes
+## Current state
 
 ```text
 real bounded Intuitive computation:          yes
-real blind Metacognitive recomputation:      yes
-exact deterministic correction:              yes
+real blind Metacognitive recomputation:      yes, research-only
+closed-order deterministic logic:            yes
 request-persistent core state:                no
 general neural Intuitive model:              no
 general neural Metacognitive model:          no
-physical tri-motor benchmark:                 not executed
-normal Chat bounded Intuitive activation:     true
-normal Chat Deliberative activation:           false
-normal Chat Metacognitive activation:          false
+normal Chat bounded Intuitive activation:    true
+normal Chat Deliberative activation:         false
+normal Chat Metacognitive activation:        false
 ```
 
-## Next evidence gate
-
-The next valid activation step is not to broaden the Intuitive parser silently. It is to register another intrinsic role only after its artifact, resource limits, behavior and authority boundary pass a separate review and physical Android validation.
+Any future expansion requires another explicit PR with a complete grammar, deterministic verifier, adversarial tests and unchanged authority boundaries.
