@@ -112,7 +112,7 @@ private fun boundedDeterministicDecision(
         ReasoningTaskKind.ARITHMETIC -> HybridAuthorityTaskKind.ARITHMETIC
         ReasoningTaskKind.RESTRICTED_CODE -> HybridAuthorityTaskKind.RESTRICTED_CODE
         ReasoningTaskKind.CLAIM_VERIFICATION -> HybridAuthorityTaskKind.CLAIM_VERIFICATION
-        ReasoningTaskKind.LOGIC,
+        ReasoningTaskKind.LOGIC -> HybridAuthorityTaskKind.LOGIC
         ReasoningTaskKind.SPANISH,
         ReasoningTaskKind.INSTRUCTION,
         ReasoningTaskKind.UNKNOWN -> throw IllegalArgumentException(
