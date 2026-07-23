@@ -1,6 +1,7 @@
 package com.morimil.app.data.local
 
 import android.content.Context
+import android.database.DatabaseUtils
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -103,10 +104,10 @@ internal object MorimilDatabaseEncryption {
             )
             checkpointWal(source)
             sourceVersion = source.version
+            val escapedPath = DatabaseUtils.sqlEscapeString(encryptedTemp.absolutePath)
+            val escapedPassphrase = DatabaseUtils.sqlEscapeString(passphraseText)
             source.rawExecSQL(
-                "ATTACH DATABASE ? AS encrypted KEY ?",
-                encryptedTemp.absolutePath,
-                passphraseText
+                "ATTACH DATABASE $escapedPath AS encrypted KEY $escapedPassphrase"
             )
             encryptedAttached = true
             source.rawQuery(
