@@ -76,6 +76,33 @@ class HybridAuthorityRouterV0Test {
     }
 
     @Test
+    fun exactInstructionOverridesMatchingWrongGeneratedReplies() {
+        val literal = router.decide(
+            HybridAuthorityRequest(
+                taskKind = HybridAuthorityTaskKind.INSTRUCTION,
+                prompt = "Devuelve exactamente FINAL:AZUL y nada más.",
+                directReply = "FINAL:ROJO",
+                verifierReply = "FINAL:ROJO"
+            )
+        )
+        val subtraction = router.decide(
+            HybridAuthorityRequest(
+                taskKind = HybridAuthorityTaskKind.INSTRUCTION,
+                prompt = "Calcula 12 - 5 y devuelve exactamente FINAL:<resultado>.",
+                directReply = "FINAL:99",
+                verifierReply = "FINAL:99"
+            )
+        )
+
+        assertEquals("FINAL:AZUL", literal.acceptedContent)
+        assertEquals("FINAL:7", subtraction.acceptedContent)
+        assertEquals(HybridAuthorityRoute.DETERMINISTIC_INSTRUCTION, literal.route)
+        assertEquals(HybridAuthorityRoute.DETERMINISTIC_INSTRUCTION, subtraction.route)
+        assertEquals(HybridAuthorityStatus.ACCEPTED_DETERMINISTIC, literal.status)
+        assertTrue(subtraction.findings.contains("deterministic_exact_instruction_subtraction"))
+    }
+
+    @Test
     fun closedOrderLogicRejectsCyclesTiesAndExtraText() {
         val prompts = listOf(
             "Ana llegó antes que Bruno y Bruno antes que Ana. ¿Quién llegó primero?",
@@ -104,7 +131,34 @@ class HybridAuthorityRouterV0Test {
     }
 
     @Test
-    fun strictConsensusRemainsInternalForSpanishAndInstructionRouterCalls() {
+    fun unsupportedInstructionFormsFailClosedDespiteMatchingGeneratedReplies() {
+        val prompts = listOf(
+            "Devuelve exactamente FINAL:azul y nada más.",
+            "Devuelve exactamente FINAL:AZUL.",
+            "Calcula 12 + 5 y devuelve exactamente FINAL:<resultado>.",
+            "Calcula 12 - 5 y devuelve exactamente FINAL:<resultado>. Explica."
+        )
+
+        prompts.forEach { prompt ->
+            val decision = router.decide(
+                HybridAuthorityRequest(
+                    taskKind = HybridAuthorityTaskKind.INSTRUCTION,
+                    prompt = prompt,
+                    directReply = "FINAL:SI",
+                    verifierReply = "FINAL:SI"
+                )
+            )
+
+            assertFalse(decision.accepted)
+            assertNull(decision.acceptedContent)
+            assertEquals(HybridAuthorityRoute.UNSUPPORTED, decision.route)
+            assertEquals(HybridAuthorityStatus.ABSTAINED, decision.status)
+            assertTrue(decision.findings.contains("hybrid_authority_task_unknown"))
+        }
+    }
+
+    @Test
+    fun strictConsensusRemainsInternalForSpanishRouterCallsOnly() {
         val spanish = router.decide(
             HybridAuthorityRequest(
                 taskKind = HybridAuthorityTaskKind.SPANISH,
@@ -113,23 +167,14 @@ class HybridAuthorityRouterV0Test {
                 verifierReply = "FINAL:B"
             )
         )
-        val instruction = router.decide(
-            HybridAuthorityRequest(
-                taskKind = HybridAuthorityTaskKind.INSTRUCTION,
-                prompt = "instruction fixture",
-                directReply = "FINAL:7",
-                verifierReply = "FINAL:7"
-            )
-        )
 
         assertEquals("FINAL:B", spanish.acceptedContent)
-        assertEquals("FINAL:7", instruction.acceptedContent)
         assertEquals(HybridAuthorityStatus.ACCEPTED_STRICT_CONSENSUS, spanish.status)
         assertEquals(HybridAuthorityRoute.STRICT_GENERATIVE_CONSENSUS, spanish.route)
     }
 
     @Test
-    fun strictConsensusRejectsDisagreementAndInvalidFormat() {
+    fun strictConsensusRejectsSpanishDisagreement() {
         val disagreement = router.decide(
             HybridAuthorityRequest(
                 taskKind = HybridAuthorityTaskKind.SPANISH,
@@ -138,19 +183,9 @@ class HybridAuthorityRouterV0Test {
                 verifierReply = "FINAL:NO"
             )
         )
-        val whitespace = router.decide(
-            HybridAuthorityRequest(
-                taskKind = HybridAuthorityTaskKind.INSTRUCTION,
-                prompt = "format check",
-                directReply = "FINAL: 7",
-                verifierReply = "FINAL:7"
-            )
-        )
 
         assertFalse(disagreement.accepted)
         assertTrue(disagreement.findings.any { it.contains("disagreement") })
-        assertFalse(whitespace.accepted)
-        assertTrue(whitespace.findings.any { it.contains("missing_valid_output") })
     }
 
     @Test
