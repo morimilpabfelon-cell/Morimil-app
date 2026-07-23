@@ -1,0 +1,54 @@
+name: Reference Checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reference-checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reference-checks:
+    name: reference-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Validate model-artifact and benchmark contracts
+        run: |
+          python -m unittest discover -s tools/model-artifacts -p 'test_*.py'
+          python -m unittest discover -s tools/benchmarks -p 'test_*.py'
+          python tools/benchmarks/morimil_deliberative_benchmark_v0.py check
+          python tools/benchmarks/validate_v02_baseline_evidence_v0.py check
+          python tools/benchmarks/validate_v02_physical_benchmark_evidence_v1.py check
+          python tools/benchmarks/validate_trimotor_v02_physical_benchmark_evidence_v1.py check
+
+      - name: Run Android unit tests and lint
+        run: ./gradlew --no-daemon --stacktrace --console=plain :app:testDebugUnitTest :app:lintDebug
+
+      - name: Assemble debug APK and instrumentation APK
+        run: ./gradlew --no-daemon --stacktrace --console=plain :app:assembleDebug :app:assembleDebugAndroidTest
