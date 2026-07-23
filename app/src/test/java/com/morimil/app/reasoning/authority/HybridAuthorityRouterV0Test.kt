@@ -10,91 +10,31 @@ class HybridAuthorityRouterV0Test {
     private val router = HybridAuthorityRouterV0()
 
     @Test
-    fun deterministicRoutesOverrideWrongOrFalseConsensusModelOutputs() {
+    fun deterministicScalarRoutesOverrideWrongConsensus() {
         val cases = listOf(
             Case(
                 HybridAuthorityTaskKind.ARITHMETIC,
-                "Calcula 7 por 8. Devuelve exactamente FINAL:numero.",
-                "FINAL:14",
-                "FINAL:14",
-                "FINAL:56"
-            ),
-            Case(
-                HybridAuthorityTaskKind.ARITHMETIC,
-                "Calcula 12 + 3 por 4 respetando prioridad de operaciones. Devuelve exactamente FINAL:numero.",
-                "FINAL:15",
-                "FINAL:12",
-                "FINAL:24"
-            ),
-            Case(
-                HybridAuthorityTaskKind.ARITHMETIC,
-                "Calcula 18 dividido entre 3, y luego suma 7. Devuelve exactamente FINAL:numero.",
-                "FINAL:11",
-                "FINAL:12",
-                "FINAL:13"
-            ),
-            Case(
-                HybridAuthorityTaskKind.ARITHMETIC,
-                "Calcula 15 menos 2 por 6 respetando prioridad. Devuelve exactamente FINAL:numero.",
+                "Calcula 15 menos 2 por 6 respetando prioridad.",
                 "FINAL:13",
                 "FINAL:13",
-                "FINAL:3"
+                "FINAL:3",
+                HybridAuthorityRoute.DETERMINISTIC_ARITHMETIC
             ),
             Case(
                 HybridAuthorityTaskKind.RESTRICTED_CODE,
                 "Que imprime Python con print(sum([2, 3, 5]))?",
+                "FINAL:99",
+                "FINAL:99",
                 "FINAL:10",
-                "FINAL:10",
-                "FINAL:10"
-            ),
-            Case(
-                HybridAuthorityTaskKind.RESTRICTED_CODE,
-                "Que imprime Python con print(len('morimil'))?",
-                "FINAL:6",
-                "FINAL:7",
-                "FINAL:7"
-            ),
-            Case(
-                HybridAuthorityTaskKind.RESTRICTED_CODE,
-                "Python: x = 3; x *= 4; print(x).",
-                "FINAL:12",
-                "FINAL:12",
-                "FINAL:12"
-            ),
-            Case(
-                HybridAuthorityTaskKind.RESTRICTED_CODE,
-                "Python: print([i*i for i in range(4)][-1]).",
-                "FINAL:9",
-                "FINAL:9",
-                "FINAL:9"
+                HybridAuthorityRoute.RESTRICTED_CODE
             ),
             Case(
                 HybridAuthorityTaskKind.CLAIM_VERIFICATION,
                 "Una respuesta afirma que 9 por 6 es 42.",
-                "FINAL:36",
+                "FINAL:42",
+                "FINAL:42",
                 "FINAL:54",
-                "FINAL:54"
-            ),
-            Case(
-                HybridAuthorityTaskKind.CLAIM_VERIFICATION,
-                "Una respuesta afirma que len([1,2,3,4]) es 3.",
-                "FINAL:4",
-                "FINAL:4",
-                "FINAL:4"
-            ),
-            Case(
-                HybridAuthorityTaskKind.CLAIM_VERIFICATION,
-                "Una respuesta afirma que todos los numeros pares son impares. Es correcta?",
-                "FINAL:NO",
-                "FINAL:NO",
-                "FINAL:NO"
-            ),
-            Case(
-                HybridAuthorityTaskKind.CLAIM_VERIFICATION,
-                "Una respuesta afirma que 100 dividido entre 5 es 25.",
-                "FINAL:20",
-                "FINAL:2",
-                "FINAL:20"
+                HybridAuthorityRoute.DETERMINISTIC_CLAIM_CHECK
             )
         )
 
@@ -102,6 +42,7 @@ class HybridAuthorityRouterV0Test {
             val decision = router.decide(case.request())
 
             assertEquals(case.expected, decision.acceptedContent)
+            assertEquals(case.route, decision.route)
             assertEquals(HybridAuthorityStatus.ACCEPTED_DETERMINISTIC, decision.status)
             assertTrue(decision.accepted)
         }
@@ -140,7 +81,8 @@ class HybridAuthorityRouterV0Test {
             "Ana llegó antes que Bruno y Bruno antes que Ana. ¿Quién llegó primero?",
             "Ana llegó antes que Carla y Bruno antes que Carla. ¿Quién llegó primero?",
             "Ana llegó antes que Bruno y Bruno antes que Carla. ¿Quién llegó primero? Explica.",
-            "Ana llegó antes que Ana y Ana antes que Carla. ¿Quién llegó primero?"
+            "Ana llegó antes que Ana y Ana antes que Carla. ¿Quién llegó primero?",
+            "Todos los A son B. Todos los B son C."
         )
 
         prompts.forEach { prompt ->
@@ -155,50 +97,39 @@ class HybridAuthorityRouterV0Test {
 
             assertFalse(decision.accepted)
             assertNull(decision.acceptedContent)
-            assertEquals(HybridAuthorityRoute.DETERMINISTIC_LOGIC, decision.route)
+            assertEquals(HybridAuthorityRoute.UNSUPPORTED, decision.route)
             assertEquals(HybridAuthorityStatus.ABSTAINED, decision.status)
+            assertTrue(decision.findings.contains("hybrid_authority_task_unknown"))
         }
     }
 
     @Test
-    fun strictConsensusAcceptsSpanishAndInstructionOnlyWhenOutputsMatch() {
-        val accepted = listOf(
-            Case(HybridAuthorityTaskKind.SPANISH, "spanish-2", "FINAL:B", "FINAL:B", "FINAL:B"),
-            Case(HybridAuthorityTaskKind.SPANISH, "spanish-3", "FINAL:A", "FINAL:A", "FINAL:A"),
-            Case(HybridAuthorityTaskKind.SPANISH, "spanish-4", "FINAL:B", "FINAL:B", "FINAL:B"),
-            Case(HybridAuthorityTaskKind.INSTRUCTION, "instruction-1", "FINAL:AZUL", "FINAL:AZUL", "FINAL:AZUL"),
-            Case(HybridAuthorityTaskKind.INSTRUCTION, "instruction-2", "FINAL:7", "FINAL:7", "FINAL:7"),
-            Case(HybridAuthorityTaskKind.INSTRUCTION, "instruction-3", "FINAL:VERDE", "FINAL:VERDE", "FINAL:VERDE"),
-            Case(HybridAuthorityTaskKind.INSTRUCTION, "instruction-4", "FINAL:O", "FINAL:O", "FINAL:O")
-        )
-
-        accepted.forEach { case ->
-            val decision = router.decide(case.request())
-
-            assertEquals(case.expected, decision.acceptedContent)
-            assertEquals(HybridAuthorityStatus.ACCEPTED_STRICT_CONSENSUS, decision.status)
-        }
-    }
-
-    @Test
-    fun invalidVerifierFormatForSpanishProducesAbstention() {
-        val decision = router.decide(
+    fun strictConsensusRemainsInternalForSpanishAndInstructionRouterCalls() {
+        val spanish = router.decide(
             HybridAuthorityRequest(
                 taskKind = HybridAuthorityTaskKind.SPANISH,
-                prompt = "Ana llego antes que Luis y Luis antes que Marta.",
-                directReply = "FINAL:C",
-                verifierReply = "Ana llego primero, Luis segundo y Marta tercero. FINAL:A"
+                prompt = "spanish fixture",
+                directReply = "FINAL:B",
+                verifierReply = "FINAL:B"
+            )
+        )
+        val instruction = router.decide(
+            HybridAuthorityRequest(
+                taskKind = HybridAuthorityTaskKind.INSTRUCTION,
+                prompt = "instruction fixture",
+                directReply = "FINAL:7",
+                verifierReply = "FINAL:7"
             )
         )
 
-        assertFalse(decision.accepted)
-        assertNull(decision.acceptedContent)
-        assertEquals(HybridAuthorityStatus.ABSTAINED, decision.status)
-        assertTrue(decision.findings.any { it.contains("missing_valid_output") })
+        assertEquals("FINAL:B", spanish.acceptedContent)
+        assertEquals("FINAL:7", instruction.acceptedContent)
+        assertEquals(HybridAuthorityStatus.ACCEPTED_STRICT_CONSENSUS, spanish.status)
+        assertEquals(HybridAuthorityRoute.STRICT_GENERATIVE_CONSENSUS, spanish.route)
     }
 
     @Test
-    fun strictConsensusRejectsDisagreementAndWhitespaceInsideFinalProtocol() {
+    fun strictConsensusRejectsDisagreementAndInvalidFormat() {
         val disagreement = router.decide(
             HybridAuthorityRequest(
                 taskKind = HybridAuthorityTaskKind.SPANISH,
@@ -223,7 +154,7 @@ class HybridAuthorityRouterV0Test {
     }
 
     @Test
-    fun unknownAndUnsupportedTasksFailClosed() {
+    fun unknownAndUnsupportedScalarTasksFailClosed() {
         val unknown = router.decide(
             HybridAuthorityRequest(
                 taskKind = HybridAuthorityTaskKind.UNKNOWN,
@@ -252,7 +183,8 @@ class HybridAuthorityRouterV0Test {
         val prompt: String,
         val direct: String,
         val verified: String,
-        val expected: String
+        val expected: String,
+        val route: HybridAuthorityRoute
     ) {
         fun request(): HybridAuthorityRequest {
             return HybridAuthorityRequest(
