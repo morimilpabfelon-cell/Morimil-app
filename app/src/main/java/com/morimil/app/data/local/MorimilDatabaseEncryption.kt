@@ -110,12 +110,7 @@ internal object MorimilDatabaseEncryption {
                 "ATTACH DATABASE $escapedPath AS encrypted KEY $escapedPassphrase"
             )
             encryptedAttached = true
-            source.rawQuery(
-                "SELECT sqlcipher_export('encrypted')",
-                emptyArray<String>()
-            ).use { cursor ->
-                check(cursor.moveToFirst()) { "SQLCipher export did not return a result." }
-            }
+            source.rawExecSQL("SELECT sqlcipher_export('encrypted')")
             source.rawExecSQL("PRAGMA encrypted.user_version = $sourceVersion")
         } finally {
             if (encryptedAttached) {
