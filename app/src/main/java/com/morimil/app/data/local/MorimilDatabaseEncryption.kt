@@ -13,7 +13,9 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+import net.zetetic.database.sqlcipher.SQLiteConnection
 import net.zetetic.database.sqlcipher.SQLiteDatabase as CipherDatabase
+import net.zetetic.database.sqlcipher.SQLiteDatabaseHook
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 
 /**
@@ -89,36 +91,103 @@ internal object MorimilDatabaseEncryption {
     ) {
         deleteDatabaseFiles(encryptedTemp)
         deleteDatabaseFiles(plaintextBackup)
+        check(databaseFile.isFile && databaseFile.length() > 0L) {
+            "Plaintext memory database disappeared before encryption migration."
+        }
 
         val passphraseText = String(passphrase, Charsets.UTF_8)
+        var sourceVersion = -1
+        var sourceSchemaObjectCount = -1L
+        val exportHook = object : SQLiteDatabaseHook {
+            override fun preKey(connection: SQLiteConnection) = Unit
+
+            override fun postKey(connection: SQLiteConnection) {
+                val checkpointBusy = connection.executeForLong(
+                    "PRAGMA wal_checkpoint(TRUNCATE)",
+                    null,
+                    null
+                )
+                check(checkpointBusy == 0L) {
+                    "Plaintext database WAL is busy; refusing a partial encryption migration."
+                }
+
+                sourceVersion = connection.executeForLong(
+                    "PRAGMA user_version",
+                    null,
+                    null
+                ).toInt()
+                sourceSchemaObjectCount = connection.executeForLong(
+                    USER_SCHEMA_OBJECT_COUNT_SQL,
+                    null,
+                    null
+                )
+                check(sourceSchemaObjectCount > 0L) {
+                    "Plaintext memory database has no application schema; refusing replacement."
+                }
+
+                val escapedPath = DatabaseUtils.sqlEscapeString(encryptedTemp.absolutePath)
+                val escapedPassphrase = DatabaseUtils.sqlEscapeString(passphraseText)
+                var encryptedAttached = false
+                var exportVerified = false
+                try {
+                    connection.execute(
+                        "ATTACH DATABASE $escapedPath AS encrypted KEY $escapedPassphrase",
+                        null,
+                        null
+                    )
+                    encryptedAttached = true
+                    connection.executeForString(
+                        "SELECT sqlcipher_export('encrypted')",
+                        null,
+                        null
+                    )
+                    connection.execute(
+                        "PRAGMA encrypted.user_version = $sourceVersion",
+                        null,
+                        null
+                    )
+                    val exportedSchemaObjectCount = connection.executeForLong(
+                        ENCRYPTED_SCHEMA_OBJECT_COUNT_SQL,
+                        null,
+                        null
+                    )
+                    check(exportedSchemaObjectCount == sourceSchemaObjectCount) {
+                        "Encrypted export schema count differs from the plaintext source."
+                    }
+                    exportVerified = true
+                } finally {
+                    if (encryptedAttached) {
+                        val detachResult = runCatching {
+                            connection.execute(
+                                "DETACH DATABASE encrypted",
+                                null,
+                                null
+                            )
+                        }
+                        if (exportVerified) {
+                            detachResult.getOrThrow()
+                        }
+                    }
+                }
+            }
+        }
+
         var source: CipherDatabase? = null
-        var encryptedAttached = false
-        var sourceVersion = 0
         try {
             source = CipherDatabase.openDatabase(
                 databaseFile.absolutePath,
                 EMPTY_PASSPHRASE,
                 null,
-                CipherDatabase.OPEN_READWRITE,
-                null
+                CipherDatabase.OPEN_READWRITE or CipherDatabase.CREATE_IF_NECESSARY,
+                exportHook
             )
-            checkpointWal(source)
-            sourceVersion = source.version
-            val escapedPath = DatabaseUtils.sqlEscapeString(encryptedTemp.absolutePath)
-            val escapedPassphrase = DatabaseUtils.sqlEscapeString(passphraseText)
-            source.rawExecSQL(
-                "ATTACH DATABASE $escapedPath AS encrypted KEY $escapedPassphrase"
-            )
-            encryptedAttached = true
-            source.rawExecSQL("SELECT sqlcipher_export('encrypted')")
         } finally {
-            if (encryptedAttached) {
-                runCatching { source?.rawExecSQL("DETACH DATABASE encrypted") }
-            }
             source?.close()
         }
 
-        setEncryptedDatabaseVersion(encryptedTemp, passphrase, sourceVersion)
+        check(sourceVersion >= 0 && sourceSchemaObjectCount > 0L) {
+            "Plaintext memory export did not complete."
+        }
         verifyEncryptedDatabase(encryptedTemp, passphrase, sourceVersion)
         deleteSidecars(databaseFile)
 
@@ -176,36 +245,6 @@ internal object MorimilDatabaseEncryption {
             }
         }
         deleteDatabaseFiles(encryptedTemp)
-    }
-
-    private fun checkpointWal(database: CipherDatabase) {
-        database.rawQuery("PRAGMA wal_checkpoint(TRUNCATE)", emptyArray<String>()).use { cursor ->
-            if (cursor.moveToFirst() && cursor.columnCount > 0) {
-                check(cursor.getInt(0) == 0) {
-                    "Plaintext database WAL is busy; refusing a partial encryption migration."
-                }
-            }
-        }
-    }
-
-    private fun setEncryptedDatabaseVersion(
-        databaseFile: File,
-        passphrase: ByteArray,
-        version: Int
-    ) {
-        var database: CipherDatabase? = null
-        try {
-            database = CipherDatabase.openDatabase(
-                databaseFile.absolutePath,
-                passphrase,
-                null,
-                CipherDatabase.OPEN_READWRITE,
-                null
-            )
-            database.version = version
-        } finally {
-            database?.close()
-        }
     }
 
     private fun verifyEncryptedDatabase(
@@ -284,6 +323,14 @@ internal object MorimilDatabaseEncryption {
     private fun loadSqlCipher() {
         System.loadLibrary("sqlcipher")
     }
+
+    private const val USER_SCHEMA_OBJECT_COUNT_SQL =
+        "SELECT count(*) FROM main.sqlite_schema " +
+            "WHERE type IN ('table','index','trigger','view') AND name NOT LIKE 'sqlite_%'"
+
+    private const val ENCRYPTED_SCHEMA_OBJECT_COUNT_SQL =
+        "SELECT count(*) FROM encrypted.sqlite_schema " +
+            "WHERE type IN ('table','index','trigger','view') AND name NOT LIKE 'sqlite_%'"
 
     private val EMPTY_PASSPHRASE = ByteArray(0)
 }
