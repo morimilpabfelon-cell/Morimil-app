@@ -11,10 +11,12 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import kotlinx.coroutines.suspendCancellableCoroutine
-import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import kotlin.coroutines.resume
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 object NativeBrowserRuntime {
     @Volatile
@@ -35,136 +37,130 @@ object NativeBrowserRuntime {
     }
 }
 
-class NativeBrowserReader(
+internal class NativeBrowserReader(
     private val context: Context,
     private val timeoutMillis: Long = 25_000L,
-    private val settleDelayMillis: Long = 1_000L
+    private val settleDelayMillis: Long = 1_000L,
+    private val documentLoader: SafeWebDocumentLoader = SafeWebDocumentLoader()
 ) {
-    suspend fun read(rawUrl: String): NetRenderedResult = suspendCancellableCoroutine { continuation ->
+    suspend fun read(rawUrl: String): NetRenderedResult {
         val initialPolicy = NetSourcePolicy.validateUrl(rawUrl)
         if (!initialPolicy.allowed) {
-            continuation.resume(NetRenderedResult(ok = false, error = "browser_source_denied:${initialPolicy.reason}"))
-            return@suspendCancellableCoroutine
+            return NetRenderedResult(ok = false, error = "browser_source_denied:${initialPolicy.reason}")
         }
 
-        val handler = Handler(Looper.getMainLooper())
-        handler.post {
-            var finished = false
-            var webView: WebView? = null
-            var timeout: Runnable? = null
+        val fetched = withContext(Dispatchers.IO) { documentLoader.fetch(rawUrl) }
+        val document = fetched.document
+            ?: return NetRenderedResult(
+                ok = false,
+                error = "browser_fetch_failed:${fetched.error.orEmpty().take(160)}"
+            )
+        return renderIsolated(document)
+    }
 
-            fun complete(result: NetRenderedResult) {
-                if (finished) return
-                finished = true
-                timeout?.let(handler::removeCallbacks)
-                runCatching {
-                    webView?.stopLoading()
-                    webView?.destroy()
+    private suspend fun renderIsolated(document: SafeWebDocument): NetRenderedResult =
+        suspendCancellableCoroutine { continuation ->
+            val handler = Handler(Looper.getMainLooper())
+            handler.post {
+                var finished = false
+                var webView: WebView? = null
+                var timeout: Runnable? = null
+
+                fun complete(result: NetRenderedResult) {
+                    if (finished) return
+                    finished = true
+                    timeout?.let(handler::removeCallbacks)
+                    runCatching {
+                        webView?.stopLoading()
+                        webView?.destroy()
+                    }
+                    webView = null
+                    if (continuation.isActive) continuation.resume(result)
                 }
-                webView = null
-                if (continuation.isActive) {
-                    continuation.resume(result)
+
+                timeout = Runnable {
+                    complete(NetRenderedResult(ok = false, error = "browser_timeout"))
                 }
-            }
 
-            timeout = Runnable {
-                complete(NetRenderedResult(ok = false, error = "browser_timeout"))
-            }
-
-            continuation.invokeOnCancellation {
-                handler.post {
-                    complete(NetRenderedResult(ok = false, error = "browser_cancelled"))
+                continuation.invokeOnCancellation {
+                    handler.post {
+                        complete(NetRenderedResult(ok = false, error = "browser_cancelled"))
+                    }
                 }
-            }
 
-            webView = WebView(context).apply {
-                configureForReadOnlyResearch()
-                webViewClient = object : WebViewClient() {
-                    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                        val targetUrl = request?.url?.toString().orEmpty()
-                        val policy = NetSourcePolicy.validateUrl(targetUrl)
-                        if (!policy.allowed) {
+                webView = WebView(context).apply {
+                    configureForIsolatedResearch()
+                    webViewClient = object : WebViewClient() {
+                        override fun shouldOverrideUrlLoading(
+                            view: WebView?,
+                            request: WebResourceRequest?
+                        ): Boolean {
                             if (request?.isForMainFrame == true) {
-                                complete(NetRenderedResult(ok = false, error = "browser_navigation_denied:${policy.reason}"))
+                                complete(NetRenderedResult(ok = false, error = "browser_navigation_blocked"))
                             }
                             return true
                         }
-                        return false
-                    }
 
-                    override fun shouldInterceptRequest(
-                        view: WebView?,
-                        request: WebResourceRequest?
-                    ): WebResourceResponse? {
-                        val targetUrl = request?.url?.toString().orEmpty()
-                        val policy = NetSourcePolicy.validateUrl(targetUrl)
-                        return if (policy.allowed) {
-                            null
-                        } else {
-                            WebResourceResponse(
-                                "text/plain",
-                                "UTF-8",
-                                ByteArrayInputStream(ByteArray(0))
-                            )
+                        override fun shouldInterceptRequest(
+                            view: WebView?,
+                            request: WebResourceRequest?
+                        ): WebResourceResponse {
+                            return blockedWebResponse("isolated_browser_network_denied")
                         }
-                    }
 
-                    override fun onReceivedError(
-                        view: WebView?,
-                        request: WebResourceRequest?,
-                        error: WebResourceError?
-                    ) {
-                        if (request?.isForMainFrame == true) {
-                            complete(
-                                NetRenderedResult(
-                                    ok = false,
-                                    error = "browser_main_frame_error:${error?.description?.toString().orEmpty()}"
-                                )
-                            )
-                        }
-                    }
-
-                    override fun onReceivedHttpError(
-                        view: WebView?,
-                        request: WebResourceRequest?,
-                        errorResponse: WebResourceResponse?
-                    ) {
-                        if (request?.isForMainFrame == true) {
-                            complete(
-                                NetRenderedResult(
-                                    ok = false,
-                                    error = "browser_http_${errorResponse?.statusCode ?: 0}"
-                                )
-                            )
-                        }
-                    }
-
-                    override fun onPageFinished(view: WebView?, url: String?) {
-                        val loadedView = view ?: return
-                        val finalPolicy = NetSourcePolicy.validateUrl(url.orEmpty())
-                        if (!finalPolicy.allowed) {
-                            complete(NetRenderedResult(ok = false, error = "browser_final_url_denied:${finalPolicy.reason}"))
-                            return
-                        }
-                        handler.postDelayed({
-                            if (finished) return@postDelayed
-                            extractVisibleText(loadedView) { text ->
+                        override fun onReceivedError(
+                            view: WebView?,
+                            request: WebResourceRequest?,
+                            error: WebResourceError?
+                        ) {
+                            if (request?.isForMainFrame == true) {
                                 complete(
                                     NetRenderedResult(
-                                        ok = text.isNotBlank(),
-                                        text = text,
-                                        error = if (text.isBlank()) "browser_empty_text" else null
+                                        ok = false,
+                                        error = "browser_main_frame_error:${error?.description?.toString().orEmpty()}"
                                     )
                                 )
                             }
-                        }, settleDelayMillis)
+                        }
+
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            val loadedView = view ?: return
+                            val finalPolicy = NetSourcePolicy.validateUrl(document.finalUrl)
+                            if (!finalPolicy.allowed) {
+                                complete(
+                                    NetRenderedResult(
+                                        ok = false,
+                                        error = "browser_final_url_denied:${finalPolicy.reason}"
+                                    )
+                                )
+                                return
+                            }
+                            handler.postDelayed({
+                                if (finished) return@postDelayed
+                                extractVisibleText(loadedView) { text ->
+                                    complete(
+                                        NetRenderedResult(
+                                            ok = text.isNotBlank(),
+                                            text = text,
+                                            error = if (text.isBlank()) "browser_empty_text" else null
+                                        )
+                                    )
+                                }
+                            }, settleDelayMillis)
+                        }
                     }
                 }
-            }
 
-            timeout?.let { handler.postDelayed(it, timeoutMillis) }
-            runCatching { webView?.loadUrl(rawUrl) }
-                .onFailure { error ->
+                timeout?.let { handler.postDelayed(it, timeoutMillis) }
+                runCatching {
+                    webView?.loadDataWithBaseURL(
+                        document.finalUrl,
+                        document.html,
+                        "text/html",
+                        Charsets.UTF_8.name(),
+                        document.finalUrl
+                    )
+                }.onFailure { error ->
                     complete(
                         NetRenderedResult(
                             ok = false,
@@ -172,17 +168,19 @@ class NativeBrowserReader(
                         )
                     )
                 }
+            }
         }
-    }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun WebView.configureForReadOnlyResearch() {
+    private fun WebView.configureForIsolatedResearch() {
         CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
         settings.javaScriptEnabled = true
         settings.javaScriptCanOpenWindowsAutomatically = false
-        settings.domStorageEnabled = true
+        settings.domStorageEnabled = false
         settings.loadsImagesAutomatically = false
         settings.blockNetworkImage = true
+        settings.blockNetworkLoads = true
+        settings.cacheMode = WebSettings.LOAD_NO_CACHE
         settings.mediaPlaybackRequiresUserGesture = true
         settings.allowFileAccess = false
         settings.allowContentAccess = false
@@ -214,6 +212,17 @@ class NativeBrowserReader(
     companion object {
         private const val MAX_RENDERED_TEXT_CHARS = 40_000
     }
+}
+
+internal fun blockedWebResponse(reason: String): WebResourceResponse {
+    return WebResourceResponse(
+        "text/plain",
+        Charsets.UTF_8.name(),
+        403,
+        "Blocked",
+        mapOf("X-Morimil-Block-Reason" to reason.take(120)),
+        ByteArrayInputStream(ByteArray(0))
+    )
 }
 
 data class NetRenderedResult(
