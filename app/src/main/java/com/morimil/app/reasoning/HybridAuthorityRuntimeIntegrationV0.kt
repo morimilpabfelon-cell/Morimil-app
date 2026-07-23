@@ -128,6 +128,7 @@ object ReasoningTaskKindClassifierV0 {
     )
 
     private val SPANISH_PATTERNS = listOf(
+        Regex("""llego\s+antes\s+que""", RegexOption.IGNORE_CASE),
         Regex("""esta\s+dentro\s+de""", RegexOption.IGNORE_CASE),
         Regex("""cual\s+fue\s+el\s+motivo""", RegexOption.IGNORE_CASE),
         Regex("""a\s+la\s+izquierda\s+de""", RegexOption.IGNORE_CASE)
