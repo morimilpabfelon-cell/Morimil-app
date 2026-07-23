@@ -1,0 +1,127 @@
+{
+  "$id": "morimil.lotus.feasibility-preflight.v0.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authorityBoundary": {
+      "additionalProperties": false,
+      "properties": {
+        "genesisAuthority": {"const": false},
+        "identityAuthority": {"const": false},
+        "installationAuthority": {"const": false},
+        "lifecycleAuthority": {"const": false},
+        "memoryWriteCapability": {"const": false},
+        "normalRuntimeActivated": {"const": false}
+      },
+      "required": [
+        "memoryWriteCapability",
+        "identityAuthority",
+        "genesisAuthority",
+        "lifecycleAuthority",
+        "installationAuthority",
+        "normalRuntimeActivated"
+      ],
+      "type": "object"
+    },
+    "captureToolVersion": {
+      "const": "morimil.lotus-feasibility-preflight.v0"
+    },
+    "capturedAtUtc": {"type": "string"},
+    "evidenceKind": {
+      "const": "lotus-reference-provenance-and-feasibility-preflight"
+    },
+    "execution": {
+      "additionalProperties": false,
+      "properties": {
+        "gpuUsed": {"const": false},
+        "modelInferenceRun": {"const": false},
+        "privateDataUsed": {"const": false},
+        "remoteTeacherInvoked": {"const": false},
+        "trainingRun": {"const": false}
+      },
+      "required": [
+        "gpuUsed",
+        "trainingRun",
+        "modelInferenceRun",
+        "remoteTeacherInvoked",
+        "privateDataUsed"
+      ],
+      "type": "object"
+    },
+    "huggingFaceReference": {"type": "object"},
+    "promotion": {
+      "additionalProperties": false,
+      "properties": {
+        "blockers": {
+          "contains": {"const": "ANDROID_HIDDEN_STATE_REINJECTION_UNAVAILABLE"},
+          "items": {"type": "string"},
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "certified": {"const": false},
+        "installed": {"const": false},
+        "promotionAllowed": {"const": false},
+        "signed": {"const": false}
+      },
+      "required": [
+        "certified",
+        "signed",
+        "installed",
+        "promotionAllowed",
+        "blockers"
+      ],
+      "type": "object"
+    },
+    "runtimeFeasibility": {
+      "additionalProperties": false,
+      "properties": {
+        "androidLatentRuntimeStatus": {"const": "NOT_IMPLEMENTED"},
+        "desktopReproductionStatus": {"const": "NOT_RUN"},
+        "gemma3nAdaptationStatus": {"const": "NOT_IMPLEMENTED"},
+        "morimilCurrentAdapterSharesBackboneInsideLatentLoop": {"const": false},
+        "morimilCurrentAdapterStateKind": {"const": "TEXTUAL_CONVERSATION"},
+        "morimilCurrentAdapterSupportsHiddenStateReinjection": {"const": false},
+        "nonMathTransferStatus": {"const": "UNPROVEN"},
+        "preflightDecision": {"const": "REFERENCE_VERIFIED_EXPERIMENT_BLOCKED"},
+        "upstreamDesktopLatentLoopPresent": {"const": true},
+        "upstreamHiddenStateReinjectionPresent": {"const": true},
+        "upstreamSharedBackboneLoopPresent": {"const": true}
+      },
+      "required": [
+        "upstreamDesktopLatentLoopPresent",
+        "upstreamHiddenStateReinjectionPresent",
+        "upstreamSharedBackboneLoopPresent",
+        "morimilCurrentAdapterStateKind",
+        "morimilCurrentAdapterSupportsHiddenStateReinjection",
+        "morimilCurrentAdapterSharesBackboneInsideLatentLoop",
+        "gemma3nAdaptationStatus",
+        "androidLatentRuntimeStatus",
+        "desktopReproductionStatus",
+        "nonMathTransferStatus",
+        "preflightDecision"
+      ],
+      "type": "object"
+    },
+    "schemaVersion": {"const": "morimil.lotus.feasibility-preflight.v0"},
+    "status": {"const": "research-only"},
+    "upstreamExperimentProfile": {"type": "object"},
+    "upstreamSource": {"type": "object"}
+  },
+  "required": [
+    "schemaVersion",
+    "status",
+    "evidenceKind",
+    "captureToolVersion",
+    "capturedAtUtc",
+    "upstreamSource",
+    "huggingFaceReference",
+    "upstreamExperimentProfile",
+    "runtimeFeasibility",
+    "execution",
+    "authorityBoundary",
+    "promotion"
+  ],
+  "title": "Morimil LOTUS feasibility preflight v0",
+  "type": "object"
+}
