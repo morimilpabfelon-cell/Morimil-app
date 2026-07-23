@@ -4,36 +4,29 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.morimil.app.MorimilAppContainer
-import com.morimil.app.ai.ChatTurn
-import com.morimil.app.ai.ReasoningClient
-import com.morimil.app.ai.ReasoningProfileRuntimeStore
-import com.morimil.app.data.genesis.GenesisIdentitySource
-import com.morimil.app.data.genesis.GenesisUltraIntegrationGate
+import com.morimil.app.data.local.AgentProfileEntity
 import com.morimil.app.data.local.AutobiographicalSnapshotEntity
 import com.morimil.app.data.local.DecisionLogEntity
+import com.morimil.app.data.local.DelegatedTaskEntity
 import com.morimil.app.data.local.GenesisCoreEntity
 import com.morimil.app.data.local.KnowledgeCapsuleEntity
 import com.morimil.app.data.local.LocalInstanceIdentityEntity
 import com.morimil.app.data.local.MemoryEventEntity
 import com.morimil.app.data.local.MemoryLinkEntity
-import com.morimil.app.data.local.ReasoningTurnEntity
 import com.morimil.app.data.local.MemorySnapshotEntity
 import com.morimil.app.data.local.MigrationRecordEntity
+import com.morimil.app.data.local.OrchestratorDeviceEntity
 import com.morimil.app.data.local.ProjectStateEntity
 import com.morimil.app.data.local.ProjectVaultEntity
+import com.morimil.app.data.local.ReasoningTurnEntity
 import com.morimil.app.data.local.RecallScheduleEntity
 import com.morimil.app.data.local.UserWorkspaceEntity
-import com.morimil.app.data.repository.MemoryLinkRepository
 import com.morimil.app.data.repository.LocalBirthState
 import com.morimil.app.data.repository.RestCycleRepository
-import com.morimil.app.reasoning.ReasoningKernelRequest
-import com.morimil.app.reasoning.model.ReasoningEscalationDecision
-import com.morimil.app.reasoning.model.ReasoningEscalationStore
-import com.morimil.app.runtime.RestCycleScheduler
 import com.morimil.app.runtime.RestCycleScheduleStatus
+import com.morimil.app.runtime.RestCycleScheduler
 import com.morimil.app.security.MemorySigningRuntimeIssues
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -41,10 +34,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import com.morimil.app.data.local.AgentProfileEntity
-import com.morimil.app.data.local.DelegatedTaskEntity
-import com.morimil.app.data.local.OrchestratorDeviceEntity
 
 class MorimilViewModel(application: Application) : AndroidViewModel(application) {
     private val container = MorimilAppContainer.from(application)
@@ -52,18 +41,35 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     private val repository = container.memoryRepository
     private val reasoningTranscriptRepository = container.reasoningTranscriptRepository
     private val memoryOrganRepository = container.memoryOrganRepository
-    private val memoryLinkRepository = container.memoryLinkRepository
     private val migrationRecordRepository = container.migrationRecordRepository
     private val recallScheduleRepository = container.recallScheduleRepository
-    private val appendLivingMemoryUseCase = container.appendLivingMemoryUseCase
     private val runRestCycleUseCase = container.runRestCycleUseCase
     private val proposeCognitiveMigrationUseCase = container.proposeCognitiveMigrationUseCase
     private val projectVaultRepository = container.projectVaultRepository
     private val agentOrchestrationRepository = container.agentOrchestrationRepository
-    private val genesisReader = container.genesisReader
-    private val secretVault = container.secretVault
-    private val reasoningConfigStore = container.reasoningConfigStore
-    private val reasoningKernel = container.reasoningKernel
+
+    private val memoryGraphCoordinator by lazy {
+        MorimilMemoryGraphCoordinator(
+            container = container,
+            scope = viewModelScope,
+            observeTask = { component, block ->
+                runObservedInternalTask(component) { block() }
+            }
+        )
+    }
+
+    private val chatCoordinator by lazy {
+        MorimilChatCoordinator(
+            application = application,
+            container = container,
+            scope = viewModelScope,
+            localIdentity = localIdentity,
+            messages = messages,
+            observeTask = { component, block ->
+                runObservedInternalTask(component) { block() }
+            }
+        )
+    }
 
     val chatViewModel: ChatViewModel by lazy { ChatViewModel(this) }
     val memoryViewModel: MemoryViewModel by lazy { MemoryViewModel(this) }
@@ -136,20 +142,21 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList()
     )
-    val recentMemoryLinks: StateFlow<List<MemoryLinkEntity>> = memoryLinkRepository.recentMemoryLinks.stateIn(
+
+    val recentMemoryLinks: StateFlow<List<MemoryLinkEntity>> = container.memoryLinkRepository.recentMemoryLinks.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList()
     )
 
-    private val _selectedMemoryEventHash = MutableStateFlow<String?>(null)
-    val selectedMemoryEventHash: StateFlow<String?> = _selectedMemoryEventHash.asStateFlow()
+    val selectedMemoryEventHash: StateFlow<String?>
+        get() = memoryGraphCoordinator.selectedMemoryEventHash
 
-    private val _selectedMemoryLinks = MutableStateFlow<List<MemoryLinkEntity>>(emptyList())
-    val selectedMemoryLinks: StateFlow<List<MemoryLinkEntity>> = _selectedMemoryLinks.asStateFlow()
+    val selectedMemoryLinks: StateFlow<List<MemoryLinkEntity>>
+        get() = memoryGraphCoordinator.selectedMemoryLinks
 
-    private val _selectedGraphEvents = MutableStateFlow<List<MemoryEventEntity>>(emptyList())
-    val selectedGraphEvents: StateFlow<List<MemoryEventEntity>> = _selectedGraphEvents.asStateFlow()
+    val selectedGraphEvents: StateFlow<List<MemoryEventEntity>>
+        get() = memoryGraphCoordinator.selectedGraphEvents
 
     private val _memoryIntegrityAudit = MutableStateFlow(MemoryIntegrityAuditUiState())
     val memoryIntegrityAudit: StateFlow<MemoryIntegrityAuditUiState> = _memoryIntegrityAudit.asStateFlow()
@@ -165,8 +172,6 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
 
     private val _restCycleScheduleStatus = MutableStateFlow(RestCycleScheduleStatus())
     val restCycleScheduleStatus: StateFlow<RestCycleScheduleStatus> = _restCycleScheduleStatus.asStateFlow()
-
-    private var selectedMemoryLinksJob: Job? = null
 
     val recentMigrationRecords: StateFlow<List<MigrationRecordEntity>> = migrationRecordRepository.recentMigrationRecords.stateIn(
         scope = viewModelScope,
@@ -197,23 +202,16 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList()
     )
-    private val _genesisResult = MutableStateFlow<Result<GenesisIdentitySource>?>(null)
-    val genesisResult: StateFlow<Result<GenesisIdentitySource>?> = _genesisResult.asStateFlow()
 
-    private var cachedDoctrineText: String? = null
-    private var cachedPolicyText: String? = null
-
-    private val _isSending = MutableStateFlow(false)
-    val isSending: StateFlow<Boolean> = _isSending.asStateFlow()
-
-    private val _chatError = MutableStateFlow<String?>(null)
-    val chatError: StateFlow<String?> = _chatError.asStateFlow()
+    val genesisResult get() = chatCoordinator.genesisResult
+    val isSending get() = chatCoordinator.isSending
+    val chatError get() = chatCoordinator.chatError
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
             MemorySigningRuntimeIssues.latestIssue.collect { issue ->
                 if (issue == null) {
-                    clearInternalRuntimeIssue(MemorySigningRuntimeIssues.KEYSTORE_FALLBACK_COMPONENT)
+                    clearInternalRuntimeIssue(MemorySigningRuntimeIssues.KEYSTORE_FAILURE_COMPONENT)
                 } else {
                     recordInternalRuntimeIssue(
                         component = issue.component,
@@ -259,102 +257,17 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
         refreshOrganismHealth()
     }
 
-    fun refreshGenesis() {
-        viewModelScope.launch {
-            val result = genesisReader.readGenesisIdentity()
-            _genesisResult.value = result
-            result.getOrNull()?.identity?.doctrineRef?.let { ref ->
-                cachedDoctrineText = genesisReader.readDoctrineText(ref).getOrNull()
-            }
-            result.getOrNull()?.identity?.policyRef?.let { ref ->
-                cachedPolicyText = genesisReader.readPolicyText(ref).getOrNull()
-            }
-        }
-    }
+    fun refreshGenesis() = chatCoordinator.refreshGenesis()
 
-    fun approveMemoryEvent(event: MemoryEventEntity) {
-        recordMemoryReview(
-            event = event,
-            action = "aprobado",
-            note = "Recuerdo aprobado por el usuario como memoria util."
-        )
-    }
+    fun approveMemoryEvent(event: MemoryEventEntity) = memoryGraphCoordinator.approveMemoryEvent(event)
 
-    fun degradeMemoryEvent(event: MemoryEventEntity) {
-        recordMemoryReview(
-            event = event,
-            action = "ruido_degradado",
-            note = "Recuerdo marcado por el usuario como ruido o baja prioridad."
-        )
-    }
+    fun degradeMemoryEvent(event: MemoryEventEntity) = memoryGraphCoordinator.degradeMemoryEvent(event)
 
-    fun requestMemoryCorrection(event: MemoryEventEntity) {
-        recordMemoryReview(
-            event = event,
-            action = "correccion_requerida",
-            note = "El usuario marco este recuerdo para correccion futura."
-        )
-    }
+    fun requestMemoryCorrection(event: MemoryEventEntity) = memoryGraphCoordinator.requestMemoryCorrection(event)
 
-    fun selectMemoryEvent(eventHash: String) {
-        if (_selectedMemoryEventHash.value == eventHash) return
-        _selectedMemoryEventHash.value = eventHash
-        selectedMemoryLinksJob?.cancel()
-        selectedMemoryLinksJob = viewModelScope.launch {
-            memoryLinkRepository.observeMemoryLinksForEvent(eventHash).collect { links ->
-                _selectedMemoryLinks.value = links
-                _selectedGraphEvents.value = loadConnectedGraphEvents(
-                    selectedEventHash = eventHash,
-                    links = links
-                )
-            }
-        }
-    }
+    fun selectMemoryEvent(eventHash: String) = memoryGraphCoordinator.selectMemoryEvent(eventHash)
 
-    fun clearSelectedMemoryEvent() {
-        _selectedMemoryEventHash.value = null
-        selectedMemoryLinksJob?.cancel()
-        selectedMemoryLinksJob = null
-        _selectedMemoryLinks.value = emptyList()
-        _selectedGraphEvents.value = emptyList()
-    }
-
-    private suspend fun loadConnectedGraphEvents(
-        selectedEventHash: String,
-        links: List<MemoryLinkEntity>
-    ): List<MemoryEventEntity> {
-        val hashes = buildList {
-            add(selectedEventHash)
-            links.forEach { link ->
-                if (link.sourceType == MEMORY_EVENT_NODE_TYPE) add(link.sourceId)
-                if (link.targetType == MEMORY_EVENT_NODE_TYPE) add(link.targetId)
-            }
-        }
-            .filter { hash -> hash.isNotBlank() }
-            .distinct()
-            .take(MAX_GRAPH_EVENT_LOOKUP)
-
-        if (hashes.isEmpty()) return emptyList()
-        return withContext(Dispatchers.IO) {
-            memoryDatabase.memoryDao().loadMemoryEventsByHashes(hashes)
-        }
-    }
-
-    private fun recordMemoryReview(
-        event: MemoryEventEntity,
-        action: String,
-        note: String
-    ) {
-        viewModelScope.launch(Dispatchers.IO) {
-            runObservedInternalTask("memory_review.$action") {
-                appendLivingMemoryUseCase.appendMemoryReview(
-                    targetEvent = event,
-                    action = action,
-                    note = note
-                )
-            }
-        }
-    }
+    fun clearSelectedMemoryEvent() = memoryGraphCoordinator.clearSelectedMemoryEvent()
 
     fun runMemoryIntegrityAudit() {
         viewModelScope.launch(Dispatchers.IO) {
@@ -382,7 +295,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun refreshChatOrganismStatus() {
-        val activeSlot = reasoningConfigStore.loadActiveSlot()
+        val activeSlot = container.reasoningConfigStore.loadActiveSlot()
         val modelLabel = activeSlot.config.model.ifBlank { "modelo pendiente" }
         val hasQuarantine = recentMemoryEvents.value.any { event ->
             event.eventType == MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE ||
@@ -415,7 +328,7 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private suspend fun refreshOrganismHealthOnWorker() {
-        val activeSlot = reasoningConfigStore.loadActiveSlot()
+        val activeSlot = container.reasoningConfigStore.loadActiveSlot()
         val audit = _memoryIntegrityAudit.value
         val hasQuarantine = recentMemoryEvents.value.any { event ->
             event.eventType == MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE ||
@@ -680,115 +593,20 @@ class MorimilViewModel(application: Application) : AndroidViewModel(application)
             }
         }
     }
-    suspend fun bornInstance(alias: String): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            GenesisUltraIntegrationGate.requireBirthReady()
-            val genesisSource = _genesisResult.value?.getOrNull()
-                ?: error("Genesis identity not loaded yet.")
-            val genesis = genesisSource.identity
-            require(!repository.hasExistingBirth()) { "This Morimil instance has already been born." }
-            val installedBundle = genesisReader.installGenesisBundle().getOrThrow()
-            val sourceOrigin = "${genesisSource.origin.label}:${installedBundle.installPath}"
-            val genesisCoreHash = installedBundle.verification.genesisCoreHash
-            require(genesisCoreHash == genesisSource.manifest.genesisCoreHash) {
-                "Installed Genesis bundle does not match loaded Genesis manifest."
-            }
 
-            try {
-                repository.birthLocalIdentity(alias, genesis, sourceOrigin, genesisCoreHash, cachedDoctrineText, cachedPolicyText)
-                repository.seedInitialStateIfNeeded()
-                reasoningTranscriptRepository.seedIntroTurnsIfNeeded()
-                agentOrchestrationRepository.seedDefaultOrchestrationIfNeeded()
-                runObservedInternalTask("rest_cycle.birth") { runRestCycleUseCase() }
-                runObservedInternalTask("recall.birth") { recallScheduleRepository.seedFromRecentMemoryIfNeeded() }
-                Unit
-            } catch (error: Exception) {
-                genesisReader.clearInstalledGenesisBundle()
-                throw error
-            }
-        }
-    }
+    suspend fun bornInstance(alias: String): Result<Unit> = chatCoordinator.bornInstance(alias)
 
     fun sendMessage(body: String) {
-        val cleanBody = body.trim()
-        if (cleanBody.isEmpty() || _isSending.value) return
-
-        viewModelScope.launch {
-            _chatError.value = null
-
-            val genesis = _genesisResult.value?.getOrNull()?.identity
-            if (genesis == null) {
-                _chatError.value = "Genesis no esta cargado todavia. Intenta de nuevo en un momento."
-                return@launch
-            }
-
-            val localRuntimeSlot = reasoningConfigStore.loadActiveSlot()
-            val superiorConfig = ReasoningProfileRuntimeStore.loadSuperior(getApplication<Application>())
-            val approvedEscalation = ReasoningEscalationStore.pendingRequest.value
-            val currentPreview = cleanBody.replace(Regex("\\s+"), " ").take(240)
-            val useSuperiorRuntime =
-                approvedEscalation?.decision == ReasoningEscalationDecision.APPROVED &&
-                    approvedEscalation.inputPreview == currentPreview &&
-                    superiorConfig.baseUrl.isNotBlank() &&
-                    superiorConfig.model.isNotBlank()
-
-            val runtimeConfig = if (useSuperiorRuntime) superiorConfig else localRuntimeSlot.config
-            val runtimeSlotId = if (useSuperiorRuntime) 2 else localRuntimeSlot.id
-            val runtimeLabel = if (useSuperiorRuntime) "Motor superior" else localRuntimeSlot.displayName
-
-            refreshChatOrganismStatus()
-            refreshOrganismHealth()
-            val runtimeAccess = secretVault.readReasoningKey(runtimeSlotId).getOrNull().orEmpty()
-            val alias = localIdentity.value?.alias ?: genesis.alias
-
-            _isSending.value = true
-            try {
-                val priorHistory = messages.value
-                    .takeLast(ReasoningClient.MAX_HISTORY_MESSAGES - 1)
-                    .map { ChatTurn(role = if (it.author == "user") "user" else "assistant", content = it.body) }
-
-                val result = withContext(Dispatchers.IO) {
-                    reasoningTranscriptRepository.appendUserTurn(cleanBody)
-                    reasoningKernel.reason(
-                        ReasoningKernelRequest(
-                            input = cleanBody,
-                            genesis = genesis,
-                            alias = alias,
-                            doctrineText = cachedDoctrineText,
-                            policyText = cachedPolicyText,
-                            priorHistory = priorHistory,
-                            runtimeLabel = runtimeLabel,
-                            runtimeConfig = runtimeConfig,
-                            runtimeAccess = runtimeAccess
-                        )
-                    )
-                }
-
-                result.reply?.let { reply ->
-                    withContext(Dispatchers.IO) {
-                        reasoningTranscriptRepository.appendMorimilTurn(reply)
-                    }
-                }
-
-                if (result.errorMessage != null) {
-                    _chatError.value = result.errorMessage ?: "Error con el motor de razonamiento."
-                }
-            } finally {
-                if (useSuperiorRuntime) {
-                    ReasoningEscalationStore.clear()
-                }
-                _isSending.value = false
-            }
-        }
+        refreshChatOrganismStatus()
+        refreshOrganismHealth()
+        chatCoordinator.sendMessage(body)
     }
 
     suspend fun renameWorkspace(displayName: String): List<String> {
         return repository.renameWorkspace(displayName)
     }
 
-    companion object {
-        private const val MEMORY_EVENT_NODE_TYPE = "memory_event"
-        private const val MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE = "memory_integrity.quarantine"
-        private const val MAX_GRAPH_EVENT_LOOKUP = 60
+    private companion object {
+        const val MEMORY_INTEGRITY_QUARANTINE_EVENT_TYPE = "memory_integrity.quarantine"
     }
 }
