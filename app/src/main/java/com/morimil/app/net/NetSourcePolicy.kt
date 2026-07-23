@@ -15,6 +15,9 @@ object NetSourcePolicy {
         if (parsed.userInfo != null) {
             return NetSourceDecision(false, "userinfo_denied")
         }
+        if (parsed.ref?.length ?: 0 > MAX_FRAGMENT_CHARS) {
+            return NetSourceDecision(false, "fragment_too_long")
+        }
         return validateHost(parsed.host)
     }
 
@@ -42,13 +45,23 @@ object NetSourcePolicy {
 
     /** Call only from an IO worker immediately before opening an HTTP connection. */
     fun validateResolvedHost(host: String?): NetSourceDecision {
+        return validateResolvedHost(host, SystemNetAddressResolver)
+    }
+
+    internal fun validateResolvedHost(
+        host: String?,
+        resolver: NetAddressResolver
+    ): NetSourceDecision {
         val syntaxDecision = validateHost(host)
         if (!syntaxDecision.allowed) return syntaxDecision
         val clean = normalizeHost(host)
-        val addresses = runCatching { InetAddress.getAllByName(clean).toList() }
+        val addresses = runCatching { resolver.lookup(clean) }
             .getOrElse { return NetSourceDecision(false, "dns_resolution_failed") }
-        if (addresses.isEmpty()) return NetSourceDecision(false, "dns_resolution_empty")
+        return validateResolvedAddresses(addresses)
+    }
 
+    internal fun validateResolvedAddresses(addresses: List<InetAddress>): NetSourceDecision {
+        if (addresses.isEmpty()) return NetSourceDecision(false, "dns_resolution_empty")
         addresses.forEach { address ->
             val decision = validateAddress(address)
             if (!decision.allowed) {
@@ -71,7 +84,7 @@ object NetSourcePolicy {
         return InetAddress.getByAddress(numbers.map { it.toByte() }.toByteArray())
     }
 
-    private fun validateAddress(address: InetAddress): NetSourceDecision {
+    internal fun validateAddress(address: InetAddress): NetSourceDecision {
         if (address.isAnyLocalAddress) return NetSourceDecision(false, "unspecified_address_denied")
         if (address.isLoopbackAddress) return NetSourceDecision(false, "loopback_denied")
         if (address.isLinkLocalAddress) return NetSourceDecision(false, "link_local_denied")
@@ -98,6 +111,7 @@ object NetSourcePolicy {
         val first = bytes[0].toInt() and 0xff
         val second = bytes[1].toInt() and 0xff
         val third = bytes[2].toInt() and 0xff
+        val fourth = bytes[3].toInt() and 0xff
 
         return when {
             first == 0 -> false
@@ -108,17 +122,23 @@ object NetSourcePolicy {
             first == 172 && second in 16..31 -> false
             first == 192 && second == 0 && third == 0 -> false
             first == 192 && second == 0 && third == 2 -> false
+            first == 192 && second == 88 && third == 99 -> false
             first == 192 && second == 168 -> false
             first == 198 && second in 18..19 -> false
             first == 198 && second == 51 && third == 100 -> false
             first == 203 && second == 0 && third == 113 -> false
             first >= 224 -> false
+            first == 255 && second == 255 && third == 255 && fourth == 255 -> false
             else -> true
         }
     }
 
     private fun isPublicIpv6(bytes: ByteArray): Boolean {
         if (bytes.size != 16) return false
+        if (isIpv4Mapped(bytes)) {
+            return isPublicIpv4(bytes.copyOfRange(12, 16))
+        }
+
         val first = bytes[0].toInt() and 0xff
         val second = bytes[1].toInt() and 0xff
         val third = bytes[2].toInt() and 0xff
@@ -126,7 +146,15 @@ object NetSourcePolicy {
 
         val isGlobalUnicast = first in 0x20..0x3f
         val isDocumentation = first == 0x20 && second == 0x01 && third == 0x0d && fourth == 0xb8
-        return isGlobalUnicast && !isDocumentation
+        val isTeredo = first == 0x20 && second == 0x01 && third == 0x00 && fourth == 0x00
+        val isSixToFour = first == 0x20 && second == 0x02
+        return isGlobalUnicast && !isDocumentation && !isTeredo && !isSixToFour
+    }
+
+    private fun isIpv4Mapped(bytes: ByteArray): Boolean {
+        return bytes.take(10).all { it == 0.toByte() } &&
+            bytes[10] == 0xff.toByte() &&
+            bytes[11] == 0xff.toByte()
     }
 
     private fun looksLikeNonCanonicalNumericHost(host: String): Boolean {
@@ -147,6 +175,8 @@ object NetSourcePolicy {
             .trimEnd('.')
             .lowercase()
     }
+
+    private const val MAX_FRAGMENT_CHARS = 2_048
 }
 
 data class NetSourceDecision(

@@ -1,7 +1,6 @@
 package com.morimil.app.ui
 
 import android.annotation.SuppressLint
-import android.graphics.Bitmap
 import android.webkit.CookieManager
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -27,25 +26,33 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.morimil.app.net.NetSourcePolicy
+import com.morimil.app.net.SafeWebDocumentLoader
+import com.morimil.app.net.blockedWebResponse
 import com.morimil.app.web.NativeWebContextStore
 import com.morimil.app.web.NativeWebPageContext
 import com.morimil.app.web.NativeWebRequestStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
-import java.io.ByteArrayInputStream
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun NativeBrowserScreen() {
     var input by remember { mutableStateOf("https://www.google.com/search?q=Morimil") }
     var loadTarget by remember { mutableStateOf(input) }
-    var status by remember { mutableStateOf("Navegador nativo listo.") }
+    var status by remember { mutableStateOf("Navegador nativo aislado listo.") }
     var activeWebView by remember { mutableStateOf<WebView?>(null) }
+    var initialLoadStarted by remember { mutableStateOf(false) }
+    val documentLoader = remember { SafeWebDocumentLoader() }
+    val scope = rememberCoroutineScope()
     val capturedPage by NativeWebContextStore.currentPage.collectAsStateWithLifecycle()
     val pendingRequest by NativeWebRequestStore.pendingRequest.collectAsStateWithLifecycle()
 
@@ -56,8 +63,37 @@ fun NativeBrowserScreen() {
             status = "Navegacion bloqueada: ${decision.reason}"
             return
         }
-        loadTarget = target
-        activeWebView?.loadUrl(target)
+        status = "Validando DNS y descargando de forma aislada: ${target.take(120)}"
+        scope.launch {
+            val fetched = withContext(Dispatchers.IO) { documentLoader.fetch(target) }
+            val document = fetched.document
+            if (document == null) {
+                status = "Navegacion bloqueada o fallida: ${fetched.error.orEmpty().take(160)}"
+                return@launch
+            }
+            val finalDecision = NetSourcePolicy.validateUrl(document.finalUrl)
+            if (!finalDecision.allowed) {
+                status = "Destino final bloqueado: ${finalDecision.reason}"
+                return@launch
+            }
+            input = document.finalUrl
+            loadTarget = document.finalUrl
+            activeWebView?.loadDataWithBaseURL(
+                document.finalUrl,
+                document.html,
+                "text/html",
+                Charsets.UTF_8.name(),
+                document.finalUrl
+            )
+            status = "Pagina publica cargada en modo aislado. La WebView no tiene acceso directo a la red."
+        }
+    }
+
+    LaunchedEffect(activeWebView) {
+        if (activeWebView != null && !initialLoadStarted) {
+            initialLoadStarted = true
+            loadPublicTarget(loadTarget)
+        }
     }
 
     LaunchedEffect(pendingRequest) {
@@ -81,7 +117,7 @@ fun NativeBrowserScreen() {
     ) {
         Text("Web nativa", style = MaterialTheme.typography.headlineSmall)
         Text(
-            "Carga una pagina publica. Solo al pulsar Capturar se guarda texto visible como contexto externo temporal para el siguiente turno.",
+            "Descarga paginas publicas mediante un transporte con DNS filtrado y las muestra sin dar acceso directo de red a WebView. Solo al pulsar Capturar se guarda texto visible como contexto externo temporal.",
             style = MaterialTheme.typography.bodySmall
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -97,13 +133,12 @@ fun NativeBrowserScreen() {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = {
-                activeWebView?.goBack()
+                val view = activeWebView
+                if (view?.canGoBack() == true) view.goBack() else status = "No hay pagina anterior."
             }) {
                 Text("Atras")
             }
-            Button(onClick = {
-                activeWebView?.reload()
-            }) {
+            Button(onClick = { loadPublicTarget(loadTarget) }) {
                 Text("Recargar")
             }
             Button(onClick = {
@@ -133,8 +168,11 @@ fun NativeBrowserScreen() {
                 WebView(context).apply {
                     activeWebView = this
                     settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.cacheMode = WebSettings.LOAD_DEFAULT
+                    settings.domStorageEnabled = false
+                    settings.cacheMode = WebSettings.LOAD_NO_CACHE
+                    settings.loadsImagesAutomatically = false
+                    settings.blockNetworkImage = true
+                    settings.blockNetworkLoads = true
                     settings.allowFileAccess = false
                     settings.allowContentAccess = false
                     settings.javaScriptCanOpenWindowsAutomatically = false
@@ -143,43 +181,33 @@ fun NativeBrowserScreen() {
                     settings.safeBrowsingEnabled = true
                     CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
                     webViewClient = object : WebViewClient() {
-                        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                        override fun shouldOverrideUrlLoading(
+                            view: WebView,
+                            request: WebResourceRequest
+                        ): Boolean {
+                            if (!request.isForMainFrame) return true
                             val target = request.url.toString()
                             val decision = NetSourcePolicy.validateUrl(target)
                             if (!decision.allowed) {
-                                if (request.isForMainFrame) {
-                                    status = "Navegacion bloqueada: ${decision.reason}"
-                                }
-                                return true
+                                status = "Navegacion bloqueada: ${decision.reason}"
+                            } else {
+                                loadPublicTarget(target)
                             }
-                            return false
+                            return true
                         }
 
                         override fun shouldInterceptRequest(
                             view: WebView,
                             request: WebResourceRequest
-                        ): WebResourceResponse? {
-                            val decision = NetSourcePolicy.validateUrl(request.url.toString())
-                            return if (decision.allowed) {
-                                null
-                            } else {
-                                WebResourceResponse(
-                                    "text/plain",
-                                    "UTF-8",
-                                    ByteArrayInputStream(ByteArray(0))
-                                )
-                            }
-                        }
-
-                        override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
-                            status = "Cargando: ${url.orEmpty().take(120)}"
+                        ): WebResourceResponse {
+                            return blockedWebResponse("interactive_browser_network_denied")
                         }
 
                         override fun onPageFinished(view: WebView, url: String?) {
-                            input = url.orEmpty().ifBlank { input }
-                            val decision = NetSourcePolicy.validateUrl(url.orEmpty())
+                            val current = url.orEmpty().ifBlank { loadTarget }
+                            val decision = NetSourcePolicy.validateUrl(current)
                             status = if (decision.allowed) {
-                                "Pagina cargada. Revisa su contenido y pulsa Capturar para usarla como contexto temporal."
+                                "Pagina cargada en modo aislado. Revisa el contenido y pulsa Capturar."
                             } else {
                                 "Pagina no capturable: ${decision.reason}"
                             }
@@ -191,18 +219,13 @@ fun NativeBrowserScreen() {
                             error: WebResourceError
                         ) {
                             if (request.isForMainFrame) {
-                                status = "Error web: ${error.description}"
+                                status = "Error web aislado: ${error.description}"
                             }
                         }
                     }
-                    loadUrl(loadTarget)
                 }
             },
-            update = { webView ->
-                if (webView.url != loadTarget && NetSourcePolicy.validateUrl(loadTarget).allowed) {
-                    webView.loadUrl(loadTarget)
-                }
-            }
+            update = { }
         )
     }
 }
