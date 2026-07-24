@@ -64,8 +64,8 @@ class AuxiliaryAdvisoryContractTest {
     private fun state(): ReasoningState {
         return ReasoningState(
             input = "tarea",
-            mode = ReasoningMode.LOCAL_ONLY,
-            intent = ReasoningIntent.GENERAL,
+            mode = ReasoningMode.MORIMIL_CORE_FALLBACK,
+            intent = ReasoningIntent.GENERAL_CHAT,
             modelBackendLabel = "test",
             executionOrigin = ReasoningExecutionOrigin.TEMPORARY_EXTERNAL,
             memoryContextSummary = "empty",
