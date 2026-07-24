@@ -8,7 +8,9 @@ import com.morimil.app.ai.ReasoningProfileRuntimeStore
 import com.morimil.app.data.genesis.GenesisIdentitySource
 import com.morimil.app.data.genesis.GenesisUltraIntegrationGate
 import com.morimil.app.data.local.LocalInstanceIdentityEntity
+import com.morimil.app.data.local.ReasoningTurnAuthor
 import com.morimil.app.data.local.ReasoningTurnEntity
+import com.morimil.app.reasoning.ReasoningExecutionOrigin
 import com.morimil.app.reasoning.ReasoningKernelRequest
 import com.morimil.app.reasoning.model.ReasoningEscalationDecision
 import com.morimil.app.reasoning.model.ReasoningEscalationStore
@@ -108,18 +110,22 @@ internal class MorimilChatCoordinator(
                 return@launch
             }
 
-            val localRuntimeSlot = container.reasoningConfigStore.loadActiveSlot()
-            val superiorConfig = ReasoningProfileRuntimeStore.loadSuperior(application)
+            val configuredHelper = container.reasoningConfigStore.loadActiveHelper()
+            val remoteHelperConfig = ReasoningProfileRuntimeStore.loadRemoteHelper(application)
             val approvedEscalation = ReasoningEscalationStore.pendingRequest.value
             val currentPreview = cleanBody.replace(Regex("\\s+"), " ").take(240)
-            val useSuperiorRuntime =
+            val useRemoteHelper =
                 approvedEscalation?.decision == ReasoningEscalationDecision.APPROVED &&
                     approvedEscalation.inputPreview == currentPreview &&
-                    superiorConfig.baseUrl.isNotBlank() &&
-                    superiorConfig.model.isNotBlank()
-            val runtimeConfig = if (useSuperiorRuntime) superiorConfig else localRuntimeSlot.config
-            val runtimeSlotId = if (useSuperiorRuntime) 2 else localRuntimeSlot.id
-            val runtimeLabel = if (useSuperiorRuntime) "Motor superior" else localRuntimeSlot.displayName
+                    remoteHelperConfig.baseUrl.isNotBlank() &&
+                    remoteHelperConfig.model.isNotBlank()
+            val runtimeConfig = if (useRemoteHelper) remoteHelperConfig else configuredHelper.config
+            val runtimeSlotId = if (useRemoteHelper) REMOTE_HELPER_SLOT_ID else configuredHelper.id
+            val runtimeLabel = if (useRemoteHelper) {
+                "Auxiliar remoto temporal"
+            } else {
+                configuredHelper.displayName
+            }
             val runtimeAccess = if (runtimeConfig.requiresRuntimeKey) {
                 container.secretVault.readReasoningKey(
                     slotId = runtimeSlotId,
@@ -133,13 +139,16 @@ internal class MorimilChatCoordinator(
             _isSending.value = true
             try {
                 val priorHistory = messages.value
+                    .asSequence()
+                    .filter { turn -> ReasoningTurnAuthor.isTrustedConversationAuthor(turn.author) }
                     .takeLast(ReasoningClient.MAX_HISTORY_MESSAGES - 1)
                     .map { turn ->
                         ChatTurn(
-                            role = if (turn.author == "user") "user" else "assistant",
+                            role = if (turn.author == ReasoningTurnAuthor.USER) "user" else "assistant",
                             content = turn.body
                         )
                     }
+                    .toList()
 
                 val result = withContext(Dispatchers.IO) {
                     container.reasoningTranscriptRepository.appendUserTurn(cleanBody)
@@ -160,19 +169,27 @@ internal class MorimilChatCoordinator(
 
                 result.reply?.let { reply ->
                     withContext(Dispatchers.IO) {
-                        container.reasoningTranscriptRepository.appendMorimilTurn(reply)
+                        if (result.state.executionOrigin == ReasoningExecutionOrigin.TEMPORARY_EXTERNAL) {
+                            container.reasoningTranscriptRepository.appendAuxiliaryAdvisoryTurn(reply)
+                        } else {
+                            container.reasoningTranscriptRepository.appendMorimilTurn(reply)
+                        }
                     }
                 }
 
                 if (result.errorMessage != null) {
-                    _chatError.value = result.errorMessage ?: "Error con el motor de razonamiento."
+                    _chatError.value = result.errorMessage ?: "Error con el razonamiento."
                 }
             } finally {
-                if (useSuperiorRuntime) {
+                if (useRemoteHelper) {
                     ReasoningEscalationStore.clear()
                 }
                 _isSending.value = false
             }
         }
+    }
+
+    private companion object {
+        const val REMOTE_HELPER_SLOT_ID = 2
     }
 }
