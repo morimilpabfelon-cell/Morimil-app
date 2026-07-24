@@ -1,10 +1,12 @@
 package com.morimil.app.ai
 
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.TimeUnit
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -65,18 +67,14 @@ internal class OkHttpReasoningConnection(
         return requestHeaders.mapValues { (_, value) -> listOf(value) }
     }
 
-    override fun getResponseCode(): Int {
-        return executeIfNeeded().code
-    }
+    override fun getResponseCode(): Int = executeIfNeeded().code
 
-    override fun getResponseMessage(): String {
-        return executeIfNeeded().message
-    }
+    override fun getResponseMessage(): String = executeIfNeeded().message
 
     override fun getInputStream(): InputStream {
         val executed = executeIfNeeded()
         return responseStream ?: executed.body?.byteStream()?.also { responseStream = it }
-            ?: InputStream.nullInputStream()
+            ?: ByteArrayInputStream(ByteArray(0))
     }
 
     override fun getErrorStream(): InputStream? {
@@ -114,9 +112,9 @@ internal class OkHttpReasoningConnection(
     private fun executeIfNeeded(): Response {
         response?.let { return it }
         val client = baseClient.newBuilder()
-            .connectTimeout(connectTimeout.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
-            .readTimeout(readTimeout.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
-            .writeTimeout(connectTimeout.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
+            .connectTimeout(connectTimeout.toLong(), TimeUnit.MILLISECONDS)
+            .readTimeout(readTimeout.toLong(), TimeUnit.MILLISECONDS)
+            .writeTimeout(connectTimeout.toLong(), TimeUnit.MILLISECONDS)
             .build()
         val method = requestMethod.trim().uppercase()
         val mediaType = requestHeaders.entries
@@ -129,7 +127,7 @@ internal class OkHttpReasoningConnection(
             null
         }
         val builder = Request.Builder()
-            .url(url)
+            .url(url.toString())
             .method(method, body)
         requestHeaders.forEach { (name, value) -> builder.header(name, value) }
         val executed = client.newCall(builder.build()).execute()
