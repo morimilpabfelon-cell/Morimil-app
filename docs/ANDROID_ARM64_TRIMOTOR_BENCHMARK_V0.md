@@ -123,6 +123,44 @@ For the closed-order logic domain, generated candidates are advisory. The final 
 
 For `strict_format`, the original prompt must match the complete subtraction grammar and canonical `FINAL:<resultado>` placeholder. The local authority computes the subtraction and owns the final format. Altered placeholders, extra prose, unsupported operations and non-canonical integers abstain.
 
+## Strict current evidence gate
+
+The host-side current-contract validator independently checks every response. It does not trust aggregate counts alone.
+
+For each frozen `caseId`, it verifies:
+
+```text
+expected domain
+expected final disposition
+exact authority route
+exact output profile and reduction
+requested, activated, failed and unavailable roles
+exact final answer recalculated from the frozen generator
+request-state release and forbidden-capability boundaries
+```
+
+A current run is accepted only with these exact totals:
+
+```text
+accepted correct:           84
+false accepted:             0
+abstained:                  36
+correct abstentions:        12
+unnecessary abstentions:    24
+strict format:              24/24
+claim verification:         12/12
+state released:             120/120
+capability boundary:        120/120
+
+INTUITIVE activations:      84
+DELIBERATIVE activations:   36
+METACOGNITIVE activations:  84
+opened conversations:       36
+closed conversations:       36
+```
+
+The stale historical 72/48 routing contract is explicitly rejected by the current validator.
+
 ## Output contract
 
 Each response record includes:
@@ -149,7 +187,7 @@ A completed physical report requires:
 ```text
 all 120 cases completed
 all required roles activated according to the current routing plan
-opened conversations == closed conversations
+opened conversations == closed conversations == 36
 request state released for every case
 artifact hash stable before and after execution
 engine initialized and closed
@@ -165,31 +203,42 @@ The final two fields are legacy fail-closed compatibility fields. Public product
 
 ## Host execution
 
-From the repository root on Windows PowerShell:
+From the repository root on Windows PowerShell, use only the strict current-contract wrapper:
 
 ```powershell
-python .\tools\android-arm64\run_gemma3n_e2b_arm64_trimotor_benchmark_v0.py `
+python .\tools\android-arm64\run_current_gemma3n_e2b_arm64_trimotor_benchmark_v0.py `
   "C:\Users\morim\MorimilModels\gemma3n-e2b-candidate-20260720-001337\morimil-deliberative-v0.2.candidate.litertlm"
 ```
 
 Use `--serial <adb-serial>` only when more than one device is attached.
 
-The runner:
+Before connecting the phone, the host-only gate can be checked with:
 
-1. verifies the exact local artifact twice;
-2. verifies a physical ARM64 Android device with sufficient memory and storage;
-3. builds and installs debug plus instrumentation APKs;
-4. stages the artifact in app-private, read-only storage;
-5. runs the opt-in instrumentation class;
-6. checks instrumentation success before attempting output extraction;
-7. captures exit information and recent logcat on instrumentation failure;
-8. extracts response JSONL and the physical report;
-9. validates all host contracts;
-10. evaluates the frozen 120-case dataset;
-11. materializes and verifies the raw v0.2 baseline from immutable evidence;
-12. compares the candidate with that frozen baseline;
-13. writes a bundle with hashes for every evidence file;
-14. removes shell and app-private staging.
+```powershell
+python .\tools\android-arm64\run_current_gemma3n_e2b_arm64_trimotor_benchmark_v0.py --self-test
+```
+
+The strict wrapper:
+
+1. runs the existing isolated physical harness;
+2. verifies the exact local artifact twice;
+3. verifies a physical ARM64 Android device with sufficient memory and storage;
+4. builds and installs debug plus instrumentation APKs;
+5. stages the artifact in app-private, read-only storage;
+6. runs the opt-in instrumentation class;
+7. checks instrumentation success before attempting output extraction;
+8. captures exit information and recent logcat on instrumentation failure;
+9. extracts response JSONL and the physical report;
+10. validates the exact 84/36 structural contract;
+11. recalculates the expected answer for every accepted frozen case;
+12. evaluates the frozen 120-case dataset;
+13. requires the exact current evaluation counts and zero false acceptances;
+14. materializes and verifies the raw v0.2 baseline from immutable evidence;
+15. compares the candidate with that frozen baseline;
+16. verifies every bundle file hash and size;
+17. removes shell and app-private staging.
+
+A zero exit status from the strict wrapper means the complete current evidence directory passed all checks. The historical runner alone must not be used to claim current 84/36 evidence.
 
 Default output root:
 
@@ -209,20 +258,23 @@ instrumentation-output.txt
 bundle-trimotor-v0.2.json
 ```
 
-A failed instrumentation run retains its transcript and best-effort diagnostics before private staging is removed.
+A failed instrumentation or evidence-validation run retains its transcript and best-effort diagnostics before private staging is removed.
 
 ## Research gate
 
-The fail-closed research gate requires:
+The strict current fail-closed gate requires all of the following simultaneously:
 
 ```text
+acceptedCorrectCount == 84
 falseAcceptedCount == 0
-strictFormatPassCount == strictFormatCaseCount
+abstainedCount == 36
+strictFormatPassCount == strictFormatCaseCount == 24
+claimVerificationPassCount == claimVerificationCaseCount == 12
 stateReleasePassCount == 120
 capabilityBoundaryPassCount == 120
 ```
 
-The historical physical run passed all four conditions. The updated adapter must pass them again in a separate physical execution before its current routing and authority ownership become physical evidence.
+The historical physical run passed its historical gate. The current adapter must pass this stricter gate in a separate physical execution before its 84/36 routing and authority ownership become physical evidence.
 
 Passing the research gate does not certify, sign, install or authorize activation of Morimil's personal runtime.
 
