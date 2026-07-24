@@ -1,44 +1,61 @@
 package com.morimil.app.ai
 
-import com.morimil.app.net.NetSourceDecision
-import com.morimil.app.net.NetSourcePolicy
+import com.morimil.app.net.NetAddressResolver
+import com.morimil.app.net.PublicOnlyDns
+import com.morimil.app.net.SystemNetAddressResolver
 import java.net.HttpURLConnection
+import java.net.Proxy
+import java.net.URI
 import java.net.URL
+import okhttp3.OkHttpClient
 
 /**
  * Network boundary for temporary auxiliary reasoning transports.
  *
- * A provider may answer one bounded request. It never owns Morimil's identity,
- * memory, continuity, goals, lifecycle or intrinsic motor state.
+ * Remote endpoints use PublicOnlyDns inside the same OkHttp client that opens
+ * the socket. This removes the validate-then-resolve DNS rebinding gap.
  */
 internal object ReasoningTransportSecurity {
     fun openConnection(
         rawUrl: String,
-        resolveHost: (String?) -> NetSourceDecision = NetSourcePolicy::validateResolvedHost
+        resolver: NetAddressResolver = SystemNetAddressResolver
     ): HttpURLConnection {
-        val target = validateTarget(rawUrl, resolveHost)
-        return (target.openConnection() as HttpURLConnection).apply {
-            instanceFollowRedirects = false
-        }
+        val target = validateTarget(rawUrl)
+        return OkHttpReasoningConnection(
+            target = target,
+            baseClient = clientFor(rawUrl, resolver)
+        )
     }
 
-    internal fun validateTarget(
+    internal fun clientFor(
         rawUrl: String,
-        resolveHost: (String?) -> NetSourceDecision
-    ): URL {
+        resolver: NetAddressResolver = SystemNetAddressResolver
+    ): OkHttpClient {
+        validateTarget(rawUrl)
+        return OkHttpClient.Builder()
+            .apply {
+                if (!ReasoningEndpointPolicy.isLocalTrustedEndpoint(rawUrl)) {
+                    dns(PublicOnlyDns(resolver))
+                }
+            }
+            .proxy(Proxy.NO_PROXY)
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .retryOnConnectionFailure(false)
+            .build()
+    }
+
+    internal fun validateTarget(rawUrl: String): URL {
         require(ReasoningEndpointPolicy.isAllowedTemporaryReasoningEndpoint(rawUrl)) {
             "reasoning_endpoint_not_allowed"
         }
-        val target = runCatching { URL(rawUrl) }
+        val uri = runCatching { URI(rawUrl.trim()) }
             .getOrElse { error -> throw IllegalArgumentException("reasoning_endpoint_invalid", error) }
-
-        if (!ReasoningEndpointPolicy.isLocalTrustedEndpoint(rawUrl)) {
-            val decision = resolveHost(target.host)
-            require(decision.allowed) {
-                "reasoning_endpoint_${decision.reason}"
-            }
-        }
-        return target
+        require(uri.rawUserInfo == null) { "reasoning_endpoint_userinfo_denied" }
+        require(uri.rawFragment == null) { "reasoning_endpoint_fragment_denied" }
+        require(!uri.host.isNullOrBlank()) { "reasoning_endpoint_host_missing" }
+        return runCatching { uri.toURL() }
+            .getOrElse { error -> throw IllegalArgumentException("reasoning_endpoint_invalid", error) }
     }
 
     fun requireNoRedirect(statusCode: Int) {
