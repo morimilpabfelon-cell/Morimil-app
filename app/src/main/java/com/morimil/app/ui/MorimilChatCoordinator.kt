@@ -1,10 +1,8 @@
 package com.morimil.app.ui
 
-import android.app.Application
 import com.morimil.app.MorimilAppContainer
 import com.morimil.app.ai.ChatTurn
 import com.morimil.app.ai.ReasoningClient
-import com.morimil.app.ai.ReasoningProfileRuntimeStore
 import com.morimil.app.data.genesis.GenesisIdentitySource
 import com.morimil.app.data.genesis.GenesisUltraIntegrationGate
 import com.morimil.app.data.local.LocalInstanceIdentityEntity
@@ -12,7 +10,6 @@ import com.morimil.app.data.local.ReasoningTurnAuthor
 import com.morimil.app.data.local.ReasoningTurnEntity
 import com.morimil.app.reasoning.ReasoningExecutionOrigin
 import com.morimil.app.reasoning.ReasoningKernelRequest
-import com.morimil.app.reasoning.model.ReasoningEscalationDecision
 import com.morimil.app.reasoning.model.ReasoningEscalationStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,7 +20,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 internal class MorimilChatCoordinator(
-    private val application: Application,
     private val container: MorimilAppContainer,
     private val scope: CoroutineScope,
     private val localIdentity: StateFlow<LocalInstanceIdentityEntity?>,
@@ -98,8 +94,23 @@ internal class MorimilChatCoordinator(
     }
 
     fun sendMessage(body: String) {
+        sendMessageInternal(body = body, appendUserTurn = true)
+    }
+
+    fun approveExternalReasoning() {
+        val task = ReasoningEscalationStore.approveCurrent() ?: return
+        sendMessageInternal(body = task, appendUserTurn = false)
+    }
+
+    fun keepReasoningLocal() {
+        val task = ReasoningEscalationStore.keepLocal() ?: return
+        sendMessageInternal(body = task, appendUserTurn = false)
+    }
+
+    private fun sendMessageInternal(body: String, appendUserTurn: Boolean) {
         val cleanBody = body.trim()
         if (cleanBody.isEmpty() || _isSending.value) return
+        ReasoningEscalationStore.discardIfTaskChanged(cleanBody)
 
         scope.launch {
             _chatError.value = null
@@ -111,24 +122,10 @@ internal class MorimilChatCoordinator(
             }
 
             val configuredHelper = container.reasoningConfigStore.loadActiveHelper()
-            val remoteHelperConfig = ReasoningProfileRuntimeStore.loadRemoteHelper(application)
-            val approvedEscalation = ReasoningEscalationStore.pendingRequest.value
-            val currentPreview = cleanBody.replace(Regex("\\s+"), " ").take(240)
-            val useRemoteHelper =
-                approvedEscalation?.decision == ReasoningEscalationDecision.APPROVED &&
-                    approvedEscalation.inputPreview == currentPreview &&
-                    remoteHelperConfig.baseUrl.isNotBlank() &&
-                    remoteHelperConfig.model.isNotBlank()
-            val runtimeConfig = if (useRemoteHelper) remoteHelperConfig else configuredHelper.config
-            val runtimeSlotId = if (useRemoteHelper) REMOTE_HELPER_SLOT_ID else configuredHelper.id
-            val runtimeLabel = if (useRemoteHelper) {
-                "Auxiliar remoto temporal"
-            } else {
-                configuredHelper.displayName
-            }
+            val runtimeConfig = configuredHelper.config
             val runtimeAccess = if (runtimeConfig.requiresRuntimeKey) {
                 container.secretVault.readReasoningKey(
-                    slotId = runtimeSlotId,
+                    slotId = configuredHelper.id,
                     endpoint = runtimeConfig.baseUrl
                 ).getOrNull().orEmpty()
             } else {
@@ -138,8 +135,17 @@ internal class MorimilChatCoordinator(
 
             _isSending.value = true
             try {
-                val priorHistory = messages.value
+                val trustedTurns = messages.value
                     .filter { turn -> ReasoningTurnAuthor.isTrustedConversationAuthor(turn.author) }
+                val historyTurns = if (!appendUserTurn &&
+                    trustedTurns.lastOrNull()?.author == ReasoningTurnAuthor.USER &&
+                    trustedTurns.lastOrNull()?.body?.trim() == cleanBody
+                ) {
+                    trustedTurns.dropLast(1)
+                } else {
+                    trustedTurns
+                }
+                val priorHistory = historyTurns
                     .takeLast(ReasoningClient.MAX_HISTORY_MESSAGES - 1)
                     .map { turn ->
                         ChatTurn(
@@ -149,7 +155,9 @@ internal class MorimilChatCoordinator(
                     }
 
                 val result = withContext(Dispatchers.IO) {
-                    container.reasoningTranscriptRepository.appendUserTurn(cleanBody)
+                    if (appendUserTurn) {
+                        container.reasoningTranscriptRepository.appendUserTurn(cleanBody)
+                    }
                     container.reasoningKernel.reason(
                         ReasoningKernelRequest(
                             input = cleanBody,
@@ -158,7 +166,7 @@ internal class MorimilChatCoordinator(
                             doctrineText = cachedDoctrineText,
                             policyText = cachedPolicyText,
                             priorHistory = priorHistory,
-                            runtimeLabel = runtimeLabel,
+                            runtimeLabel = configuredHelper.displayName,
                             runtimeConfig = runtimeConfig,
                             runtimeAccess = runtimeAccess
                         )
@@ -179,15 +187,9 @@ internal class MorimilChatCoordinator(
                     _chatError.value = result.errorMessage ?: "Error con el razonamiento."
                 }
             } finally {
-                if (useRemoteHelper) {
-                    ReasoningEscalationStore.clear()
-                }
+                ReasoningEscalationStore.clearResolvedFor(cleanBody)
                 _isSending.value = false
             }
         }
-    }
-
-    private companion object {
-        const val REMOTE_HELPER_SLOT_ID = 2
     }
 }
