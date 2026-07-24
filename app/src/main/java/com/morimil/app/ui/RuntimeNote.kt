@@ -57,7 +57,9 @@ fun RuntimeNote() {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("API principal", style = MaterialTheme.typography.titleMedium)
-            Text("Una sola API de razonamiento. Morimil conserva identidad y memoria local en el celular.")
+            Text(
+                "Morimil conserva identidad y memoria local. Una API remota recibe solo el mensaje actual salvo autorizacion privada explicita en el perfil remoto."
+            )
 
             TextField(
                 value = keyDraft,
@@ -94,7 +96,8 @@ fun RuntimeNote() {
                                     formatLabel = discovery.formatLabel
                                     discoveredModels = discovery.models
                                     val bestModel = discovery.bestModel
-                                    val detectedConfig = ReasoningProviderConfig.fromPreset(discovery.preset)
+                                    val detectedConfig = ReasoningProviderConfig
+                                        .fromPreset(discovery.preset)
                                         .copy(
                                             baseUrl = discovery.endpoint,
                                             model = bestModel?.id ?: model.trim()
@@ -104,16 +107,16 @@ fun RuntimeNote() {
                                     if (bestModel != null) model = bestModel.id
 
                                     if (bestModel != null) {
-                                        val keyResult = if (keyDraft.isNotBlank()) {
-                                            withContext(Dispatchers.IO) { vault.saveReasoningKey(key = keyDraft) }
-                                        } else {
-                                            Result.success(Unit)
+                                        val keyResult = withContext(Dispatchers.IO) {
+                                            saveKeyForConfig(vault, detectedConfig, keyDraft)
                                         }
-                                        val configResult = withContext(Dispatchers.IO) { store.save(detectedConfig) }
+                                        val configResult = withContext(Dispatchers.IO) {
+                                            store.save(detectedConfig)
+                                        }
                                         if (keyResult.isSuccess && configResult.isSuccess) {
                                             config = detectedConfig
                                             keyDraft = ""
-                                            note = "${discovery.note} API principal guardada."
+                                            note = "${discovery.note} API principal guardada con llave ligada al origen."
                                         } else {
                                             note = keyResult.exceptionOrNull()?.message
                                                 ?: configResult.exceptionOrNull()?.message
@@ -139,16 +142,22 @@ fun RuntimeNote() {
                             model = model.trim()
                         )
                         val configResult = withContext(Dispatchers.IO) { store.save(updated) }
-                        if (configResult.isSuccess) {
-                            if (keyDraft.isNotBlank()) {
-                                withContext(Dispatchers.IO) { vault.saveReasoningKey(key = keyDraft) }
-                                keyDraft = ""
+                        val keyResult = if (configResult.isSuccess) {
+                            withContext(Dispatchers.IO) {
+                                saveKeyForConfig(vault, updated, keyDraft)
                             }
+                        } else {
+                            Result.success(Unit)
+                        }
+                        if (configResult.isSuccess && keyResult.isSuccess) {
+                            keyDraft = ""
                             config = updated
                             discoveredConfig = updated
-                            note = "API principal guardada."
+                            note = "API principal guardada; la llave remota esta ligada al origen exacto."
                         } else {
-                            note = configResult.exceptionOrNull()?.message ?: "No se pudo guardar la API."
+                            note = configResult.exceptionOrNull()?.message
+                                ?: keyResult.exceptionOrNull()?.message
+                                ?: "No se pudo guardar la API."
                         }
                     }
                 }) {
@@ -172,16 +181,22 @@ fun RuntimeNote() {
                                     model = candidate.id
                                 )
                                 val configResult = withContext(Dispatchers.IO) { store.save(updated) }
-                                if (configResult.isSuccess) {
-                                    if (keyDraft.isNotBlank()) {
-                                        withContext(Dispatchers.IO) { vault.saveReasoningKey(key = keyDraft) }
-                                        keyDraft = ""
+                                val keyResult = if (configResult.isSuccess) {
+                                    withContext(Dispatchers.IO) {
+                                        saveKeyForConfig(vault, updated, keyDraft)
                                     }
+                                } else {
+                                    Result.success(Unit)
+                                }
+                                if (configResult.isSuccess && keyResult.isSuccess) {
+                                    keyDraft = ""
                                     config = updated
                                     discoveredConfig = updated
                                     note = "Modelo seleccionado en API principal: ${candidate.label}"
                                 } else {
-                                    note = configResult.exceptionOrNull()?.message ?: "No se pudo guardar el modelo."
+                                    note = configResult.exceptionOrNull()?.message
+                                        ?: keyResult.exceptionOrNull()?.message
+                                        ?: "No se pudo guardar el modelo."
                                 }
                             }
                         }
@@ -193,4 +208,16 @@ fun RuntimeNote() {
             note?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         }
     }
+}
+
+private fun saveKeyForConfig(
+    vault: SecretVault,
+    config: ReasoningProviderConfig,
+    keyDraft: String
+): Result<Unit> {
+    if (keyDraft.isBlank() || !config.requiresRuntimeKey) return Result.success(Unit)
+    return vault.saveReasoningKey(
+        endpoint = config.baseUrl,
+        key = keyDraft
+    )
 }
