@@ -15,6 +15,7 @@ import com.morimil.app.reasoning.model.ReasoningEscalationDecision
 import com.morimil.app.reasoning.model.ReasoningEscalationStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,9 +47,17 @@ internal class MorimilChatCoordinator(
         scope.launch {
             ReasoningEscalationStore.pendingRequest.collect { request ->
                 if (request != null && request.decision != ReasoningEscalationDecision.PENDING) {
-                    val task = ReasoningEscalationStore.taskForRequest(request.requestId)
-                    if (task != null) {
-                        sendMessageInternal(body = task, appendUserTurn = false)
+                    while (_isSending.value) {
+                        delay(10)
+                    }
+                    val latest = ReasoningEscalationStore.pendingRequest.value
+                    if (latest?.requestId == request.requestId &&
+                        latest.decision != ReasoningEscalationDecision.PENDING
+                    ) {
+                        val task = ReasoningEscalationStore.taskForRequest(request.requestId)
+                        if (task != null) {
+                            sendMessageInternal(body = task, appendUserTurn = false)
+                        }
                     }
                 }
             }
