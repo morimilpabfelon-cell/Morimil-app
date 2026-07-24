@@ -13,6 +13,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 @RunWith(AndroidJUnit4::class)
 class Arm64NativeCallGateV0Test {
@@ -21,7 +22,8 @@ class Arm64NativeCallGateV0Test {
         val gate = Arm64NativeCallGateV0()
         val entered = CountDownLatch(1)
         val unblock = CountDownLatch(1)
-        var closed = false
+        val closeStarted = CountDownLatch(1)
+        val closed = AtomicBoolean(false)
 
         val job = launch(Dispatchers.Default) {
             gate.run {
@@ -42,17 +44,19 @@ class Arm64NativeCallGateV0Test {
         )
 
         val closeJob = launch(Dispatchers.Default) {
+            closeStarted.countDown()
             gate.closeWhenIdle {
-                closed = true
+                closed.set(true)
             }
         }
+        assertTrue(closeStarted.await(5, TimeUnit.SECONDS))
         delay(100)
-        assertFalse(closed)
+        assertFalse(closed.get())
 
         unblock.countDown()
         job.cancelAndJoin()
         closeJob.join()
-        assertTrue(closed)
+        assertTrue(closed.get())
         assertEquals(0, gate.activeCallCount)
         gate.requireIdle()
     }
