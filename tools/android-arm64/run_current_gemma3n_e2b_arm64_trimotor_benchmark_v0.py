@@ -27,6 +27,10 @@ def strict_self_test() -> int:
 
 
 def run(args: argparse.Namespace) -> int:
+    # The physical path must never bypass the same immutable-evidence preflight
+    # exposed by --self-test. Fail before build, staging or device execution.
+    strict_self_test()
+
     root = Path(__file__).resolve().parents[2]
     report_root = (
         Path(args.report_directory).expanduser().resolve()
