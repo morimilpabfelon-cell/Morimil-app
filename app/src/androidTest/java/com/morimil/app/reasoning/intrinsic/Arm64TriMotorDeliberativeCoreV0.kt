@@ -1,18 +1,19 @@
 package com.morimil.app.reasoning.intrinsic
 
+import android.util.Log
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
-import kotlinx.coroutines.withTimeout
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Instrumentation-only bridge from the exact v0.2 LiteRT-LM engine to DeliberativeMotorV0.
- * One request owns one conversation and release closes that conversation.
+ * One request owns one conversation and release closes that conversation only after every
+ * synchronous native call has returned.
  */
 internal class Arm64TriMotorDeliberativeCoreV0(
     private val engine: Engine
@@ -24,12 +25,16 @@ internal class Arm64TriMotorDeliberativeCoreV0(
 
     private val opened = AtomicInteger(0)
     private val closed = AtomicInteger(0)
+    private val nativeCallGate = Arm64NativeCallGateV0()
 
     val openedConversationCount: Int
         get() = opened.get()
 
     val closedConversationCount: Int
         get() = closed.get()
+
+    val activeNativeCallCount: Int
+        get() = nativeCallGate.activeCallCount
 
     override suspend fun initialize(
         input: DeliberativeCoreInput
@@ -41,10 +46,12 @@ internal class Arm64TriMotorDeliberativeCoreV0(
         val conversation = engine.createConversation(
             ConversationConfig(systemInstruction = Contents.of(systemInstruction))
         )
-        opened.incrementAndGet()
+        val conversationOrdinal = opened.incrementAndGet()
+        Log.i(LOG_TAG, "conversation_opened:$conversationOrdinal")
         Arm64TriMotorDeliberativeStateV0(
             owner = this,
             conversation = conversation,
+            conversationOrdinal = conversationOrdinal,
             releaseGuard = AtomicBoolean(false),
             initialPrompt = renderHistory(input),
             pass = 0,
@@ -67,9 +74,11 @@ internal class Arm64TriMotorDeliberativeCoreV0(
             "Deliberative pass $pass. Recheck the answer already in this local conversation " +
                 "for correctness and compliance. Return only the revised final answer."
         }
-        val response = withTimeout(MAXIMUM_INFERENCE_MILLISECONDS) {
+        Log.i(LOG_TAG, "native_call_start:${current.conversationOrdinal}:$pass")
+        val response = nativeCallGate.run {
             current.conversation.sendMessage(prompt)
         }
+        Log.i(LOG_TAG, "native_call_complete:${current.conversationOrdinal}:$pass")
         val draft = response.contents.contents
             .filterIsInstance<Content.Text>()
             .joinToString(separator = "") { content -> content.text }
@@ -105,8 +114,10 @@ internal class Arm64TriMotorDeliberativeCoreV0(
     override suspend fun release(state: DeliberativeLatentState) {
         val current = requireOwned(state)
         if (!current.releaseGuard.compareAndSet(false, true)) return
+        nativeCallGate.requireIdle()
         current.conversation.close()
-        closed.incrementAndGet()
+        val closedCount = closed.incrementAndGet()
+        Log.i(LOG_TAG, "conversation_closed:${current.conversationOrdinal}:$closedCount")
     }
 
     private fun requireOwned(state: DeliberativeLatentState): Arm64TriMotorDeliberativeStateV0 {
@@ -140,6 +151,7 @@ internal class Arm64TriMotorDeliberativeCoreV0(
     private data class Arm64TriMotorDeliberativeStateV0(
         val owner: Arm64TriMotorDeliberativeCoreV0,
         val conversation: Conversation,
+        val conversationOrdinal: Int,
         val releaseGuard: AtomicBoolean,
         val initialPrompt: String,
         val pass: Int,
@@ -148,7 +160,7 @@ internal class Arm64TriMotorDeliberativeCoreV0(
     ) : DeliberativeLatentState
 
     private companion object {
-        const val MAXIMUM_INFERENCE_MILLISECONDS = 60_000L
+        const val LOG_TAG = "MorimilTriMotor"
         val WHITESPACE = Regex("\\s+")
     }
 }
