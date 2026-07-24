@@ -126,6 +126,10 @@ object ReasoningEscalationStore {
         currentTask
     }
 
+    fun taskForRequest(requestId: String): String? = synchronized(lock) {
+        if (_pendingRequest.value?.requestId == requestId) currentTask else null
+    }
+
     fun discardIfTaskChanged(input: String) = synchronized(lock) {
         val current = _pendingRequest.value ?: return@synchronized
         if (current.taskDigest != sha256(input.trim())) {
@@ -168,6 +172,6 @@ object ReasoningEscalationStore {
     private fun sha256(value: String): String {
         return MessageDigest.getInstance("SHA-256")
             .digest(value.toByteArray(Charsets.UTF_8))
-            .joinToString("") { byte -> "%02x".format(byte) }
+            .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
     }
 }
