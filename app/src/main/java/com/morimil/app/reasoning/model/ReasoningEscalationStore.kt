@@ -102,28 +102,24 @@ object ReasoningEscalationStore {
         ReasoningEscalationGateResult.PENDING
     }
 
-    fun approveCurrent(): String? = synchronized(lock) {
-        val current = _pendingRequest.value ?: return@synchronized null
-        if (current.decision != ReasoningEscalationDecision.PENDING) {
-            return@synchronized currentTask
+    fun approveCurrent() = synchronized(lock) {
+        val current = _pendingRequest.value ?: return@synchronized
+        if (current.decision == ReasoningEscalationDecision.PENDING) {
+            _pendingRequest.value = current.copy(
+                decision = ReasoningEscalationDecision.APPROVED,
+                decidedAtMillis = System.currentTimeMillis()
+            )
         }
-        _pendingRequest.value = current.copy(
-            decision = ReasoningEscalationDecision.APPROVED,
-            decidedAtMillis = System.currentTimeMillis()
-        )
-        currentTask
     }
 
-    fun keepLocal(): String? = synchronized(lock) {
-        val current = _pendingRequest.value ?: return@synchronized null
-        if (current.decision != ReasoningEscalationDecision.PENDING) {
-            return@synchronized currentTask
+    fun keepLocal() = synchronized(lock) {
+        val current = _pendingRequest.value ?: return@synchronized
+        if (current.decision == ReasoningEscalationDecision.PENDING) {
+            _pendingRequest.value = current.copy(
+                decision = ReasoningEscalationDecision.LOCAL_ONLY,
+                decidedAtMillis = System.currentTimeMillis()
+            )
         }
-        _pendingRequest.value = current.copy(
-            decision = ReasoningEscalationDecision.LOCAL_ONLY,
-            decidedAtMillis = System.currentTimeMillis()
-        )
-        currentTask
     }
 
     fun taskForRequest(requestId: String): String? = synchronized(lock) {
