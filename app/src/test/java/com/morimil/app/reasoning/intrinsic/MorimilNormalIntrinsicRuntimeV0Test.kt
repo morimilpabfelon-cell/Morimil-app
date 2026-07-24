@@ -1,6 +1,7 @@
 package com.morimil.app.reasoning.intrinsic
 
 import com.morimil.app.ai.ChatTurn
+import com.morimil.app.ai.ReasoningPreset
 import com.morimil.app.ai.ReasoningProviderConfig
 import com.morimil.app.data.genesis.GenesisIdentity
 import com.morimil.app.reasoning.IntrinsicReasoningRequest
@@ -244,7 +245,7 @@ class MorimilNormalIntrinsicRuntimeV0Test {
             doctrineText = null,
             policyText = null,
             priorHistory = emptyList(),
-            runtimeConfig = ReasoningProviderConfig.default(),
+            runtimeConfig = ReasoningProviderConfig.fromPreset(ReasoningPreset.LOCAL_USB_HELPER),
             runtimeAccess = "",
             runtimeLabel = "motor auxiliar local"
         )
