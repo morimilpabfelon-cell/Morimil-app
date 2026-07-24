@@ -1,6 +1,7 @@
 package com.morimil.app.reasoning
 
 import com.morimil.app.ai.ChatTurn
+import com.morimil.app.ai.ExternalReasoningDisclosurePolicy
 import com.morimil.app.ai.ReasoningClient
 import com.morimil.app.ai.ReasoningProviderConfig
 import com.morimil.app.ai.ReasoningRuntimeState
@@ -148,7 +149,19 @@ class ReasoningKernel(
                     )
                     degradedReply(cleanInput, intent, memoryContext, capsuleContext, backend.reason)
                 } else {
+                    val disclosure = ExternalReasoningDisclosurePolicy.prepare(
+                        config = request.runtimeConfig,
+                        fullSystemPrompt = systemPrompt,
+                        fullHistory = recentHistory
+                    )
                     state = state.withTrace(
+                        "external_disclosure",
+                        "policy=${ExternalReasoningDisclosurePolicy.VERSION} " +
+                            "mode=${disclosure.mode} " +
+                            "private_context=${disclosure.privateContextIncluded} " +
+                            "history_turns=${disclosure.history.size} " +
+                            "system_chars=${disclosure.systemPrompt.length}"
+                    ).withTrace(
                         "temporary_external_call",
                         "backend=${backend.kind} endpoint=${backend.endpoint.take(80)} " +
                             "model=${backend.model} complexity=${backend.taskComplexity}"
@@ -157,8 +170,10 @@ class ReasoningKernel(
                         TemporaryExternalReasoningRequest(
                             config = request.runtimeConfig,
                             runtimeAccess = request.runtimeAccess,
-                            systemPrompt = systemPrompt,
-                            history = recentHistory
+                            systemPrompt = disclosure.systemPrompt,
+                            history = disclosure.history,
+                            disclosureMode = disclosure.mode,
+                            privateContextIncluded = disclosure.privateContextIncluded
                         )
                     ).map { externalReply ->
                         state = state.copy(
