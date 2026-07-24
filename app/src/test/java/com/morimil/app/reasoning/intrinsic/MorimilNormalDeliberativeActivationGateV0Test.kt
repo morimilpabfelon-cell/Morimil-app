@@ -15,17 +15,18 @@ class MorimilNormalDeliberativeActivationGateV0Test {
         assertEquals(120, evidence.completedCaseCount)
         assertEquals(40, evidence.falseAcceptedCount)
         assertFalse(evidence.benchmarkQualityGatePassed)
+        assertFalse(evidence.reproducibleAcquisitionEvidence)
         assertFalse(decision.activationAllowed)
         assertEquals(
             setOf(
                 NormalDeliberativeActivationBlockerV0.BENCHMARK_QUALITY_GATE_FAILED,
                 NormalDeliberativeActivationBlockerV0.FALSE_ACCEPTANCES_PRESENT,
                 NormalDeliberativeActivationBlockerV0.SOURCE_MODEL_REVISION_MISSING,
-                NormalDeliberativeActivationBlockerV0.REPRODUCIBLE_CONVERSION_EVIDENCE_MISSING,
+                NormalDeliberativeActivationBlockerV0.REPRODUCIBLE_ACQUISITION_EVIDENCE_MISSING,
                 NormalDeliberativeActivationBlockerV0.CERTIFICATION_MISSING,
                 NormalDeliberativeActivationBlockerV0.SIGNATURE_MISSING,
                 NormalDeliberativeActivationBlockerV0.INSTALLATION_AUTHORIZATION_MISSING,
-                NormalDeliberativeActivationBlockerV0.PRODUCTION_AUTHORIZATION_MISSING
+                NormalDeliberativeActivationBlockerV0.PERSONAL_RUNTIME_AUTHORIZATION_MISSING
             ),
             decision.blockers
         )
@@ -39,11 +40,11 @@ class MorimilNormalDeliberativeActivationGateV0Test {
                 benchmarkQualityGatePassed = true,
                 falseAcceptedCount = 0,
                 sourceModelRevision = "exact-source-model-revision",
-                reproducibleConversionEvidence = true,
+                reproducibleAcquisitionEvidence = true,
                 certified = true,
                 signed = true,
                 installationAuthorized = true,
-                productionAuthorized = true
+                personalRuntimeAuthorized = true
             )
 
         val decision = MorimilNormalDeliberativeActivationGateV0.evaluate(futureEvidence)
@@ -65,11 +66,11 @@ class MorimilNormalDeliberativeActivationGateV0Test {
                 benchmarkQualityGatePassed = true,
                 falseAcceptedCount = 0,
                 sourceModelRevision = "exact-source-model-revision",
-                reproducibleConversionEvidence = true,
+                reproducibleAcquisitionEvidence = true,
                 certified = true,
                 signed = true,
                 installationAuthorized = true,
-                productionAuthorized = true
+                personalRuntimeAuthorized = true
             )
 
         val decision = MorimilNormalDeliberativeActivationGateV0.evaluate(incompleteEvidence)
