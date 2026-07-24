@@ -46,6 +46,8 @@ jobs:
           python tools/benchmarks/validate_v02_baseline_evidence_v0.py check
           python tools/benchmarks/validate_v02_physical_benchmark_evidence_v1.py check
           python tools/benchmarks/validate_trimotor_v02_physical_benchmark_evidence_v1.py check
+          python tools/android-arm64/run_current_gemma3n_e2b_arm64_trimotor_benchmark_v0.py --self-test
+          python tools/android-arm64/test_current_trimotor_physical_evidence_v0.py
 
       - name: Run Android unit tests and lint
         run: ./gradlew --no-daemon --stacktrace --console=plain :app:testDebugUnitTest :app:lintDebug
