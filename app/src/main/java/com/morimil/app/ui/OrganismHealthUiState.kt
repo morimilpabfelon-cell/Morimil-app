@@ -42,7 +42,7 @@ data class InternalRuntimeIssueUiState(
 
 object OrganismHealthUiStateBuilder {
     fun build(
-        activeHelper: ReasoningHelperSlot,
+        activeSlot: ReasoningHelperSlot,
         audit: MemoryIntegrityAuditUiState,
         restCycleAudit: RestCycleAuditSignal? = null,
         hasQuarantine: Boolean,
@@ -54,10 +54,10 @@ object OrganismHealthUiStateBuilder {
         latestRestCycleAtMillis: Long?,
         nowMillis: Long
     ): OrganismHealthUiState {
-        val helperModelLabel = activeHelper.config.model.ifBlank { "sin modelo auxiliar" }
+        val helperModelLabel = activeSlot.config.model.ifBlank { "sin modelo auxiliar" }
         val helperConfigured =
-            activeHelper.config.baseUrl.isNotBlank() && activeHelper.config.model.isNotBlank()
-        val helperIsLocal = !activeHelper.config.requiresRuntimeKey && helperConfigured
+            activeSlot.config.baseUrl.isNotBlank() && activeSlot.config.model.isNotBlank()
+        val helperIsLocal = !activeSlot.config.requiresRuntimeKey && helperConfigured
         val helperLabel = when {
             !helperConfigured -> "auxiliar: no configurado (opcional)"
             helperIsLocal -> "auxiliar: local disponible"
@@ -140,7 +140,7 @@ object OrganismHealthUiStateBuilder {
             level = level,
             overallLabel = overallLabel,
             healthSentence = healthSentence,
-            helperLabel = "${activeHelper.displayName}: $helperLabel",
+            helperLabel = "${activeSlot.displayName}: $helperLabel",
             helperModelLabel = helperModelLabel,
             helperNeedsAttention = false,
             memoryLabel = memoryLabel,
