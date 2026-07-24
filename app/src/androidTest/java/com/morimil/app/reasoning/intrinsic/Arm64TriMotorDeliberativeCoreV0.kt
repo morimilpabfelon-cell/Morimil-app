@@ -114,8 +114,9 @@ internal class Arm64TriMotorDeliberativeCoreV0(
     override suspend fun release(state: DeliberativeLatentState) {
         val current = requireOwned(state)
         if (!current.releaseGuard.compareAndSet(false, true)) return
-        nativeCallGate.requireIdle()
-        current.conversation.close()
+        nativeCallGate.closeWhenIdle {
+            current.conversation.close()
+        }
         val closedCount = closed.incrementAndGet()
         Log.i(LOG_TAG, "conversation_closed:${current.conversationOrdinal}:$closedCount")
     }
