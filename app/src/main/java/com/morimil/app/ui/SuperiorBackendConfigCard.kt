@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -22,25 +23,30 @@ fun SuperiorBackendConfigCard(
     saveStatus: String,
     runtimeKey: String,
     keyStatus: String,
+    allowPrivateContextToRemote: Boolean,
     onEndpointChange: (String) -> Unit,
     onModelChange: (String) -> Unit,
     onRuntimeKeyChange: (String) -> Unit,
+    onAllowPrivateContextChange: (Boolean) -> Unit,
     onSave: () -> Unit,
     onSaveRuntimeKey: () -> Unit,
     onClearRuntimeKey: () -> Unit
 ) {
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Motor auxiliar local API", style = MaterialTheme.typography.titleMedium)
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text("Motor 3 — auxiliar remoto API", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Perfil separado para tareas fuertes. No reemplaza al nucleo de Morimil; se usa solo con autorizacion.",
+                "Perfil remoto separado. No reemplaza el nucleo de Morimil y solo se usa despues de una autorizacion de escalamiento.",
                 style = MaterialTheme.typography.bodySmall
             )
             TextField(
                 value = endpoint,
                 onValueChange = onEndpointChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Endpoint API") }
+                label = { Text("Endpoint HTTPS remoto") }
             )
             TextField(
                 value = model,
@@ -48,8 +54,24 @@ fun SuperiorBackendConfigCard(
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Modelo API") }
             )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Permitir contexto privado completo")
+                    Text(
+                        "Desactivado por defecto. Al activarlo, doctrina, memoria, capsulas e historial pueden enviarse a este proveedor remoto.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                Switch(
+                    checked = allowPrivateContextToRemote,
+                    onCheckedChange = onAllowPrivateContextChange
+                )
+            }
             Button(onClick = onSave, enabled = endpoint.isNotBlank() && model.isNotBlank()) {
-                Text("Guardar motor auxiliar local API")
+                Text("Guardar perfil remoto")
             }
             Text(saveStatus, style = MaterialTheme.typography.bodySmall)
 
@@ -57,12 +79,15 @@ fun SuperiorBackendConfigCard(
                 value = runtimeKey,
                 onValueChange = onRuntimeKeyChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Llave API") },
+                label = { Text("Llave API para este origen") },
                 visualTransformation = PasswordVisualTransformation()
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onSaveRuntimeKey, enabled = runtimeKey.isNotBlank()) {
-                    Text("Guardar llave")
+                Button(
+                    onClick = onSaveRuntimeKey,
+                    enabled = runtimeKey.isNotBlank() && endpoint.isNotBlank()
+                ) {
+                    Text("Guardar llave ligada al host")
                 }
                 Button(onClick = onClearRuntimeKey) {
                     Text("Borrar llave")

@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.morimil.app.ai.ReasoningConfigStore
+import com.morimil.app.ai.ReasoningEndpointPolicy
 import com.morimil.app.ai.ReasoningProfileRuntimeStore
 import com.morimil.app.ai.ReasoningProviderConfig
 import com.morimil.app.ai.ReasoningPreset
@@ -41,25 +42,38 @@ fun MotorScreen(viewModel: MotorViewModel) {
     var saveStatus by remember { mutableStateOf("Config actual cargada.") }
     var superiorEndpoint by remember { mutableStateOf(initialSuperior.baseUrl) }
     var superiorModel by remember { mutableStateOf(initialSuperior.model) }
-    var superiorSaveStatus by remember { mutableStateOf("Motor auxiliar remoto API sin configurar.") }
+    var allowPrivateContextToRemote by remember {
+        mutableStateOf(initialSuperior.allowPrivateContextToRemote)
+    }
+    var superiorSaveStatus by remember {
+        mutableStateOf("Motor auxiliar remoto API sin configurar.")
+    }
     var superiorRuntimeKey by remember { mutableStateOf("") }
     var superiorKeyStatus by remember {
-        mutableStateOf(
-            if (secretVault.hasReasoningKey(2)) "Llave API guardada." else "Llave API no guardada."
-        )
+        mutableStateOf(remoteKeyStatus(secretVault, superiorEndpoint, 2))
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(uiState.title, style = MaterialTheme.typography.headlineMedium)
-        Text("Orden real: 1 Morimil nucleo, 2 auxiliar local Ollama por USB, 3 auxiliar remoto API. Morimil mantiene identidad, memoria y nucleo local en el celular.")
+        Text(
+            "Orden real: 1 Morimil nucleo, 2 auxiliar local Ollama por USB, " +
+                "3 auxiliar remoto API. Morimil conserva identidad, memoria y autoridad local."
+        )
         MorimilCoreMotorCard()
         ReasoningKernelGatesCard(
             localConfigured = endpoint.isNotBlank() && model.isNotBlank(),
             remoteProfileConfigured = superiorEndpoint.isNotBlank() && superiorModel.isNotBlank(),
-            remoteKeyStored = secretVault.hasReasoningKey(2),
+            remoteKeyStored = secretVault.hasReasoningKey(
+                slotId = 2,
+                endpoint = superiorEndpoint
+            ),
+            remotePrivateContextAllowed = allowPrivateContextToRemote,
             externalWebIsContextOnly = true
         )
         LocalBackendConfigCard(
@@ -81,8 +95,13 @@ fun MotorScreen(viewModel: MotorViewModel) {
                     )
                 )
                 saveStatus = result.fold(
-                    onSuccess = { "Motor 2 auxiliar local Ollama por USB guardado. El siguiente mensaje usara esta configuracion." },
-                    onFailure = { error -> "No se pudo guardar: ${error.message ?: error::class.java.simpleName}" }
+                    onSuccess = {
+                        "Motor 2 auxiliar local Ollama por USB guardado. " +
+                            "El siguiente mensaje usara esta configuracion."
+                    },
+                    onFailure = { error ->
+                        "No se pudo guardar: ${error.message ?: error::class.java.simpleName}"
+                    }
                 )
             }
         )
@@ -92,21 +111,37 @@ fun MotorScreen(viewModel: MotorViewModel) {
             saveStatus = superiorSaveStatus,
             runtimeKey = superiorRuntimeKey,
             keyStatus = superiorKeyStatus,
-            onEndpointChange = { superiorEndpoint = it },
+            allowPrivateContextToRemote = allowPrivateContextToRemote,
+            onEndpointChange = { value ->
+                superiorEndpoint = value
+                superiorKeyStatus = remoteKeyStatus(secretVault, value, 2)
+            },
             onModelChange = { superiorModel = it },
             onRuntimeKeyChange = { superiorRuntimeKey = it },
+            onAllowPrivateContextChange = { allowPrivateContextToRemote = it },
             onSaveRuntimeKey = {
-                val result = secretVault.saveReasoningKey(2, superiorRuntimeKey)
+                val result = secretVault.saveReasoningKey(
+                    slotId = 2,
+                    endpoint = superiorEndpoint,
+                    key = superiorRuntimeKey
+                )
                 superiorKeyStatus = result.fold(
                     onSuccess = {
                         superiorRuntimeKey = ""
-                        "Llave API guardada en SecretVault slot 2."
+                        remoteKeyStatus(secretVault, superiorEndpoint, 2)
                     },
-                    onFailure = { error -> "No se pudo guardar llave API: ${error.message ?: error::class.java.simpleName}" }
+                    onFailure = { error ->
+                        "No se pudo guardar llave API: " +
+                            (error.message ?: error::class.java.simpleName)
+                    }
                 )
             },
             onClearRuntimeKey = {
-                secretVault.clearReasoningKey(2)
+                if (ReasoningEndpointPolicy.isSecureRemoteEndpoint(superiorEndpoint)) {
+                    secretVault.clearReasoningKey(2, superiorEndpoint)
+                } else {
+                    secretVault.clearAllReasoningKeys(2)
+                }
                 superiorRuntimeKey = ""
                 superiorKeyStatus = "Llave API borrada."
             },
@@ -116,16 +151,38 @@ fun MotorScreen(viewModel: MotorViewModel) {
                     ReasoningProviderConfig(
                         preset = ReasoningPreset.CUSTOM,
                         baseUrl = superiorEndpoint,
-                        model = superiorModel
+                        model = superiorModel,
+                        allowPrivateContextToRemote = allowPrivateContextToRemote
                     )
                 )
                 superiorSaveStatus = result.fold(
-                    onSuccess = { "Motor 3 auxiliar remoto API guardado de forma persistente." },
-                    onFailure = { error -> "No se pudo guardar motor 3 API: ${error.message ?: error::class.java.simpleName}" }
+                    onSuccess = {
+                        "Motor 3 auxiliar remoto guardado. Contexto privado remoto: " +
+                            if (allowPrivateContextToRemote) "AUTORIZADO" else "BLOQUEADO"
+                    },
+                    onFailure = { error ->
+                        "No se pudo guardar motor 3 API: " +
+                            (error.message ?: error::class.java.simpleName)
+                    }
                 )
+                superiorKeyStatus = remoteKeyStatus(secretVault, superiorEndpoint, 2)
             }
         )
     }
+}
+
+private fun remoteKeyStatus(vault: SecretVault, endpoint: String, slotId: Int): String {
+    if (endpoint.isBlank()) return "Configura primero un endpoint HTTPS remoto."
+    if (!ReasoningEndpointPolicy.isSecureRemoteEndpoint(endpoint)) {
+        return "La llave solo puede ligarse a un origen HTTPS remoto valido."
+    }
+    if (vault.hasReasoningKey(slotId, endpoint)) {
+        return "Llave API guardada y ligada al origen HTTPS actual."
+    }
+    if (vault.hasLegacyUnboundReasoningKey(slotId)) {
+        return "Existe una llave antigua sin host. Por seguridad no se usara; vuelve a guardarla para este origen."
+    }
+    return "Llave API no guardada para este origen."
 }
 
 @Composable
@@ -150,20 +207,22 @@ private fun ReasoningKernelGatesCard(
     localConfigured: Boolean,
     remoteProfileConfigured: Boolean,
     remoteKeyStored: Boolean,
+    remotePrivateContextAllowed: Boolean,
     externalWebIsContextOnly: Boolean
 ) {
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Estado general de motores", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Morimil conserva el nucleo. Ollama y API son motores auxiliares temporales de computo sin autoridad de memoria.",
+                "Morimil conserva el nucleo. Ollama y API son auxiliares temporales sin autoridad de memoria.",
                 style = MaterialTheme.typography.bodySmall
             )
             GateRow("Motor 1 Morimil nucleo activo", true)
             GateRow("Motor 2 auxiliar local Ollama USB configurado", localConfigured)
             GateRow("Motor 3 auxiliar remoto API configurado", remoteProfileConfigured)
-            GateRow("Llave API en SecretVault slot 2", remoteKeyStored)
-            GateRow("Web externa entra como contexto", externalWebIsContextOnly)
+            GateRow("Llave remota ligada al host exacto", remoteKeyStored)
+            GateRow("Contexto privado remoto bloqueado por defecto", !remotePrivateContextAllowed)
+            GateRow("Web externa entra como contexto local", externalWebIsContextOnly)
         }
     }
 }

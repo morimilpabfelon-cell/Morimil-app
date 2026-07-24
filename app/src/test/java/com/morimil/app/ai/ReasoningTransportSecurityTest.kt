@@ -1,6 +1,9 @@
 package com.morimil.app.ai
 
-import com.morimil.app.net.NetSourceDecision
+import com.morimil.app.net.NetAddressResolver
+import com.morimil.app.net.PublicOnlyDns
+import java.net.InetAddress
+import java.net.Proxy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -8,63 +11,71 @@ import org.junit.Test
 
 class ReasoningTransportSecurityTest {
     @Test
-    fun localUsbEndpointSkipsPublicDnsValidation() {
-        var resolverCalled = false
-        val target = ReasoningTransportSecurity.validateTarget(
-            rawUrl = "http://127.0.0.1:11434/v1/chat/completions",
-            resolveHost = {
-                resolverCalled = true
-                NetSourceDecision(false, "loopback_denied")
-            }
-        )
-
-        assertEquals("127.0.0.1", target.host)
-        assertFalse(resolverCalled)
-    }
-
-    @Test
-    fun remoteEndpointRequiresPublicDnsResolution() {
-        var resolvedHost: String? = null
-        val target = ReasoningTransportSecurity.validateTarget(
+    fun remoteClientUsesTheValidatedAddressListForItsActualDns() {
+        val publicAddress = InetAddress.getByName("93.184.216.34")
+        val client = ReasoningTransportSecurity.clientFor(
             rawUrl = "https://api.example.com/v1/responses",
-            resolveHost = { host ->
-                resolvedHost = host
-                NetSourceDecision(true)
-            }
+            resolver = NetAddressResolver { listOf(publicAddress) }
         )
 
-        assertEquals("api.example.com", resolvedHost)
-        assertEquals("https", target.protocol)
+        assertTrue(client.dns is PublicOnlyDns)
+        assertEquals(listOf(publicAddress), client.dns.lookup("api.example.com"))
+        assertEquals(Proxy.NO_PROXY, client.proxy)
+        assertFalse(client.followRedirects)
+        assertFalse(client.followSslRedirects)
+        assertFalse(client.retryOnConnectionFailure)
     }
 
     @Test
-    fun remoteEndpointRejectsPrivateOrReboundDns() {
-        val result = runCatching {
-            ReasoningTransportSecurity.validateTarget(
-                rawUrl = "https://api.example.com/v1/responses",
-                resolveHost = { NetSourceDecision(false, "site_local_denied") }
-            )
-        }
+    fun remoteClientRejectsPrivateOrReboundDnsInsideConnectionDns() {
+        val client = ReasoningTransportSecurity.clientFor(
+            rawUrl = "https://api.example.com/v1/responses",
+            resolver = NetAddressResolver {
+                listOf(InetAddress.getByName("192.168.1.20"))
+            }
+        )
+
+        val result = runCatching { client.dns.lookup("api.example.com") }
 
         assertTrue(result.isFailure)
         assertTrue(result.exceptionOrNull()?.message?.contains("site_local_denied") == true)
     }
 
     @Test
-    fun cleartextRemoteEndpointIsRejectedBeforeResolution() {
-        var resolverCalled = false
+    fun localUsbClientDoesNotApplyRemotePublicDnsPolicy() {
+        val client = ReasoningTransportSecurity.clientFor(
+            rawUrl = "http://127.0.0.1:11434/v1/chat/completions",
+            resolver = NetAddressResolver {
+                error("local resolver must not be installed")
+            }
+        )
+
+        assertFalse(client.dns is PublicOnlyDns)
+        assertEquals(Proxy.NO_PROXY, client.proxy)
+    }
+
+    @Test
+    fun cleartextRemoteEndpointIsRejected() {
         val result = runCatching {
             ReasoningTransportSecurity.validateTarget(
-                rawUrl = "http://api.example.com/v1/chat/completions",
-                resolveHost = {
-                    resolverCalled = true
-                    NetSourceDecision(true)
-                }
+                "http://api.example.com/v1/chat/completions"
             )
         }
 
         assertTrue(result.isFailure)
-        assertFalse(resolverCalled)
+        assertTrue(result.exceptionOrNull()?.message?.contains("reasoning_endpoint_not_allowed") == true)
+    }
+
+    @Test
+    fun endpointFragmentsAreRejectedBeforeConnection() {
+        val result = runCatching {
+            ReasoningTransportSecurity.validateTarget(
+                "https://api.example.com/v1/responses#secret"
+            )
+        }
+
+        assertTrue(result.isFailure)
+        assertEquals("reasoning_endpoint_fragment_denied", result.exceptionOrNull()?.message)
     }
 
     @Test
@@ -88,11 +99,12 @@ class ReasoningTransportSecurityTest {
     @Test
     fun openedConnectionsNeverFollowRedirectsAutomatically() {
         val connection = ReasoningTransportSecurity.openConnection(
-            rawUrl = "http://127.0.0.1:9/v1/chat/completions",
-            resolveHost = { NetSourceDecision(false, "must_not_be_called") }
+            rawUrl = "http://127.0.0.1:9/v1/chat/completions"
         )
         try {
+            assertTrue(connection is OkHttpReasoningConnection)
             assertFalse(connection.instanceFollowRedirects)
+            assertFalse(connection.usingProxy())
         } finally {
             connection.disconnect()
         }

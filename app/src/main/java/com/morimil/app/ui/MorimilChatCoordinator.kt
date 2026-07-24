@@ -120,7 +120,14 @@ internal class MorimilChatCoordinator(
             val runtimeConfig = if (useSuperiorRuntime) superiorConfig else localRuntimeSlot.config
             val runtimeSlotId = if (useSuperiorRuntime) 2 else localRuntimeSlot.id
             val runtimeLabel = if (useSuperiorRuntime) "Motor superior" else localRuntimeSlot.displayName
-            val runtimeAccess = container.secretVault.readReasoningKey(runtimeSlotId).getOrNull().orEmpty()
+            val runtimeAccess = if (runtimeConfig.requiresRuntimeKey) {
+                container.secretVault.readReasoningKey(
+                    slotId = runtimeSlotId,
+                    endpoint = runtimeConfig.baseUrl
+                ).getOrNull().orEmpty()
+            } else {
+                ""
+            }
             val alias = localIdentity.value?.alias ?: genesis.alias
 
             _isSending.value = true
