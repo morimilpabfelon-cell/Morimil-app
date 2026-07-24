@@ -6,94 +6,79 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ExternalReasoningDisclosurePolicyTest {
-    private val privatePrompt = """
-        IDENTITY: Morimil
-        DOCTRINE: private-doctrine
-        LIVING MEMORY: private-memory
-        KNOWLEDGE CAPSULES: private-capsule
-    """.trimIndent()
-
-    private val history = listOf(
-        ChatTurn("user", "old private user turn"),
-        ChatTurn("assistant", "old private assistant turn"),
-        ChatTurn("user", "current request")
-    )
-
     @Test
-    fun localUsbHelperKeepsFullLocalContext() {
+    fun disclosureContainsOnlyCurrentUserTask() {
         val disclosure = ExternalReasoningDisclosurePolicy.prepare(
-            config = ReasoningProviderConfig.default(),
-            fullSystemPrompt = privatePrompt,
-            fullHistory = history
-        )
-
-        assertEquals(ExternalReasoningDisclosureMode.LOCAL_FULL_CONTEXT, disclosure.mode)
-        assertTrue(disclosure.privateContextIncluded)
-        assertEquals(privatePrompt, disclosure.systemPrompt)
-        assertEquals(history, disclosure.history)
-    }
-
-    @Test
-    fun remoteHelperReceivesOnlyCurrentUserMessageByDefault() {
-        val disclosure = ExternalReasoningDisclosurePolicy.prepare(
-            config = remoteConfig(allowPrivateContext = false),
-            fullSystemPrompt = privatePrompt,
-            fullHistory = history
+            currentUserMessage = "  current request  "
         )
 
         assertEquals(
-            ExternalReasoningDisclosureMode.REMOTE_USER_MESSAGE_ONLY,
+            ExternalReasoningDisclosureMode.AUXILIARY_USER_TASK_ONLY,
             disclosure.mode
         )
-        assertFalse(disclosure.privateContextIncluded)
         assertEquals(listOf(ChatTurn("user", "current request")), disclosure.history)
-        assertFalse(disclosure.systemPrompt.contains("private-doctrine"))
-        assertFalse(disclosure.systemPrompt.contains("private-memory"))
-        assertFalse(disclosure.systemPrompt.contains("private-capsule"))
-        assertTrue(disclosure.systemPrompt.contains("temporary external computation helper"))
-    }
-
-    @Test
-    fun explicitRemoteConsentIsRequiredForFullContext() {
-        val disclosure = ExternalReasoningDisclosurePolicy.prepare(
-            config = remoteConfig(allowPrivateContext = true),
-            fullSystemPrompt = privatePrompt,
-            fullHistory = history
-        )
-
         assertEquals(
-            ExternalReasoningDisclosureMode.REMOTE_FULL_CONTEXT_EXPLICIT,
-            disclosure.mode
+            ExternalReasoningDisclosurePolicy.AUXILIARY_BOUNDARY_PROMPT,
+            disclosure.systemPrompt
         )
-        assertTrue(disclosure.privateContextIncluded)
-        assertEquals(privatePrompt, disclosure.systemPrompt)
-        assertEquals(history, disclosure.history)
     }
 
     @Test
-    fun remoteUserOnlyContractRejectsHiddenAdditionalHistory() {
+    fun boundaryPromptContainsNoPrivateContext() {
+        val prompt = ExternalReasoningDisclosurePolicy.AUXILIARY_BOUNDARY_PROMPT
+
+        assertFalse(prompt.contains("private-doctrine"))
+        assertFalse(prompt.contains("private-memory"))
+        assertFalse(prompt.contains("private-capsule"))
+        assertTrue(prompt.contains("temporary external computation provider"))
+        assertTrue(prompt.contains("You are not Morimil"))
+    }
+
+    @Test
+    fun disclosureContractRejectsAdditionalHistory() {
         val result = runCatching {
             ExternalReasoningDisclosure(
-                mode = ExternalReasoningDisclosureMode.REMOTE_USER_MESSAGE_ONLY,
-                systemPrompt = ExternalReasoningDisclosurePolicy.REMOTE_MINIMAL_SYSTEM_PROMPT,
-                history = history,
-                privateContextIncluded = false
+                mode = ExternalReasoningDisclosureMode.AUXILIARY_USER_TASK_ONLY,
+                systemPrompt = ExternalReasoningDisclosurePolicy.AUXILIARY_BOUNDARY_PROMPT,
+                history = listOf(
+                    ChatTurn("user", "old turn"),
+                    ChatTurn("assistant", "old answer"),
+                    ChatTurn("user", "current request")
+                )
             )
         }
 
         assertTrue(result.isFailure)
         assertEquals(
-            "remote_user_only_disclosure_must_contain_exactly_one_user_turn",
+            "external_disclosure_must_contain_exactly_one_user_turn",
             result.exceptionOrNull()?.message
         )
     }
 
-    private fun remoteConfig(allowPrivateContext: Boolean): ReasoningProviderConfig {
-        return ReasoningProviderConfig(
-            preset = ReasoningPreset.RESPONSES_COMPATIBLE,
-            baseUrl = "https://api.example.com/v1/responses",
-            model = "example-reasoner",
-            allowPrivateContextToRemote = allowPrivateContext
+    @Test
+    fun disclosureContractRejectsAnyOtherSystemPrompt() {
+        val result = runCatching {
+            ExternalReasoningDisclosure(
+                mode = ExternalReasoningDisclosureMode.AUXILIARY_USER_TASK_ONLY,
+                systemPrompt = "IDENTITY: Morimil; MEMORY: secret",
+                history = listOf(ChatTurn("user", "current request"))
+            )
+        }
+
+        assertTrue(result.isFailure)
+        assertEquals(
+            "external_disclosure_prompt_not_allowed",
+            result.exceptionOrNull()?.message
         )
+    }
+
+    @Test
+    fun blankTaskIsRejected() {
+        val result = runCatching {
+            ExternalReasoningDisclosurePolicy.prepare("   ")
+        }
+
+        assertTrue(result.isFailure)
+        assertEquals("external_disclosure_user_task_blank", result.exceptionOrNull()?.message)
     }
 }
