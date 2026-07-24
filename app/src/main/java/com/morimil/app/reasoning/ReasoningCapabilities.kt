@@ -3,6 +3,7 @@ package com.morimil.app.reasoning
 import com.morimil.app.ai.ChatTurn
 import com.morimil.app.ai.ExternalReasoningDisclosureMode
 import com.morimil.app.ai.ReasoningClient
+import com.morimil.app.ai.ReasoningEndpointPolicy
 import com.morimil.app.ai.ReasoningProviderConfig
 import com.morimil.app.data.repository.MemoryOrganRepository
 import com.morimil.app.data.repository.MemoryRepository
@@ -69,8 +70,28 @@ class ReasoningClientTemporaryExternalProvider(
     private val client: ReasoningClient
 ) : TemporaryExternalReasoningProvider {
     override suspend fun compute(request: TemporaryExternalReasoningRequest): Result<String> {
+        val valid = request.config.validated()
+        val isLocal = ReasoningEndpointPolicy.isLocalTrustedEndpoint(valid.baseUrl)
+        if (isLocal) {
+            require(request.disclosureMode == ExternalReasoningDisclosureMode.LOCAL_FULL_CONTEXT) {
+                "local_helper_requires_local_full_context_contract"
+            }
+        } else if (valid.allowPrivateContextToRemote) {
+            require(
+                request.disclosureMode ==
+                    ExternalReasoningDisclosureMode.REMOTE_FULL_CONTEXT_EXPLICIT
+            ) { "remote_private_context_requires_explicit_disclosure_contract" }
+        } else {
+            require(
+                request.disclosureMode ==
+                    ExternalReasoningDisclosureMode.REMOTE_USER_MESSAGE_ONLY
+            ) { "remote_default_requires_user_message_only_contract" }
+            require(!request.privateContextIncluded) {
+                "remote_default_cannot_include_private_context"
+            }
+        }
         return client.sendMessage(
-            config = request.config,
+            config = valid,
             runtimeKey = request.runtimeAccess,
             systemPrompt = request.systemPrompt,
             history = request.history
