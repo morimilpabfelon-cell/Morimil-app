@@ -11,13 +11,22 @@ import com.morimil.app.reasoning.ReasoningKernelRequest
 import com.morimil.app.reasoning.ReasoningMotorRole
 import com.morimil.app.reasoning.ReasoningTaskKind
 import com.morimil.app.reasoning.TemporaryExternalReasoningProvider
+import com.morimil.app.reasoning.model.ReasoningEscalationDecision
+import com.morimil.app.reasoning.model.ReasoningEscalationStore
 import com.morimil.app.reasoning.model.ReasoningTaskComplexity
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MorimilNormalIntrinsicRuntimeV0Test {
+    @After
+    fun clearAuthorizationStore() {
+        ReasoningEscalationStore.clear()
+    }
+
     @Test
     fun normalRuntimeRegistersOnlyBoundedIntuitiveRole() {
         val coordinator = MorimilNormalIntrinsicRuntimeV0.createCoordinator()
@@ -107,7 +116,7 @@ class MorimilNormalIntrinsicRuntimeV0Test {
     }
 
     @Test
-    fun malformedInstructionFailsClosedAndPreservesFallback() = runBlocking {
+    fun malformedInstructionRequiresApprovalBeforeTemporaryFallback() = runBlocking {
         var externalCalls = 0
         val kernel = kernel(
             externalProvider = TemporaryExternalReasoningProvider {
@@ -115,21 +124,37 @@ class MorimilNormalIntrinsicRuntimeV0Test {
                 Result.success("temporary external reply")
             }
         )
+        val request = kernelRequest("Devuelve exactamente FINAL:azul y nada más.")
 
-        val result = kernel.reason(
-            kernelRequest("Devuelve exactamente FINAL:azul y nada más.")
+        val pending = kernel.reason(request)
+
+        assertTrue(pending.externalAuthorizationRequired)
+        assertNull(pending.reply)
+        assertEquals(0, externalCalls)
+        assertEquals(
+            ReasoningEscalationDecision.PENDING,
+            ReasoningEscalationStore.pendingRequest.value?.decision
         )
+        ReasoningEscalationStore.approveCurrent()
+
+        val result = kernel.reason(request)
 
         assertEquals("temporary external reply", result.reply)
         assertEquals(1, externalCalls)
         assertEquals(ReasoningExecutionOrigin.TEMPORARY_EXTERNAL, result.state.executionOrigin)
         assertTrue(
             result.state.trace.any { event -> event.stage == "intrinsic_motor_unavailable" }
+        )
+        assertTrue(
+            result.state.trace.any { event ->
+                event.stage == "external_authorization_gate" &&
+                    event.detail.contains("decision=approved_once")
+            }
         )
     }
 
     @Test
-    fun unsupportedGenerativeTaskFailsClosedAndPreservesFallback() = runBlocking {
+    fun unsupportedGenerativeTaskRequiresApprovalBeforeTemporaryFallback() = runBlocking {
         var externalCalls = 0
         val kernel = kernel(
             externalProvider = TemporaryExternalReasoningProvider {
@@ -137,16 +162,32 @@ class MorimilNormalIntrinsicRuntimeV0Test {
                 Result.success("temporary external reply")
             }
         )
+        val request = kernelRequest("Escribe una historia breve sobre el mar.")
 
-        val result = kernel.reason(
-            kernelRequest("Escribe una historia breve sobre el mar.")
+        val pending = kernel.reason(request)
+
+        assertTrue(pending.externalAuthorizationRequired)
+        assertNull(pending.reply)
+        assertEquals(0, externalCalls)
+        assertEquals(
+            ReasoningEscalationDecision.PENDING,
+            ReasoningEscalationStore.pendingRequest.value?.decision
         )
+        ReasoningEscalationStore.approveCurrent()
+
+        val result = kernel.reason(request)
 
         assertEquals("temporary external reply", result.reply)
         assertEquals(1, externalCalls)
         assertEquals(ReasoningExecutionOrigin.TEMPORARY_EXTERNAL, result.state.executionOrigin)
         assertTrue(
             result.state.trace.any { event -> event.stage == "intrinsic_motor_unavailable" }
+        )
+        assertTrue(
+            result.state.trace.any { event ->
+                event.stage == "external_authorization_gate" &&
+                    event.detail.contains("decision=approved_once")
+            }
         )
     }
 
