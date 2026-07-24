@@ -1,6 +1,6 @@
 package com.morimil.app.ui
 
-import com.morimil.app.ai.ReasoningMotorSlot
+import com.morimil.app.ai.ReasoningHelperSlot
 import com.morimil.app.ai.ReasoningPreset
 import com.morimil.app.ai.ReasoningProviderConfig
 import com.morimil.app.runtime.RestCycleScheduleStatus
@@ -11,18 +11,14 @@ import org.junit.Test
 
 class OrganismHealthUiStateTest {
     @Test
-    fun healthyLocalMotorReportUsesHumanReadableSentence() {
+    fun healthyOrganismReportsOptionalLocalHelperSeparately() {
         val health = OrganismHealthUiStateBuilder.build(
-            activeSlot = localSlot(),
-            audit = MemoryIntegrityAuditUiState(
-                memoryChainVerified = true,
-                capsuleChainVerified = true,
-                checkedAtMillis = NOW - 2L * 60L * 60L * 1000L
-            ),
+            activeSlot = localHelper(),
+            audit = verifiedAudit(NOW - 2L * HOUR),
             hasQuarantine = false,
             eventCount = 1240,
             restCycleScheduleStatus = RestCycleScheduleStatus.fromWorkStates(listOf("ENQUEUED")),
-            latestRestCycleAtMillis = NOW - 45L * 60L * 1000L,
+            latestRestCycleAtMillis = NOW - 45L * MINUTE,
             nowMillis = NOW
         )
 
@@ -33,22 +29,41 @@ class OrganismHealthUiStateTest {
         assertEquals("recalls: 0 activos", health.recallLabel)
         assertEquals("auditoria: hace 2h", health.auditAgeLabel)
         assertEquals("descanso: hace 45m", health.restCycleLabel)
-        assertEquals("Motor auxiliar configurado: motor local activo", health.motorLabel)
+        assertEquals(
+            "Auxiliar temporal configurado: auxiliar: local disponible",
+            health.helperLabel
+        )
         assertEquals("accion: continuar", health.recommendedActionLabel)
+        assertFalse(health.helperNeedsAttention)
         assertFalse(health.memoryNeedsAttention)
         assertFalse(health.auditNeedsAttention)
-        assertTrue(health.healthSentence.contains("integra, 1.240 eventos, 0 activos, hace 2h, motor local activo"))
+        assertTrue(health.healthSentence.contains("auxiliar: local disponible"))
+    }
+
+    @Test
+    fun missingHelperDoesNotDegradeOrganismHealth() {
+        val health = OrganismHealthUiStateBuilder.build(
+            activeSlot = unconfiguredHelper(),
+            audit = verifiedAudit(NOW),
+            hasQuarantine = false,
+            eventCount = 42,
+            restCycleScheduleStatus = RestCycleScheduleStatus.fromWorkStates(listOf("ENQUEUED")),
+            latestRestCycleAtMillis = NOW,
+            nowMillis = NOW
+        )
+
+        assertEquals(HealthStatusLevel.Stable, health.level)
+        assertEquals("salud: estable", health.overallLabel)
+        assertEquals("accion: continuar", health.recommendedActionLabel)
+        assertFalse(health.helperNeedsAttention)
+        assertTrue(health.helperLabel.contains("no configurado (opcional)"))
     }
 
     @Test
     fun quarantineTakesPriorityOverStableScheduler() {
         val health = OrganismHealthUiStateBuilder.build(
-            activeSlot = localSlot(),
-            audit = MemoryIntegrityAuditUiState(
-                memoryChainVerified = true,
-                capsuleChainVerified = true,
-                checkedAtMillis = NOW
-            ),
+            activeSlot = localHelper(),
+            audit = verifiedAudit(NOW),
             hasQuarantine = true,
             eventCount = 12,
             restCycleScheduleStatus = RestCycleScheduleStatus.fromWorkStates(listOf("ENQUEUED")),
@@ -65,16 +80,12 @@ class OrganismHealthUiStateTest {
     @Test
     fun staleAuditRecommendsRunningMemoryAudit() {
         val health = OrganismHealthUiStateBuilder.build(
-            activeSlot = localSlot(),
-            audit = MemoryIntegrityAuditUiState(
-                memoryChainVerified = true,
-                capsuleChainVerified = true,
-                checkedAtMillis = NOW - 25L * 60L * 60L * 1000L
-            ),
+            activeSlot = localHelper(),
+            audit = verifiedAudit(NOW - 25L * HOUR),
             hasQuarantine = false,
             eventCount = 1240,
             restCycleScheduleStatus = RestCycleScheduleStatus.fromWorkStates(listOf("ENQUEUED")),
-            latestRestCycleAtMillis = NOW - 2L * 60L * 60L * 1000L,
+            latestRestCycleAtMillis = NOW - 2L * HOUR,
             nowMillis = NOW
         )
 
@@ -88,18 +99,14 @@ class OrganismHealthUiStateTest {
     @Test
     fun overdueRecallsRaiseAttentionAndRecommendReview() {
         val health = OrganismHealthUiStateBuilder.build(
-            activeSlot = localSlot(),
-            audit = MemoryIntegrityAuditUiState(
-                memoryChainVerified = true,
-                capsuleChainVerified = true,
-                checkedAtMillis = NOW - 2L * 60L * 60L * 1000L
-            ),
+            activeSlot = localHelper(),
+            audit = verifiedAudit(NOW - 2L * HOUR),
             hasQuarantine = false,
             eventCount = 1240,
             recallPendingCount = 8,
             recallOverdueCount = 3,
             restCycleScheduleStatus = RestCycleScheduleStatus.fromWorkStates(listOf("ENQUEUED")),
-            latestRestCycleAtMillis = NOW - 2L * 60L * 60L * 1000L,
+            latestRestCycleAtMillis = NOW - 2L * HOUR,
             nowMillis = NOW
         )
 
@@ -113,17 +120,17 @@ class OrganismHealthUiStateTest {
     @Test
     fun completedRestCycleCanProvideLastKnownAuditWhenManualAuditIsMissing() {
         val health = OrganismHealthUiStateBuilder.build(
-            activeSlot = localSlot(),
+            activeSlot = localHelper(),
             audit = MemoryIntegrityAuditUiState(),
             restCycleAudit = RestCycleAuditSignal(
                 memoryChainVerified = true,
                 capsuleChainVerified = true,
-                checkedAtMillis = NOW - 30L * 60L * 1000L
+                checkedAtMillis = NOW - 30L * MINUTE
             ),
             hasQuarantine = false,
             eventCount = 42,
             restCycleScheduleStatus = RestCycleScheduleStatus.fromWorkStates(listOf("ENQUEUED")),
-            latestRestCycleAtMillis = NOW - 30L * 60L * 1000L,
+            latestRestCycleAtMillis = NOW - 30L * MINUTE,
             nowMillis = NOW
         )
 
@@ -133,19 +140,13 @@ class OrganismHealthUiStateTest {
         assertEquals("auditoria: hace 30m", health.auditAgeLabel)
         assertEquals("fuente: descanso", health.auditSourceLabel)
         assertEquals("accion: continuar", health.recommendedActionLabel)
-        assertFalse(health.memoryNeedsAttention)
-        assertFalse(health.auditNeedsAttention)
     }
 
     @Test
     fun internalRuntimeIssueRaisesAttentionAndRecommendedAction() {
         val health = OrganismHealthUiStateBuilder.build(
-            activeSlot = localSlot(),
-            audit = MemoryIntegrityAuditUiState(
-                memoryChainVerified = true,
-                capsuleChainVerified = true,
-                checkedAtMillis = NOW
-            ),
+            activeSlot = localHelper(),
+            audit = verifiedAudit(NOW),
             hasQuarantine = false,
             internalIssue = InternalRuntimeIssueUiState(
                 component = "rest_cycle.after_message",
@@ -167,8 +168,16 @@ class OrganismHealthUiStateTest {
         assertTrue(health.internalIssueNeedsAttention)
     }
 
-    private fun localSlot(): ReasoningMotorSlot {
-        return ReasoningMotorSlot(
+    private fun verifiedAudit(atMillis: Long): MemoryIntegrityAuditUiState {
+        return MemoryIntegrityAuditUiState(
+            memoryChainVerified = true,
+            capsuleChainVerified = true,
+            checkedAtMillis = atMillis
+        )
+    }
+
+    private fun localHelper(): ReasoningHelperSlot {
+        return ReasoningHelperSlot(
             config = ReasoningProviderConfig(
                 preset = ReasoningPreset.LOCAL_USB_HELPER,
                 baseUrl = "http://127.0.0.1:11434/v1/chat/completions",
@@ -177,7 +186,19 @@ class OrganismHealthUiStateTest {
         )
     }
 
+    private fun unconfiguredHelper(): ReasoningHelperSlot {
+        return ReasoningHelperSlot(
+            config = ReasoningProviderConfig(
+                preset = ReasoningPreset.CUSTOM,
+                baseUrl = "",
+                model = ""
+            )
+        )
+    }
+
     companion object {
         private const val NOW = 1_700_000_000_000L
+        private const val MINUTE = 60_000L
+        private const val HOUR = 60L * MINUTE
     }
 }
