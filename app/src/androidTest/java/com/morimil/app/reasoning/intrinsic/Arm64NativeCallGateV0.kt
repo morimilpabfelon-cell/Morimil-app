@@ -1,6 +1,8 @@
 package com.morimil.app.reasoning.intrinsic
 
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -12,14 +14,19 @@ import java.util.concurrent.atomic.AtomicInteger
  * observe cancellation only after the native call has returned and this gate is idle.
  */
 internal class Arm64NativeCallGateV0 {
+    private val lifecycleMutex = Mutex()
     private val active = AtomicInteger(0)
 
     val activeCallCount: Int
         get() = active.get()
 
     suspend fun <T> run(block: () -> T): T {
-        check(active.compareAndSet(0, 1)) {
+        check(lifecycleMutex.tryLock()) {
             "arm64_trimotor_concurrent_native_call"
+        }
+        check(active.compareAndSet(0, 1)) {
+            lifecycleMutex.unlock()
+            "arm64_trimotor_native_call_state_corrupt"
         }
         return try {
             withContext(NonCancellable) {
@@ -28,6 +35,16 @@ internal class Arm64NativeCallGateV0 {
         } finally {
             check(active.compareAndSet(1, 0)) {
                 "arm64_trimotor_native_call_state_corrupt"
+            }
+            lifecycleMutex.unlock()
+        }
+    }
+
+    suspend fun closeWhenIdle(block: () -> Unit) {
+        withContext(NonCancellable) {
+            lifecycleMutex.withLock {
+                requireIdle()
+                block()
             }
         }
     }
