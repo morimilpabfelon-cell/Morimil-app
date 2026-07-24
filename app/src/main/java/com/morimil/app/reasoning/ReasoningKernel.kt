@@ -2,10 +2,11 @@ package com.morimil.app.reasoning
 
 import com.morimil.app.ai.ChatTurn
 import com.morimil.app.ai.ExternalReasoningDisclosurePolicy
+import com.morimil.app.ai.IntrinsicContextEnvelope
+import com.morimil.app.ai.IntrinsicSystemPromptBuilder
 import com.morimil.app.ai.ReasoningClient
 import com.morimil.app.ai.ReasoningProviderConfig
 import com.morimil.app.ai.ReasoningRuntimeState
-import com.morimil.app.ai.SystemPromptBuilder
 import com.morimil.app.data.genesis.GenesisIdentity
 import com.morimil.app.reasoning.model.ModelBackendRouter
 import com.morimil.app.reasoning.model.ReasoningBackendStatusStore
@@ -94,19 +95,25 @@ class ReasoningKernel(
                     "web_chars=${nativeWebContext.length}"
             )
 
-            val systemPrompt = SystemPromptBuilder.build(
-                genesis = request.genesis,
-                alias = request.alias,
-                doctrineText = request.doctrineText,
-                policyText = request.policyText,
-                livingMemoryContext = memoryContext,
-                knowledgeCapsuleContext = capsuleContext
+            val systemPrompt = IntrinsicSystemPromptBuilder.build(
+                IntrinsicContextEnvelope(
+                    genesis = request.genesis,
+                    instanceName = request.alias,
+                    doctrineText = request.doctrineText,
+                    policyText = request.policyText,
+                    livingMemoryContext = memoryContext,
+                    knowledgeCapsuleContext = capsuleContext
+                )
             )
             val recentHistory = request.priorHistory
                 .takeLast(ReasoningClient.MAX_HISTORY_MESSAGES - 1) +
                 ChatTurn(role = "user", content = cleanInput)
 
             state = state.withTrace(
+                "intrinsic_context_boundary",
+                "version=${IntrinsicSystemPromptBuilder.VERSION} private_context=true " +
+                    "external_disclosure=false"
+            ).withTrace(
                 "intrinsic_motor_plan",
                 "complexity=${backend.taskComplexity} " +
                     "authority_task_kind=$authorityTaskKind available=$intrinsicRoles"
