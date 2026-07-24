@@ -45,7 +45,9 @@ fun RuntimeNote() {
     var model by remember(config) { mutableStateOf(config.model) }
     var keyDraft by remember { mutableStateOf("") }
     var formatLabel by remember { mutableStateOf<String?>(null) }
-    var discoveredModels by remember { mutableStateOf<List<DiscoveredReasoningModel>>(emptyList()) }
+    var discoveredModels by remember {
+        mutableStateOf<List<DiscoveredReasoningModel>>(emptyList())
+    }
     var discoveredConfig by remember { mutableStateOf<ReasoningProviderConfig?>(null) }
     var isDiscovering by remember { mutableStateOf(false) }
     var note by remember { mutableStateOf<String?>(null) }
@@ -56,29 +58,29 @@ fun RuntimeNote() {
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("API principal", style = MaterialTheme.typography.titleMedium)
+            Text("Auxiliar temporal predeterminado", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Morimil conserva identidad y memoria local. Una API remota recibe solo el mensaje actual salvo autorizacion privada explicita en el perfil remoto."
+                "No es un motor de Morimil. Sea local o remoto, recibe solamente la tarea actual del usuario y su salida se identifica como consultiva externa."
             )
 
             TextField(
                 value = keyDraft,
                 onValueChange = { keyDraft = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("API key principal (opcional para local)") },
+                placeholder = { Text("Llave del auxiliar remoto; vacia para Ollama local") },
                 visualTransformation = PasswordVisualTransformation()
             )
             TextField(
                 value = endpoint,
                 onValueChange = { endpoint = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Endpoint; vacio detecta API Responses por llave") }
+                placeholder = { Text("Endpoint temporal; vacio detecta Responses por llave") }
             )
             TextField(
                 value = model,
                 onValueChange = { model = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Modelo") }
+                placeholder = { Text("Modelo del auxiliar") }
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -87,7 +89,7 @@ fun RuntimeNote() {
                     onClick = {
                         scope.launch {
                             isDiscovering = true
-                            note = "Detectando modelos..."
+                            note = "Detectando modelos auxiliares..."
                             val result = withContext(Dispatchers.IO) {
                                 discoveryClient.discover(keyDraft, endpoint)
                             }
@@ -116,18 +118,18 @@ fun RuntimeNote() {
                                         if (keyResult.isSuccess && configResult.isSuccess) {
                                             config = detectedConfig
                                             keyDraft = ""
-                                            note = "${discovery.note} API principal guardada con llave ligada al origen."
+                                            note = "${discovery.note} Auxiliar temporal guardado con llave ligada al origen."
                                         } else {
                                             note = keyResult.exceptionOrNull()?.message
                                                 ?: configResult.exceptionOrNull()?.message
-                                                ?: "No se pudo guardar la API detectada."
+                                                ?: "No se pudo guardar el auxiliar detectado."
                                         }
                                     } else {
                                         note = discovery.note
                                     }
                                 }
                                 .onFailure { error ->
-                                    note = error.message ?: "No se pudo detectar la API."
+                                    note = error.message ?: "No se pudo detectar el auxiliar."
                                 }
                             isDiscovering = false
                         }
@@ -153,15 +155,15 @@ fun RuntimeNote() {
                             keyDraft = ""
                             config = updated
                             discoveredConfig = updated
-                            note = "API principal guardada; la llave remota esta ligada al origen exacto."
+                            note = "Auxiliar temporal guardado; la llave remota esta ligada al origen exacto."
                         } else {
                             note = configResult.exceptionOrNull()?.message
                                 ?: keyResult.exceptionOrNull()?.message
-                                ?: "No se pudo guardar la API."
+                                ?: "No se pudo guardar el auxiliar."
                         }
                     }
                 }) {
-                    Text("Guardar API")
+                    Text("Guardar auxiliar")
                 }
             }
 
@@ -169,7 +171,7 @@ fun RuntimeNote() {
                 Text("Formato detectado: $it", style = MaterialTheme.typography.bodySmall)
             }
             if (discoveredModels.isNotEmpty()) {
-                Text("Modelos disponibles", style = MaterialTheme.typography.bodySmall)
+                Text("Modelos auxiliares disponibles", style = MaterialTheme.typography.bodySmall)
                 discoveredModels.take(10).forEach { candidate ->
                     Button(
                         modifier = Modifier.wrapContentWidth(),
@@ -192,11 +194,11 @@ fun RuntimeNote() {
                                     keyDraft = ""
                                     config = updated
                                     discoveredConfig = updated
-                                    note = "Modelo seleccionado en API principal: ${candidate.label}"
+                                    note = "Modelo seleccionado para el auxiliar: ${candidate.label}"
                                 } else {
                                     note = configResult.exceptionOrNull()?.message
                                         ?: keyResult.exceptionOrNull()?.message
-                                        ?: "No se pudo guardar el modelo."
+                                        ?: "No se pudo guardar el modelo auxiliar."
                                 }
                             }
                         }
