@@ -9,7 +9,8 @@ object ReasoningProfileRuntimeStore {
     private val emptyRemoteApiConfig = ReasoningProviderConfig(
         preset = ReasoningPreset.CUSTOM,
         baseUrl = "",
-        model = ""
+        model = "",
+        allowPrivateContextToRemote = false
     )
 
     private val _remoteApiConfig = MutableStateFlow(emptyRemoteApiConfig)
@@ -20,7 +21,8 @@ object ReasoningProfileRuntimeStore {
 
     fun saveSuperior(config: ReasoningProviderConfig): Result<Unit> = saveRemoteApi(config)
 
-    fun saveSuperior(context: Context, config: ReasoningProviderConfig): Result<Unit> = saveRemoteApi(context, config)
+    fun saveSuperior(context: Context, config: ReasoningProviderConfig): Result<Unit> =
+        saveRemoteApi(context, config)
 
     fun loadRemoteApi(context: Context? = null): ReasoningProviderConfig {
         context?.let { hydrateRemoteApi(it) }
@@ -33,12 +35,18 @@ object ReasoningProfileRuntimeStore {
 
     fun saveRemoteApi(context: Context, config: ReasoningProviderConfig): Result<Unit> = runCatching {
         val valid = config.validated()
-        context.applicationContext.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+        val committed = context.applicationContext
+            .getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
             .edit()
             .putString(SETTING_BASE_URL, valid.baseUrl)
             .putString(SETTING_MODEL, valid.model)
             .putInt(SETTING_MAX_TOKENS, valid.maxTokens)
-            .apply()
+            .putBoolean(
+                SETTING_ALLOW_PRIVATE_CONTEXT_TO_REMOTE,
+                valid.allowPrivateContextToRemote
+            )
+            .commit()
+        check(committed) { "No se pudo guardar el perfil remoto de razonamiento." }
         _remoteApiConfig.value = valid
     }
 
@@ -46,18 +54,31 @@ object ReasoningProfileRuntimeStore {
         val prefs = context.applicationContext.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
         val baseUrl = prefs.getString(SETTING_BASE_URL, null).orEmpty()
         val model = prefs.getString(SETTING_MODEL, null).orEmpty()
-        if (baseUrl.isBlank() || model.isBlank()) return
-        val maxTokens = prefs.getInt(SETTING_MAX_TOKENS, ReasoningProviderConfig.DEFAULT_MAX_TOKENS)
+        if (baseUrl.isBlank() || model.isBlank()) {
+            _remoteApiConfig.value = emptyRemoteApiConfig
+            return
+        }
+        val maxTokens = prefs.getInt(
+            SETTING_MAX_TOKENS,
+            ReasoningProviderConfig.DEFAULT_MAX_TOKENS
+        )
+        val allowPrivateContextToRemote = prefs.getBoolean(
+            SETTING_ALLOW_PRIVATE_CONTEXT_TO_REMOTE,
+            false
+        )
         _remoteApiConfig.value = ReasoningProviderConfig(
             preset = ReasoningPreset.CUSTOM,
             baseUrl = baseUrl,
             model = model,
-            maxTokens = maxTokens
-        )
+            maxTokens = maxTokens,
+            allowPrivateContextToRemote = allowPrivateContextToRemote
+        ).validated()
     }
 
     private const val PREFERENCES_NAME = "morimil_remote_api_reasoning_profile"
     private const val SETTING_BASE_URL = "base_url"
     private const val SETTING_MODEL = "model"
     private const val SETTING_MAX_TOKENS = "max_tokens"
+    private const val SETTING_ALLOW_PRIVATE_CONTEXT_TO_REMOTE =
+        "allow_private_context_to_remote"
 }
