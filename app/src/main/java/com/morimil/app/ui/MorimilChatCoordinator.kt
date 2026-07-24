@@ -1,5 +1,6 @@
 package com.morimil.app.ui
 
+import android.app.Application
 import com.morimil.app.MorimilAppContainer
 import com.morimil.app.ai.ChatTurn
 import com.morimil.app.ai.ReasoningClient
@@ -10,16 +11,19 @@ import com.morimil.app.data.local.ReasoningTurnAuthor
 import com.morimil.app.data.local.ReasoningTurnEntity
 import com.morimil.app.reasoning.ReasoningExecutionOrigin
 import com.morimil.app.reasoning.ReasoningKernelRequest
+import com.morimil.app.reasoning.model.ReasoningEscalationDecision
 import com.morimil.app.reasoning.model.ReasoningEscalationStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 internal class MorimilChatCoordinator(
+    @Suppress("UNUSED_PARAMETER") application: Application,
     private val container: MorimilAppContainer,
     private val scope: CoroutineScope,
     private val localIdentity: StateFlow<LocalInstanceIdentityEntity?>,
@@ -37,6 +41,19 @@ internal class MorimilChatCoordinator(
 
     private var cachedDoctrineText: String? = null
     private var cachedPolicyText: String? = null
+
+    init {
+        scope.launch {
+            ReasoningEscalationStore.pendingRequest.collect { request ->
+                if (request != null && request.decision != ReasoningEscalationDecision.PENDING) {
+                    val task = ReasoningEscalationStore.taskForRequest(request.requestId)
+                    if (task != null) {
+                        sendMessageInternal(body = task, appendUserTurn = false)
+                    }
+                }
+            }
+        }
+    }
 
     fun refreshGenesis() {
         scope.launch {
@@ -97,16 +114,6 @@ internal class MorimilChatCoordinator(
         sendMessageInternal(body = body, appendUserTurn = true)
     }
 
-    fun approveExternalReasoning() {
-        val task = ReasoningEscalationStore.approveCurrent() ?: return
-        sendMessageInternal(body = task, appendUserTurn = false)
-    }
-
-    fun keepReasoningLocal() {
-        val task = ReasoningEscalationStore.keepLocal() ?: return
-        sendMessageInternal(body = task, appendUserTurn = false)
-    }
-
     private fun sendMessageInternal(body: String, appendUserTurn: Boolean) {
         val cleanBody = body.trim()
         if (cleanBody.isEmpty() || _isSending.value) return
@@ -137,9 +144,10 @@ internal class MorimilChatCoordinator(
             try {
                 val trustedTurns = messages.value
                     .filter { turn -> ReasoningTurnAuthor.isTrustedConversationAuthor(turn.author) }
+                val lastTrustedTurn = trustedTurns.lastOrNull()
                 val historyTurns = if (!appendUserTurn &&
-                    trustedTurns.lastOrNull()?.author == ReasoningTurnAuthor.USER &&
-                    trustedTurns.lastOrNull()?.body?.trim() == cleanBody
+                    lastTrustedTurn?.author == ReasoningTurnAuthor.USER &&
+                    lastTrustedTurn.body.trim() == cleanBody
                 ) {
                     trustedTurns.dropLast(1)
                 } else {
