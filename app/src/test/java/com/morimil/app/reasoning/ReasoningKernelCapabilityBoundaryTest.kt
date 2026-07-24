@@ -82,7 +82,11 @@ class ReasoningKernelCapabilityBoundaryTest {
             ReasoningEscalationDecision.PENDING,
             ReasoningEscalationStore.pendingRequest.value?.decision
         )
-        assertEquals("Piensa sobre esto", ReasoningEscalationStore.approveCurrent())
+        ReasoningEscalationStore.approveCurrent()
+        assertEquals(
+            ReasoningEscalationDecision.APPROVED,
+            ReasoningEscalationStore.pendingRequest.value?.decision
+        )
 
         val result = kernel.reason(request)
 
