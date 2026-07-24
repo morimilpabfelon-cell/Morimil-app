@@ -1,6 +1,7 @@
 package com.morimil.app.reasoning
 
 import com.morimil.app.ai.ChatTurn
+import com.morimil.app.ai.ExternalReasoningDisclosureMode
 import com.morimil.app.ai.ReasoningClient
 import com.morimil.app.ai.ReasoningProviderConfig
 import com.morimil.app.data.repository.MemoryOrganRepository
@@ -38,8 +39,31 @@ data class TemporaryExternalReasoningRequest(
     val config: ReasoningProviderConfig,
     val runtimeAccess: String,
     val systemPrompt: String,
-    val history: List<ChatTurn>
-)
+    val history: List<ChatTurn>,
+    val disclosureMode: ExternalReasoningDisclosureMode,
+    val privateContextIncluded: Boolean
+) {
+    init {
+        require(systemPrompt.isNotBlank()) { "temporary_external_system_prompt_blank" }
+        require(history.isNotEmpty()) { "temporary_external_history_empty" }
+        when (disclosureMode) {
+            ExternalReasoningDisclosureMode.LOCAL_FULL_CONTEXT,
+            ExternalReasoningDisclosureMode.REMOTE_FULL_CONTEXT_EXPLICIT -> {
+                require(privateContextIncluded) {
+                    "full_context_disclosure_requires_private_context_marker"
+                }
+            }
+            ExternalReasoningDisclosureMode.REMOTE_USER_MESSAGE_ONLY -> {
+                require(!privateContextIncluded) {
+                    "remote_user_only_disclosure_cannot_include_private_context"
+                }
+                require(history.size == 1 && history.single().role == "user") {
+                    "remote_user_only_disclosure_must_contain_one_user_turn"
+                }
+            }
+        }
+    }
+}
 
 class ReasoningClientTemporaryExternalProvider(
     private val client: ReasoningClient
