@@ -33,10 +33,11 @@ internal class Arm64NativeCallGateV0 {
                 block()
             }
         } finally {
-            check(active.compareAndSet(1, 0)) {
+            val released = active.compareAndSet(1, 0)
+            lifecycleMutex.unlock()
+            check(released) {
                 "arm64_trimotor_native_call_state_corrupt"
             }
-            lifecycleMutex.unlock()
         }
     }
 
