@@ -31,9 +31,31 @@ jobs:
         run: python -m unittest discover -s tools/model-artifacts -p 'test_*.py'
 
       - name: Validate frozen trimotor evidence
+        id: validate-frozen-trimotor-evidence
+        continue-on-error: true
         run: |
-          python tools/benchmarks/validate_trimotor_v02_physical_benchmark_evidence_v1.py check
-          python tools/benchmarks/test_validate_trimotor_v02_physical_benchmark_evidence_v1.py
+          set -o pipefail
+          {
+            python tools/benchmarks/validate_trimotor_v02_physical_benchmark_evidence_v1.py check
+            python tools/benchmarks/test_validate_trimotor_v02_physical_benchmark_evidence_v1.py
+            python tools/benchmarks/validate_trimotor_v02_physical_benchmark_evidence_v2.py check
+            python tools/benchmarks/test_validate_trimotor_v02_physical_benchmark_evidence_v2.py
+          } > current-trimotor-evidence-validation.log 2>&1
+
+      - name: Upload trimotor evidence validation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: current-trimotor-evidence-validation
+          path: current-trimotor-evidence-validation.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce trimotor evidence validation
+        if: steps.validate-frozen-trimotor-evidence.outcome == 'failure'
+        run: |
+          cat current-trimotor-evidence-validation.log
+          exit 1
 
       - name: Test deliberative comparative benchmark
         run: |
