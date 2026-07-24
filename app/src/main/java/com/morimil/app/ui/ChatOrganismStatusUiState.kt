@@ -1,8 +1,9 @@
 package com.morimil.app.ui
 
 data class ChatOrganismStatusUiState(
-    val motorLabel: String = "Motor pendiente",
-    val modelLabel: String = "modelo pendiente",
+    val intrinsicLabel: String = "Trimotor intrinseco",
+    val helperLabel: String = "auxiliar temporal pendiente",
+    val helperModelLabel: String = "sin modelo auxiliar",
     val memoryIntegrityLabel: String = "memoria sin auditar",
     val memoryNeedsAttention: Boolean = false
 )
