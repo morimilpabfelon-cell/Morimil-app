@@ -57,12 +57,16 @@
     "upstreamByteIdentityVerified": false
   },
   "requiredAuthenticatedCapture": {
+    "recordedIdentity": "public_hugging_face_username_only",
     "requiredChecks": [
       "resolved Hub revision equals the pinned artifact revision",
       "Hub LFS SHA-256 equals the local candidate SHA-256",
       "Hub LFS size equals 3655827456 bytes",
       "repository remains gated under the Gemma license"
     ],
+    "schemaPath": "docs/model-artifacts/morimil-deliberative-v0.2-hf-acquisition-evidence-v0.1.schema.json",
+    "schemaVersion": "morimil.deliberative.v0.2.hf-acquisition-evidence.v0.1",
+    "tokenSource": "HF_TOKEN_environment_only",
     "tool": "tools/model-artifacts/capture_gemma3n_e2b_hf_provenance_v0.py"
   },
   "schemaVersion": "morimil.deliberative.v0.2.hf-provenance-discovery.v0",

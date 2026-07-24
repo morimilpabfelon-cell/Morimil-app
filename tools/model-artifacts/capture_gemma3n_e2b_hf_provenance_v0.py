@@ -14,8 +14,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-TOOL_VERSION = "morimil.hf-provenance-capture.v0"
-SCHEMA_VERSION = "morimil.deliberative.v0.2.hf-acquisition-evidence.v0"
+TOOL_VERSION = "morimil.hf-provenance-capture.v0.1"
+SCHEMA_VERSION = "morimil.deliberative.v0.2.hf-acquisition-evidence.v0.1"
+SCHEMA_RELATIVE_PATH = (
+    "docs/model-artifacts/"
+    "morimil-deliberative-v0.2-hf-acquisition-evidence-v0.1.schema.json"
+)
 EXPECTED_HUB_REPOSITORY = "google/gemma-3n-E2B-it-litert-lm"
 EXPECTED_HUB_ARTIFACT_REVISION = "ba9ca88da013b537b6ed38108be609b8db1c3a16"
 OBSERVED_HUB_REPOSITORY_SNAPSHOT = "c03b6f60b8da6c5400b6838a2cf26420f80c0a01"
@@ -30,7 +34,17 @@ OFFICIAL_ALLOWLIST_REVISION = "126501c8849affcfb094d2c5b193aa5deb1434a6"
 OFFICIAL_ALLOWLIST_PATH = "model_allowlists/1_0_15.json"
 ACQUISITION_MODE = "DIRECT_UPSTREAM_BINARY_RENAME_ONLY"
 SOURCE_MODEL_REVISION_STATUS = "UPSTREAM_NOT_DISCLOSED"
+EVIDENCE_KIND = "verified-direct-upstream-binary-acquisition"
+STATUS = "research-only"
+PROMOTION_BLOCKERS = [
+    "UPSTREAM_BASE_CHECKPOINT_REVISION_UNDISCLOSED",
+    "CERTIFICATION_MISSING",
+    "SIGNATURE_MISSING",
+    "INSTALLATION_AUTHORIZATION_MISSING",
+    "PERSONAL_RUNTIME_ACTIVATION_AUTHORIZATION_MISSING",
+]
 SHA256_PATTERN = re.compile(r"^(?:sha256:)?([0-9a-fA-F]{64})$")
+HF_USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$")
 
 
 class ProvenanceError(RuntimeError):
@@ -101,10 +115,16 @@ def _license(info: Any) -> str | None:
 def extract_hub_file_metadata(info: Any) -> HubFileMetadata:
     resolved = str(getattr(info, "sha", "") or "")
     if resolved != EXPECTED_HUB_ARTIFACT_REVISION:
-        fail(f"hub revision mismatch: expected {EXPECTED_HUB_ARTIFACT_REVISION}, found {resolved!r}")
+        fail(
+            "hub revision mismatch: "
+            f"expected {EXPECTED_HUB_ARTIFACT_REVISION}, found {resolved!r}"
+        )
     target = next(
-        (item for item in (getattr(info, "siblings", None) or [])
-         if getattr(item, "rfilename", None) == EXPECTED_HUB_ARTIFACT_FILENAME),
+        (
+            item
+            for item in (getattr(info, "siblings", None) or [])
+            if getattr(item, "rfilename", None) == EXPECTED_HUB_ARTIFACT_FILENAME
+        ),
         None,
     )
     if target is None:
@@ -120,7 +140,10 @@ def extract_hub_file_metadata(info: Any) -> HubFileMetadata:
         fail("hub artifact LFS sha256 metadata is missing")
     license_id = _license(info)
     if license_id != EXPECTED_LICENSE_ID:
-        fail(f"hub license mismatch: expected {EXPECTED_LICENSE_ID!r}, found {license_id!r}")
+        fail(
+            f"hub license mismatch: expected {EXPECTED_LICENSE_ID!r}, "
+            f"found {license_id!r}"
+        )
     gated = bool(getattr(info, "gated", False))
     if not gated:
         fail("expected gated Gemma repository")
@@ -136,7 +159,10 @@ def extract_hub_file_metadata(info: Any) -> HubFileMetadata:
     )
 
 
-def validate_byte_identity(local: LocalFileMetadata, hub: HubFileMetadata) -> None:
+def validate_byte_identity(
+    local: LocalFileMetadata,
+    hub: HubFileMetadata,
+) -> None:
     if local.filename != EXPECTED_LOCAL_FILENAME:
         fail("local filename mismatch")
     if local.size_bytes != EXPECTED_SIZE_BYTES:
@@ -161,14 +187,261 @@ def validate_byte_identity(local: LocalFileMetadata, hub: HubFileMetadata) -> No
 
 
 def atomic_write_json(path: Path, value: Any) -> None:
-    payload = (json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode()
+    payload = (
+        json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    ).encode()
     path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile("wb", dir=path.parent, delete=False) as handle:
+    with tempfile.NamedTemporaryFile(
+        "wb",
+        dir=path.parent,
+        delete=False,
+    ) as handle:
         temporary = Path(handle.name)
         handle.write(payload)
         handle.flush()
         os.fsync(handle.fileno())
     os.replace(temporary, path)
+
+
+def _canonical_utc_timestamp(value: str) -> bool:
+    if not isinstance(value, str) or not value.endswith("Z"):
+        return False
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError:
+        return False
+    if parsed.utcoffset() != timezone.utc.utcoffset(parsed):
+        return False
+    return parsed.isoformat().replace("+00:00", "Z") == value
+
+
+def _require_exact_keys(
+    value: Any,
+    expected: set[str],
+    label: str,
+) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        fail(f"{label} must be an object")
+    actual = set(value)
+    if actual != expected:
+        missing = sorted(expected - actual)
+        unexpected = sorted(actual - expected)
+        fail(
+            f"{label} keys mismatch: "
+            f"missing={missing}, unexpected={unexpected}"
+        )
+    return value
+
+
+def build_schema() -> dict[str, Any]:
+    return {
+        "$id": (
+            "morimil.deliberative.v0.2."
+            "hf-acquisition-evidence-v0.1.schema.json"
+        ),
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": False,
+        "properties": {
+            "authorityBoundary": {
+                "additionalProperties": False,
+                "properties": {
+                    "identityAuthority": {"const": False},
+                    "lifecycleAuthority": {"const": False},
+                    "memoryWriteCapability": {"const": False},
+                    "normalRuntimeActivated": {"const": False},
+                },
+                "required": [
+                    "memoryWriteCapability",
+                    "identityAuthority",
+                    "lifecycleAuthority",
+                    "normalRuntimeActivated",
+                ],
+                "type": "object",
+            },
+            "captureToolVersion": {"const": TOOL_VERSION},
+            "capturedAtUtc": {
+                "format": "date-time",
+                "pattern": "Z$",
+                "type": "string",
+            },
+            "evidenceKind": {"const": EVIDENCE_KIND},
+            "huggingFace": {
+                "additionalProperties": False,
+                "properties": {
+                    "artifactFilename": {
+                        "const": EXPECTED_HUB_ARTIFACT_FILENAME
+                    },
+                    "artifactSha256": {
+                        "const": f"sha256:{EXPECTED_SHA256}"
+                    },
+                    "artifactSizeBytes": {"const": EXPECTED_SIZE_BYTES},
+                    "authenticatedUser": {
+                        "pattern": HF_USERNAME_PATTERN.pattern,
+                        "type": "string",
+                    },
+                    "clientVersion": {
+                        "minLength": 1,
+                        "type": "string",
+                    },
+                    "gated": {"const": True},
+                    "licenseId": {"const": EXPECTED_LICENSE_ID},
+                    "observedRepositorySnapshot": {
+                        "const": OBSERVED_HUB_REPOSITORY_SNAPSHOT
+                    },
+                    "repository": {"const": EXPECTED_HUB_REPOSITORY},
+                    "requestedArtifactRevision": {
+                        "const": EXPECTED_HUB_ARTIFACT_REVISION
+                    },
+                    "resolvedArtifactRevision": {
+                        "const": EXPECTED_HUB_ARTIFACT_REVISION
+                    },
+                },
+                "required": [
+                    "authenticatedUser",
+                    "clientVersion",
+                    "repository",
+                    "gated",
+                    "licenseId",
+                    "requestedArtifactRevision",
+                    "resolvedArtifactRevision",
+                    "observedRepositorySnapshot",
+                    "artifactFilename",
+                    "artifactSizeBytes",
+                    "artifactSha256",
+                ],
+                "type": "object",
+            },
+            "localCandidate": {
+                "additionalProperties": False,
+                "properties": {
+                    "artifactSha256": {
+                        "const": f"sha256:{EXPECTED_SHA256}"
+                    },
+                    "artifactSizeBytes": {"const": EXPECTED_SIZE_BYTES},
+                    "filename": {"const": EXPECTED_LOCAL_FILENAME},
+                },
+                "required": [
+                    "filename",
+                    "artifactSizeBytes",
+                    "artifactSha256",
+                ],
+                "type": "object",
+            },
+            "officialGoogleAllowlist": {
+                "additionalProperties": False,
+                "properties": {
+                    "modelFile": {
+                        "const": EXPECTED_HUB_ARTIFACT_FILENAME
+                    },
+                    "modelFileRevision": {
+                        "const": EXPECTED_HUB_ARTIFACT_REVISION
+                    },
+                    "modelId": {"const": EXPECTED_HUB_REPOSITORY},
+                    "path": {"const": OFFICIAL_ALLOWLIST_PATH},
+                    "repository": {
+                        "const": OFFICIAL_ALLOWLIST_REPOSITORY
+                    },
+                    "revision": {"const": OFFICIAL_ALLOWLIST_REVISION},
+                    "sizeInBytes": {"const": EXPECTED_SIZE_BYTES},
+                },
+                "required": [
+                    "repository",
+                    "revision",
+                    "path",
+                    "modelId",
+                    "modelFile",
+                    "modelFileRevision",
+                    "sizeInBytes",
+                ],
+                "type": "object",
+            },
+            "promotion": {
+                "additionalProperties": False,
+                "properties": {
+                    "blockers": {"const": PROMOTION_BLOCKERS},
+                    "certified": {"const": False},
+                    "installed": {"const": False},
+                    "personalRuntimeActivationAuthorized": {
+                        "const": False
+                    },
+                    "promotionAllowed": {"const": False},
+                    "signed": {"const": False},
+                },
+                "required": [
+                    "certified",
+                    "signed",
+                    "installed",
+                    "personalRuntimeActivationAuthorized",
+                    "promotionAllowed",
+                    "blockers",
+                ],
+                "type": "object",
+            },
+            "provenance": {
+                "additionalProperties": False,
+                "properties": {
+                    "acquisitionMode": {"const": ACQUISITION_MODE},
+                    "conversionPerformedByMorimil": {"const": False},
+                    "renameOnly": {"const": True},
+                    "reproducibleAcquisitionEvidence": {"const": True},
+                    "reproducibleConversionEvidence": {"const": False},
+                    "sourceModelId": {"const": SOURCE_MODEL_ID},
+                    "sourceModelRevision": {"const": None},
+                    "sourceModelRevisionStatus": {
+                        "const": SOURCE_MODEL_REVISION_STATUS
+                    },
+                    "upstreamByteIdentityVerified": {"const": True},
+                },
+                "required": [
+                    "acquisitionMode",
+                    "conversionPerformedByMorimil",
+                    "renameOnly",
+                    "upstreamByteIdentityVerified",
+                    "reproducibleAcquisitionEvidence",
+                    "reproducibleConversionEvidence",
+                    "sourceModelId",
+                    "sourceModelRevision",
+                    "sourceModelRevisionStatus",
+                ],
+                "type": "object",
+            },
+            "schemaVersion": {"const": SCHEMA_VERSION},
+            "status": {"const": STATUS},
+        },
+        "required": [
+            "schemaVersion",
+            "status",
+            "evidenceKind",
+            "captureToolVersion",
+            "capturedAtUtc",
+            "huggingFace",
+            "localCandidate",
+            "officialGoogleAllowlist",
+            "provenance",
+            "authorityBoundary",
+            "promotion",
+        ],
+        "title": (
+            "Morimil deliberative v0.2 "
+            "Hugging Face acquisition evidence v0.1"
+        ),
+        "type": "object",
+    }
+
+
+def validate_schema_document(
+    schema_path: Path | None = None,
+) -> dict[str, Any]:
+    path = schema_path or (
+        Path(__file__).resolve().parents[2] / SCHEMA_RELATIVE_PATH
+    )
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        fail(f"could not read acquisition schema: {error}")
+    if value != build_schema():
+        fail("acquisition schema differs from the capture contract")
+    return value
 
 
 def build_evidence(
@@ -180,13 +453,19 @@ def build_evidence(
     captured_at_utc: str | None = None,
 ) -> dict[str, Any]:
     validate_byte_identity(local, hub)
-    if not authenticated_user or not huggingface_hub_version:
-        fail("authenticated user and client version are required")
-    captured_at = captured_at_utc or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    if not HF_USERNAME_PATTERN.fullmatch(authenticated_user):
+        fail("authenticated Hugging Face username is invalid")
+    if not isinstance(huggingface_hub_version, str) or not huggingface_hub_version:
+        fail("huggingface_hub client version is required")
+    captured_at = captured_at_utc or (
+        datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    )
+    if not _canonical_utc_timestamp(captured_at):
+        fail("capturedAtUtc must be a canonical UTC timestamp")
     return {
         "schemaVersion": SCHEMA_VERSION,
-        "status": "research-only",
-        "evidenceKind": "verified-direct-upstream-binary-acquisition",
+        "status": STATUS,
+        "evidenceKind": EVIDENCE_KIND,
         "captureToolVersion": TOOL_VERSION,
         "capturedAtUtc": captured_at,
         "huggingFace": {
@@ -197,15 +476,21 @@ def build_evidence(
             "licenseId": hub.license_id,
             "requestedArtifactRevision": hub.requested_revision,
             "resolvedArtifactRevision": hub.resolved_revision,
-            "observedRepositorySnapshot": OBSERVED_HUB_REPOSITORY_SNAPSHOT,
+            "observedRepositorySnapshot": (
+                OBSERVED_HUB_REPOSITORY_SNAPSHOT
+            ),
             "artifactFilename": hub.filename,
             "artifactSizeBytes": hub.size_bytes,
-            "artifactSha256": f"sha256:{normalize_sha256(hub.sha256)}",
+            "artifactSha256": (
+                f"sha256:{normalize_sha256(hub.sha256)}"
+            ),
         },
         "localCandidate": {
             "filename": local.filename,
             "artifactSizeBytes": local.size_bytes,
-            "artifactSha256": f"sha256:{normalize_sha256(local.sha256)}",
+            "artifactSha256": (
+                f"sha256:{normalize_sha256(local.sha256)}"
+            ),
         },
         "officialGoogleAllowlist": {
             "repository": OFFICIAL_ALLOWLIST_REPOSITORY,
@@ -239,36 +524,131 @@ def build_evidence(
             "installed": False,
             "personalRuntimeActivationAuthorized": False,
             "promotionAllowed": False,
-            "blockers": [
-                "UPSTREAM_BASE_CHECKPOINT_REVISION_UNDISCLOSED",
-                "CERTIFICATION_MISSING",
-                "SIGNATURE_MISSING",
-                "INSTALLATION_AUTHORIZATION_MISSING",
-                "PERSONAL_RUNTIME_ACTIVATION_AUTHORIZATION_MISSING",
-            ],
+            "blockers": PROMOTION_BLOCKERS.copy(),
         },
     }
 
 
 def validate_evidence(value: dict[str, Any]) -> None:
-    if value.get("schemaVersion") != SCHEMA_VERSION or value.get("status") != "research-only":
-        fail("evidence identity mismatch")
-    if value.get("evidenceKind") != "verified-direct-upstream-binary-acquisition":
+    root = _require_exact_keys(
+        value,
+        {
+            "schemaVersion",
+            "status",
+            "evidenceKind",
+            "captureToolVersion",
+            "capturedAtUtc",
+            "huggingFace",
+            "localCandidate",
+            "officialGoogleAllowlist",
+            "provenance",
+            "authorityBoundary",
+            "promotion",
+        },
+        "evidence",
+    )
+    if root["schemaVersion"] != SCHEMA_VERSION:
+        fail("evidence schema version mismatch")
+    if root["status"] != STATUS:
+        fail("evidence status mismatch")
+    if root["evidenceKind"] != EVIDENCE_KIND:
         fail("evidence kind mismatch")
-    hf = value.get("huggingFace")
-    local = value.get("localCandidate")
-    provenance = value.get("provenance")
-    boundary = value.get("authorityBoundary")
-    promotion = value.get("promotion")
-    if not all(isinstance(x, dict) for x in (hf, local, provenance, boundary, promotion)):
-        fail("evidence sections are missing")
+    if root["captureToolVersion"] != TOOL_VERSION:
+        fail("capture tool version mismatch")
+    if not _canonical_utc_timestamp(root["capturedAtUtc"]):
+        fail("capturedAtUtc is not a canonical UTC timestamp")
+
+    hf = _require_exact_keys(
+        root["huggingFace"],
+        {
+            "authenticatedUser",
+            "clientVersion",
+            "repository",
+            "gated",
+            "licenseId",
+            "requestedArtifactRevision",
+            "resolvedArtifactRevision",
+            "observedRepositorySnapshot",
+            "artifactFilename",
+            "artifactSizeBytes",
+            "artifactSha256",
+        },
+        "huggingFace",
+    )
+    if not HF_USERNAME_PATTERN.fullmatch(
+        str(hf["authenticatedUser"])
+    ):
+        fail("authenticated Hugging Face username is invalid")
+    if not isinstance(hf["clientVersion"], str) or not hf["clientVersion"]:
+        fail("huggingface_hub client version is missing")
+    if (
+        hf["observedRepositorySnapshot"]
+        != OBSERVED_HUB_REPOSITORY_SNAPSHOT
+    ):
+        fail("observed repository snapshot mismatch")
+
+    local = _require_exact_keys(
+        root["localCandidate"],
+        {"filename", "artifactSizeBytes", "artifactSha256"},
+        "localCandidate",
+    )
     validate_byte_identity(
-        LocalFileMetadata(local.get("filename"), local.get("artifactSizeBytes"), local.get("artifactSha256")),
-        HubFileMetadata(
-            hf.get("repository"), hf.get("requestedArtifactRevision"), hf.get("resolvedArtifactRevision"),
-            hf.get("artifactFilename"), hf.get("artifactSizeBytes"), hf.get("artifactSha256"),
-            hf.get("gated") is True, hf.get("licenseId"),
+        LocalFileMetadata(
+            local["filename"],
+            local["artifactSizeBytes"],
+            local["artifactSha256"],
         ),
+        HubFileMetadata(
+            hf["repository"],
+            hf["requestedArtifactRevision"],
+            hf["resolvedArtifactRevision"],
+            hf["artifactFilename"],
+            hf["artifactSizeBytes"],
+            hf["artifactSha256"],
+            hf["gated"] is True,
+            hf["licenseId"],
+        ),
+    )
+
+    allowlist = _require_exact_keys(
+        root["officialGoogleAllowlist"],
+        {
+            "repository",
+            "revision",
+            "path",
+            "modelId",
+            "modelFile",
+            "modelFileRevision",
+            "sizeInBytes",
+        },
+        "officialGoogleAllowlist",
+    )
+    expected_allowlist = {
+        "repository": OFFICIAL_ALLOWLIST_REPOSITORY,
+        "revision": OFFICIAL_ALLOWLIST_REVISION,
+        "path": OFFICIAL_ALLOWLIST_PATH,
+        "modelId": EXPECTED_HUB_REPOSITORY,
+        "modelFile": EXPECTED_HUB_ARTIFACT_FILENAME,
+        "modelFileRevision": EXPECTED_HUB_ARTIFACT_REVISION,
+        "sizeInBytes": EXPECTED_SIZE_BYTES,
+    }
+    if allowlist != expected_allowlist:
+        fail("official Google allowlist claims mismatch")
+
+    provenance = _require_exact_keys(
+        root["provenance"],
+        {
+            "acquisitionMode",
+            "conversionPerformedByMorimil",
+            "renameOnly",
+            "upstreamByteIdentityVerified",
+            "reproducibleAcquisitionEvidence",
+            "reproducibleConversionEvidence",
+            "sourceModelId",
+            "sourceModelRevision",
+            "sourceModelRevisionStatus",
+        },
+        "provenance",
     )
     expected_provenance = {
         "acquisitionMode": ACQUISITION_MODE,
@@ -283,74 +663,143 @@ def validate_evidence(value: dict[str, Any]) -> None:
     }
     if provenance != expected_provenance:
         fail("provenance claims mismatch")
-    for field in ("memoryWriteCapability", "identityAuthority", "lifecycleAuthority", "normalRuntimeActivated"):
-        if boundary.get(field) is not False:
-            fail(f"forbidden authority appeared: {field}")
-    for field in ("certified", "signed", "installed", "personalRuntimeActivationAuthorized", "promotionAllowed"):
-        if promotion.get(field) is not False:
-            fail(f"forbidden promotion claim appeared: {field}")
-    if "UPSTREAM_BASE_CHECKPOINT_REVISION_UNDISCLOSED" not in promotion.get("blockers", []):
-        fail("base checkpoint provenance blocker is missing")
+
+    boundary = _require_exact_keys(
+        root["authorityBoundary"],
+        {
+            "memoryWriteCapability",
+            "identityAuthority",
+            "lifecycleAuthority",
+            "normalRuntimeActivated",
+        },
+        "authorityBoundary",
+    )
+    expected_boundary = {
+        "memoryWriteCapability": False,
+        "identityAuthority": False,
+        "lifecycleAuthority": False,
+        "normalRuntimeActivated": False,
+    }
+    if boundary != expected_boundary:
+        fail("authority boundary claims mismatch")
+
+    promotion = _require_exact_keys(
+        root["promotion"],
+        {
+            "certified",
+            "signed",
+            "installed",
+            "personalRuntimeActivationAuthorized",
+            "promotionAllowed",
+            "blockers",
+        },
+        "promotion",
+    )
+    expected_promotion = {
+        "certified": False,
+        "signed": False,
+        "installed": False,
+        "personalRuntimeActivationAuthorized": False,
+        "promotionAllowed": False,
+        "blockers": PROMOTION_BLOCKERS,
+    }
+    if promotion != expected_promotion:
+        fail("promotion claims mismatch")
 
 
 def _authenticated_user(api: Any) -> str:
     who = api.whoami()
     if isinstance(who, dict):
-        for key in ("name", "fullname", "email"):
-            value = who.get(key)
-            if isinstance(value, str) and value:
-                return value
-    fail("could not identify authenticated Hugging Face user")
+        value = who.get("name")
+        if isinstance(value, str) and HF_USERNAME_PATTERN.fullmatch(value):
+            return value
+    fail("could not identify a public authenticated Hugging Face username")
 
 
-def capture_live(artifact_path: Path, output_path: Path, token: str | None) -> dict[str, Any]:
+def capture_live(
+    artifact_path: Path,
+    output_path: Path,
+) -> dict[str, Any]:
     try:
         from huggingface_hub import HfApi
     except ImportError:
         fail("huggingface_hub is required for live capture")
-    effective_token = token or os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_TOKEN")
-    if not effective_token:
-        fail("HF_TOKEN or HUGGINGFACE_TOKEN is required for the gated repository")
+    token = os.environ.get("HF_TOKEN")
+    if not token:
+        fail("HF_TOKEN is required for the gated repository")
     local = inspect_local_file(artifact_path)
-    api = HfApi(token=effective_token)
-    info = api.model_info(EXPECTED_HUB_REPOSITORY, revision=EXPECTED_HUB_ARTIFACT_REVISION, files_metadata=True)
+    api = HfApi(token=token)
+    info = api.model_info(
+        EXPECTED_HUB_REPOSITORY,
+        revision=EXPECTED_HUB_ARTIFACT_REVISION,
+        files_metadata=True,
+    )
     hub = extract_hub_file_metadata(info)
     try:
         client_version = importlib.metadata.version("huggingface_hub")
     except importlib.metadata.PackageNotFoundError:
         fail("could not resolve huggingface_hub client version")
-    evidence = build_evidence(local, hub, authenticated_user=_authenticated_user(api), huggingface_hub_version=client_version)
+    evidence = build_evidence(
+        local,
+        hub,
+        authenticated_user=_authenticated_user(api),
+        huggingface_hub_version=client_version,
+    )
+    validate_schema_document()
     validate_evidence(evidence)
     atomic_write_json(output_path, evidence)
     return evidence
 
 
-def check_evidence(evidence_path: Path, artifact_path: Path | None = None) -> dict[str, Any]:
+def check_evidence(
+    evidence_path: Path,
+    artifact_path: Path | None = None,
+) -> dict[str, Any]:
     try:
         value = json.loads(evidence_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         fail(f"could not read evidence: {error}")
     if not isinstance(value, dict):
         fail("evidence root must be an object")
+    validate_schema_document()
     validate_evidence(value)
     if artifact_path is not None:
         actual = inspect_local_file(artifact_path)
         recorded = value["localCandidate"]
-        if actual.filename != recorded["filename"] or actual.size_bytes != recorded["artifactSizeBytes"]:
+        if (
+            actual.filename != recorded["filename"]
+            or actual.size_bytes != recorded["artifactSizeBytes"]
+        ):
             fail("checked artifact identity differs from evidence")
-        if normalize_sha256(actual.sha256) != normalize_sha256(recorded["artifactSha256"]):
+        if normalize_sha256(actual.sha256) != normalize_sha256(
+            recorded["artifactSha256"]
+        ):
             fail("checked artifact sha256 differs from evidence")
     return value
 
 
 def self_test() -> int:
-    local = LocalFileMetadata(EXPECTED_LOCAL_FILENAME, EXPECTED_SIZE_BYTES, EXPECTED_SHA256)
+    validate_schema_document()
+    local = LocalFileMetadata(
+        EXPECTED_LOCAL_FILENAME,
+        EXPECTED_SIZE_BYTES,
+        EXPECTED_SHA256,
+    )
     hub = HubFileMetadata(
-        EXPECTED_HUB_REPOSITORY, EXPECTED_HUB_ARTIFACT_REVISION, EXPECTED_HUB_ARTIFACT_REVISION,
-        EXPECTED_HUB_ARTIFACT_FILENAME, EXPECTED_SIZE_BYTES, EXPECTED_SHA256, True, EXPECTED_LICENSE_ID,
+        EXPECTED_HUB_REPOSITORY,
+        EXPECTED_HUB_ARTIFACT_REVISION,
+        EXPECTED_HUB_ARTIFACT_REVISION,
+        EXPECTED_HUB_ARTIFACT_FILENAME,
+        EXPECTED_SIZE_BYTES,
+        EXPECTED_SHA256,
+        True,
+        EXPECTED_LICENSE_ID,
     )
     evidence = build_evidence(
-        local, hub, authenticated_user="self-test", huggingface_hub_version="0.0-self-test",
+        local,
+        hub,
+        authenticated_user="self-test",
+        huggingface_hub_version="0.0-self-test",
         captured_at_utc="2026-07-22T00:00:00Z",
     )
     validate_evidence(evidence)
@@ -372,7 +821,6 @@ def _parser() -> argparse.ArgumentParser:
     cap = sub.add_parser("capture")
     cap.add_argument("artifact", type=Path)
     cap.add_argument("--output", type=Path, required=True)
-    cap.add_argument("--token")
     chk = sub.add_parser("check")
     chk.add_argument("evidence", type=Path)
     chk.add_argument("--artifact", type=Path)
@@ -381,12 +829,21 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Iterable[str] | None = None) -> int:
-    args = _parser().parse_args(list(argv) if argv is not None else None)
+    args = _parser().parse_args(
+        list(argv) if argv is not None else None
+    )
     try:
         if args.command == "capture":
-            evidence = capture_live(args.artifact, args.output, args.token)
+            evidence = capture_live(args.artifact, args.output)
             print("HUGGING FACE PROVENANCE CAPTURE: PASS")
-            print(json.dumps(evidence, ensure_ascii=False, indent=2, sort_keys=True))
+            print(
+                json.dumps(
+                    evidence,
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
             return 0
         if args.command == "check":
             check_evidence(args.evidence, args.artifact)

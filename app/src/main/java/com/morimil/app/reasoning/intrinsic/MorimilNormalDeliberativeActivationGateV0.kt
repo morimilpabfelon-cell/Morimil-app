@@ -25,11 +25,11 @@ object MorimilNormalDeliberativeActivationGateV0 {
             benchmarkQualityGatePassed = false,
             falseAcceptedCount = 40,
             sourceModelRevision = null,
-            reproducibleConversionEvidence = false,
+            reproducibleAcquisitionEvidence = false,
             certified = false,
             signed = false,
             installationAuthorized = false,
-            productionAuthorized = false
+            personalRuntimeAuthorized = false
         )
 
     val currentCandidateDecision: NormalDeliberativeActivationDecisionV0
@@ -78,9 +78,9 @@ object MorimilNormalDeliberativeActivationGateV0 {
         if (evidence.sourceModelRevision?.trim().isNullOrEmpty()) {
             blockers += NormalDeliberativeActivationBlockerV0.SOURCE_MODEL_REVISION_MISSING
         }
-        if (!evidence.reproducibleConversionEvidence) {
+        if (!evidence.reproducibleAcquisitionEvidence) {
             blockers +=
-                NormalDeliberativeActivationBlockerV0.REPRODUCIBLE_CONVERSION_EVIDENCE_MISSING
+                NormalDeliberativeActivationBlockerV0.REPRODUCIBLE_ACQUISITION_EVIDENCE_MISSING
         }
         if (!evidence.certified) {
             blockers += NormalDeliberativeActivationBlockerV0.CERTIFICATION_MISSING
@@ -91,8 +91,8 @@ object MorimilNormalDeliberativeActivationGateV0 {
         if (!evidence.installationAuthorized) {
             blockers += NormalDeliberativeActivationBlockerV0.INSTALLATION_AUTHORIZATION_MISSING
         }
-        if (!evidence.productionAuthorized) {
-            blockers += NormalDeliberativeActivationBlockerV0.PRODUCTION_AUTHORIZATION_MISSING
+        if (!evidence.personalRuntimeAuthorized) {
+            blockers += NormalDeliberativeActivationBlockerV0.PERSONAL_RUNTIME_AUTHORIZATION_MISSING
         }
 
         return NormalDeliberativeActivationDecisionV0(
@@ -108,11 +108,11 @@ enum class NormalDeliberativeActivationBlockerV0 {
     BENCHMARK_QUALITY_GATE_FAILED,
     FALSE_ACCEPTANCES_PRESENT,
     SOURCE_MODEL_REVISION_MISSING,
-    REPRODUCIBLE_CONVERSION_EVIDENCE_MISSING,
+    REPRODUCIBLE_ACQUISITION_EVIDENCE_MISSING,
     CERTIFICATION_MISSING,
     SIGNATURE_MISSING,
     INSTALLATION_AUTHORIZATION_MISSING,
-    PRODUCTION_AUTHORIZATION_MISSING
+    PERSONAL_RUNTIME_AUTHORIZATION_MISSING
 }
 
 data class NormalDeliberativeActivationDecisionV0(
@@ -139,11 +139,11 @@ data class NormalDeliberativeEvidenceV0(
     val benchmarkQualityGatePassed: Boolean,
     val falseAcceptedCount: Int,
     val sourceModelRevision: String?,
-    val reproducibleConversionEvidence: Boolean,
+    val reproducibleAcquisitionEvidence: Boolean,
     val certified: Boolean,
     val signed: Boolean,
     val installationAuthorized: Boolean,
-    val productionAuthorized: Boolean
+    val personalRuntimeAuthorized: Boolean
 ) {
     init {
         require(artifactSizeBytes > 0L) { "normal_deliberative_artifact_size_invalid" }
