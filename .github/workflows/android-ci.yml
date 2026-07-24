@@ -48,6 +48,8 @@ jobs:
           python tools/android-arm64/run_gemma3n_e2b_arm64_unplugged_energy_v0_1.py --self-test
           python tools/android-arm64/run_gemma3n_e2b_arm64_deliberative_benchmark_v0.py --self-test
           python tools/android-arm64/run_gemma3n_e2b_arm64_trimotor_benchmark_v0.py --self-test
+          python tools/android-arm64/run_current_gemma3n_e2b_arm64_trimotor_benchmark_v0.py --self-test
+          python tools/android-arm64/test_current_trimotor_physical_evidence_v0.py
           python tools/android-arm64/test_run_gemma3n_e2b_arm64_deliberative_benchmark_v0.py
           python tools/android-arm64/test_physical_benchmark_adb_v0.py
 
