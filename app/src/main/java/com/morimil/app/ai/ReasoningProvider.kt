@@ -20,6 +20,7 @@ enum class ReasoningPreset(
     val defaultBaseUrl: String,
     val defaultModel: String
 ) {
+    DISABLED("Auxiliares desactivados", ReasoningWireFormat.CHAT, "", ""),
     LOCAL_USB_HELPER("Ollama USB helper", ReasoningWireFormat.CHAT, localUsbChatUrl(), DEFAULT_LOCAL_MODEL),
     MESSAGES_COMPATIBLE("Remote Messages helper", ReasoningWireFormat.MESSAGES, "", ""),
     CHAT_COMPATIBLE("Remote Chat helper", ReasoningWireFormat.CHAT, "", ""),
@@ -32,7 +33,7 @@ enum class ReasoningPreset(
                 "LOCAL_EMULATOR_HELPER",
                 "LOCAL_COMPATIBLE",
                 "LOCAL_LAN_HELPER" -> LOCAL_USB_HELPER
-                else -> entries.firstOrNull { it.name == name } ?: LOCAL_USB_HELPER
+                else -> entries.firstOrNull { it.name == name } ?: DISABLED
             }
         }
     }
@@ -58,7 +59,13 @@ data class ReasoningProviderConfig(
     val requiresRuntimeKey: Boolean
         get() = baseUrl.isNotBlank() && !ReasoningEndpointPolicy.isLocalTrustedEndpoint(baseUrl)
 
+    val isDisabled: Boolean
+        get() = preset == ReasoningPreset.DISABLED || baseUrl.isBlank() || model.isBlank()
+
     fun validated(): ReasoningProviderConfig {
+        require(preset != ReasoningPreset.DISABLED) {
+            "Selecciona y configura un auxiliar antes de habilitarlo."
+        }
         val cleanUrl = baseUrl.trim()
         val cleanModel = model.trim()
         require(cleanUrl.isNotBlank()) { "Endpoint requerido." }
@@ -79,7 +86,8 @@ data class ReasoningProviderConfig(
         const val DEFAULT_MAX_TOKENS = 2048
         const val MAX_ALLOWED_TOKENS = 32768
 
-        fun default(): ReasoningProviderConfig = fromPreset(ReasoningPreset.LOCAL_USB_HELPER)
+        /** No auxiliary compute is active until the user explicitly saves a provider. */
+        fun default(): ReasoningProviderConfig = fromPreset(ReasoningPreset.DISABLED)
 
         fun fromPreset(preset: ReasoningPreset): ReasoningProviderConfig {
             return ReasoningProviderConfig(
@@ -93,11 +101,16 @@ data class ReasoningProviderConfig(
 
 data class ReasoningHelperSlot(val config: ReasoningProviderConfig) {
     val id: Int = SINGLE_HELPER_ID
-    val displayName: String = SINGLE_HELPER_LABEL
+    val displayName: String = if (config.isDisabled) {
+        DISABLED_HELPER_LABEL
+    } else {
+        SINGLE_HELPER_LABEL
+    }
 
     companion object {
         const val SINGLE_HELPER_ID = 1
         const val SINGLE_HELPER_LABEL = "Auxiliar temporal configurado"
+        const val DISABLED_HELPER_LABEL = "Auxiliares desactivados"
     }
 }
 
@@ -112,7 +125,11 @@ class ReasoningConfigStore(context: Context) {
 
     fun load(): ReasoningProviderConfig {
         val storedPresetName = preferences.getString(SETTING_PRESET, null)
+            ?: return ReasoningProviderConfig.default()
         val preset = ReasoningPreset.fromName(storedPresetName)
+        if (preset == ReasoningPreset.DISABLED) {
+            return ReasoningProviderConfig.default()
+        }
         val storedBaseUrl = preferences.getString(SETTING_BASE_URL, null)?.takeIf { it.isNotBlank() }
         val baseUrl = when {
             storedPresetName == "LOCAL_LAN_HELPER" -> preset.defaultBaseUrl
