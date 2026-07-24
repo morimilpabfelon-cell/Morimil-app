@@ -9,7 +9,6 @@ import com.morimil.app.data.genesis.GenesisUltraIntegrationGate
 import com.morimil.app.data.local.LocalInstanceIdentityEntity
 import com.morimil.app.data.local.ReasoningTurnAuthor
 import com.morimil.app.data.local.ReasoningTurnEntity
-import com.morimil.app.reasoning.ReasoningExecutionOrigin
 import com.morimil.app.reasoning.ReasoningKernelRequest
 import com.morimil.app.reasoning.model.ReasoningEscalationDecision
 import com.morimil.app.reasoning.model.ReasoningEscalationStore
@@ -190,13 +189,16 @@ internal class MorimilChatCoordinator(
                     )
                 }
 
-                result.reply?.let { reply ->
+                result.morimilReply?.let { reply ->
                     withContext(Dispatchers.IO) {
-                        if (result.state.executionOrigin == ReasoningExecutionOrigin.TEMPORARY_EXTERNAL) {
-                            container.reasoningTranscriptRepository.appendAuxiliaryAdvisoryTurn(reply)
-                        } else {
-                            container.reasoningTranscriptRepository.appendMorimilTurn(reply)
-                        }
+                        container.reasoningTranscriptRepository.appendMorimilTurn(reply)
+                    }
+                }
+                result.auxiliaryAdvisory?.let { advisory ->
+                    withContext(Dispatchers.IO) {
+                        container.reasoningTranscriptRepository.appendAuxiliaryAdvisoryTurn(
+                            advisory.content
+                        )
                     }
                 }
 
