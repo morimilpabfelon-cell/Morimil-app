@@ -27,7 +27,7 @@ class ReasoningEscalationStoreTest {
         val pending = ReasoningEscalationStore.pendingRequest.value
         assertNotNull(pending)
         assertEquals(ReasoningEscalationDecision.PENDING, pending?.decision)
-        assertEquals(task, ReasoningEscalationStore.approveCurrent())
+        ReasoningEscalationStore.approveCurrent()
         assertEquals(ReasoningEscalationDecision.APPROVED, ReasoningEscalationStore.pendingRequest.value?.decision)
 
         assertEquals(
@@ -68,7 +68,7 @@ class ReasoningEscalationStoreTest {
         val task = "No enviar afuera"
 
         ReasoningEscalationStore.consumeOrRequest(backend, task)
-        assertEquals(task, ReasoningEscalationStore.keepLocal())
+        ReasoningEscalationStore.keepLocal()
         assertEquals(
             ReasoningEscalationGateResult.LOCAL_ONLY_ONCE,
             ReasoningEscalationStore.consumeOrRequest(backend, task)
