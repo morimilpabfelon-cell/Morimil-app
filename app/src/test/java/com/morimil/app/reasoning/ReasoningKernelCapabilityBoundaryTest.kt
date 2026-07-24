@@ -1,5 +1,6 @@
 package com.morimil.app.reasoning
 
+import com.morimil.app.ai.ReasoningPreset
 import com.morimil.app.ai.ReasoningProviderConfig
 import com.morimil.app.data.genesis.GenesisIdentity
 import com.morimil.app.reasoning.model.ReasoningEscalationDecision
@@ -68,7 +69,7 @@ class ReasoningKernelCapabilityBoundaryTest {
             doctrineText = null,
             policyText = null,
             priorHistory = emptyList(),
-            runtimeConfig = ReasoningProviderConfig.default(),
+            runtimeConfig = ReasoningProviderConfig.fromPreset(ReasoningPreset.LOCAL_USB_HELPER),
             runtimeAccess = "",
             runtimeLabel = "motor auxiliar local"
         )
