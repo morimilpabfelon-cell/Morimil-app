@@ -27,7 +27,11 @@ class ReasoningTranscriptRepository(
     }
 
     suspend fun appendAuxiliaryAdvisoryTurn(body: String) {
-        append(author = ReasoningTurnAuthor.AUXILIARY_ADVISORY, body = body)
+        val markedBody = buildString {
+            appendLine(AUXILIARY_ADVISORY_LABEL)
+            append(body.trim())
+        }
+        append(author = ReasoningTurnAuthor.AUXILIARY_ADVISORY, body = markedBody)
     }
 
     suspend fun seedIntroTurnsIfNeeded() {
@@ -51,5 +55,10 @@ class ReasoningTranscriptRepository(
                 createdAtMillis = nowMillis()
             )
         )
+    }
+
+    companion object {
+        const val AUXILIARY_ADVISORY_LABEL =
+            "[SALIDA DE AUXILIAR TEMPORAL — NO ES VOZ INTRINSECA DE MORIMIL]"
     }
 }
