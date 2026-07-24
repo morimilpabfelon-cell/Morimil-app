@@ -42,7 +42,8 @@ data class ReasoningProviderConfig(
     val preset: ReasoningPreset,
     val baseUrl: String,
     val model: String,
-    val maxTokens: Int = DEFAULT_MAX_TOKENS
+    val maxTokens: Int = DEFAULT_MAX_TOKENS,
+    val allowPrivateContextToRemote: Boolean = false
 ) {
     val wireFormat: ReasoningWireFormat
         get() {
@@ -72,7 +73,14 @@ data class ReasoningProviderConfig(
         }
         require(cleanModel.isNotBlank()) { "Modelo requerido." }
         require(maxTokens in 1..MAX_ALLOWED_TOKENS) { "maxTokens fuera de rango." }
-        return copy(baseUrl = cleanUrl, model = cleanModel)
+        val privateContextConsent =
+            if (ReasoningEndpointPolicy.isLocalTrustedEndpoint(cleanUrl)) false
+            else allowPrivateContextToRemote
+        return copy(
+            baseUrl = cleanUrl,
+            model = cleanModel,
+            allowPrivateContextToRemote = privateContextConsent
+        )
     }
 
     companion object {
@@ -121,17 +129,34 @@ class ReasoningConfigStore(context: Context) {
         val model = preferences.getString(SETTING_MODEL, null)?.takeIf { it.isNotBlank() }
             ?: preset.defaultModel
         val maxTokens = preferences.getInt(SETTING_MAX_TOKENS, ReasoningProviderConfig.DEFAULT_MAX_TOKENS)
-        return ReasoningProviderConfig(preset, baseUrl, model, maxTokens)
+        val allowPrivateContextToRemote = preferences.getBoolean(
+            SETTING_ALLOW_PRIVATE_CONTEXT_TO_REMOTE,
+            false
+        )
+        return ReasoningProviderConfig(
+            preset = preset,
+            baseUrl = baseUrl,
+            model = model,
+            maxTokens = maxTokens,
+            allowPrivateContextToRemote = allowPrivateContextToRemote
+        ).let { config ->
+            if (config.baseUrl.isBlank() || config.model.isBlank()) config else config.validated()
+        }
     }
 
     fun save(config: ReasoningProviderConfig): Result<Unit> = runCatching {
         val valid = config.validated()
-        preferences.edit()
+        val committed = preferences.edit()
             .putString(SETTING_PRESET, valid.preset.name)
             .putString(SETTING_BASE_URL, valid.baseUrl)
             .putString(SETTING_MODEL, valid.model)
             .putInt(SETTING_MAX_TOKENS, valid.maxTokens)
-            .apply()
+            .putBoolean(
+                SETTING_ALLOW_PRIVATE_CONTEXT_TO_REMOTE,
+                valid.allowPrivateContextToRemote
+            )
+            .commit()
+        check(committed) { "No se pudo guardar la configuracion del motor auxiliar." }
     }
 
     companion object {
@@ -140,5 +165,7 @@ class ReasoningConfigStore(context: Context) {
         private const val SETTING_BASE_URL = "reasoning_base_url"
         private const val SETTING_MODEL = "reasoning_model"
         private const val SETTING_MAX_TOKENS = "reasoning_max_tokens"
+        private const val SETTING_ALLOW_PRIVATE_CONTEXT_TO_REMOTE =
+            "allow_private_context_to_remote"
     }
 }
