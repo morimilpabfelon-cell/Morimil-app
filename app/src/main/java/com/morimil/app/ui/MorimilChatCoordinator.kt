@@ -139,7 +139,6 @@ internal class MorimilChatCoordinator(
             _isSending.value = true
             try {
                 val priorHistory = messages.value
-                    .asSequence()
                     .filter { turn -> ReasoningTurnAuthor.isTrustedConversationAuthor(turn.author) }
                     .takeLast(ReasoningClient.MAX_HISTORY_MESSAGES - 1)
                     .map { turn ->
@@ -148,7 +147,6 @@ internal class MorimilChatCoordinator(
                             content = turn.body
                         )
                     }
-                    .toList()
 
                 val result = withContext(Dispatchers.IO) {
                     container.reasoningTranscriptRepository.appendUserTurn(cleanBody)
