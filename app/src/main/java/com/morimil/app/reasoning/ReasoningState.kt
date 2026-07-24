@@ -49,7 +49,8 @@ data class ReasoningState(
 data class ReasoningKernelResult(
     val state: ReasoningState,
     val reply: String?,
-    val errorMessage: String?
+    val errorMessage: String?,
+    val externalAuthorizationRequired: Boolean = false
 ) {
     val succeeded: Boolean get() = reply != null && errorMessage == null
 }
