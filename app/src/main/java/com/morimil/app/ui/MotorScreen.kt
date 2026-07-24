@@ -59,11 +59,15 @@ fun MotorScreen(viewModel: MotorViewModel) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(uiState.title, style = MaterialTheme.typography.headlineMedium)
+        Text(
+            "Arquitectura cognitiva y auxiliares",
+            style = MaterialTheme.typography.headlineMedium
+        )
         Text(
             "Los tres motores de Morimil son intuitivo, deliberativo y metacognitivo. " +
                 "Ollama y las APIs son proveedores temporales de computo; nunca son motores de Morimil."
         )
+        Text(uiState.boundary, style = MaterialTheme.typography.bodySmall)
         MorimilCognitiveArchitectureCard()
         TemporaryHelperBoundaryCard(
             localConfigured = localEndpoint.isNotBlank() && localModel.isNotBlank(),
