@@ -1,13 +1,14 @@
 package com.morimil.app.data.repository
 
 import com.morimil.app.data.local.MorimilDatabase
+import com.morimil.app.data.local.ReasoningTurnAuthor
 import com.morimil.app.data.local.ReasoningTurnEntity
 import kotlinx.coroutines.flow.Flow
 
 /**
  * Stores the UI transcript outside living and canonical memory. This repository
- * has no memory-event DAO and therefore cannot promote a motor reply into a
- * durable memory event.
+ * has no memory-event DAO and therefore cannot promote any displayed reply into
+ * a durable memory event.
  */
 class ReasoningTranscriptRepository(
     database: MorimilDatabase,
@@ -18,11 +19,15 @@ class ReasoningTranscriptRepository(
     val turns: Flow<List<ReasoningTurnEntity>> = dao.observeTurns()
 
     suspend fun appendUserTurn(body: String) {
-        append(author = "user", body = body)
+        append(author = ReasoningTurnAuthor.USER, body = body)
     }
 
     suspend fun appendMorimilTurn(body: String) {
-        append(author = "morimil", body = body)
+        append(author = ReasoningTurnAuthor.MORIMIL, body = body)
+    }
+
+    suspend fun appendAuxiliaryAdvisoryTurn(body: String) {
+        append(author = ReasoningTurnAuthor.AUXILIARY_ADVISORY, body = body)
     }
 
     suspend fun seedIntroTurnsIfNeeded() {
@@ -34,6 +39,11 @@ class ReasoningTranscriptRepository(
     private suspend fun append(author: String, body: String) {
         val clean = body.trim()
         require(clean.isNotEmpty()) { "reasoning_transcript_turn_empty" }
+        require(
+            author == ReasoningTurnAuthor.USER ||
+                author == ReasoningTurnAuthor.MORIMIL ||
+                author == ReasoningTurnAuthor.AUXILIARY_ADVISORY
+        ) { "reasoning_transcript_author_not_allowed" }
         dao.insertTurn(
             ReasoningTurnEntity(
                 author = author,
