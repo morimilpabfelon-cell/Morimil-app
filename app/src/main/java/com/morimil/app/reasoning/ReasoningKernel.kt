@@ -65,7 +65,8 @@ class ReasoningKernel(
             val errorState = state.withError(error)
             return ReasoningKernelResult(
                 state = errorState,
-                reply = null,
+                morimilReply = null,
+                auxiliaryAdvisory = null,
                 errorMessage = error
             )
         }
@@ -272,14 +273,37 @@ class ReasoningKernel(
             if (authorizationRequired) {
                 return@runCatching ReasoningKernelResult(
                     state = state,
-                    reply = null,
+                    morimilReply = null,
+                    auxiliaryAdvisory = null,
                     errorMessage = null,
                     externalAuthorizationRequired = true
                 )
             }
 
-            val finalReply = requireNotNull(reply) { "reasoning_reply_missing" }
-            state = state.withFinalReply(finalReply)
+            val completedOutput = requireNotNull(reply) { "reasoning_reply_missing" }
+            if (state.executionOrigin == ReasoningExecutionOrigin.TEMPORARY_EXTERNAL) {
+                val advisory = AuxiliaryAdvisory(
+                    content = completedOutput,
+                    providerLabel = "${backend.label}:${backend.kind}",
+                    disclosurePolicyVersion = ExternalReasoningDisclosurePolicy.VERSION
+                )
+                state = state.withTrace(
+                    "auxiliary_advisory_boundary",
+                    "version=${AuxiliaryAdvisory.VERSION} final_reply=false voice_authority=false " +
+                        "trusted_history=false"
+                ).withTrace(
+                    "persistence_boundary",
+                    "auxiliary_advisory_transcript_only; memory_write_capability=absent"
+                )
+                return@runCatching ReasoningKernelResult(
+                    state = state,
+                    morimilReply = null,
+                    auxiliaryAdvisory = advisory,
+                    errorMessage = null
+                )
+            }
+
+            state = state.withFinalReply(completedOutput)
             state = state.withTrace(
                 "persistence_boundary",
                 "reply_is_transient; memory_write_capability=absent"
@@ -287,7 +311,8 @@ class ReasoningKernel(
 
             ReasoningKernelResult(
                 state = state,
-                reply = finalReply,
+                morimilReply = completedOutput,
+                auxiliaryAdvisory = null,
                 errorMessage = null
             )
         }.getOrElse { error ->
@@ -295,7 +320,8 @@ class ReasoningKernel(
             val errorState = state.withError(message)
             ReasoningKernelResult(
                 state = errorState,
-                reply = null,
+                morimilReply = null,
+                auxiliaryAdvisory = null,
                 errorMessage = message
             )
         }

@@ -32,6 +32,9 @@ data class ReasoningState(
     }
 
     fun withFinalReply(reply: String): ReasoningState {
+        require(executionOrigin != ReasoningExecutionOrigin.TEMPORARY_EXTERNAL) {
+            "auxiliary_advisory_cannot_be_final_reply"
+        }
         return copy(
             finalReply = reply,
             trace = trace + ReasoningTraceEvent(stage = "final_reply", detail = reply.take(500))
@@ -46,11 +49,44 @@ data class ReasoningState(
     }
 }
 
+/**
+ * Unverified output from replaceable compute outside Morimil's intrinsic motors.
+ * It has no authority, is never a final reply, and cannot be spoken as Morimil.
+ */
+data class AuxiliaryAdvisory(
+    val content: String,
+    val providerLabel: String,
+    val disclosurePolicyVersion: String
+) {
+    init {
+        require(content.isNotBlank()) { "auxiliary_advisory_blank" }
+        require(providerLabel.isNotBlank()) { "auxiliary_advisory_provider_blank" }
+        require(disclosurePolicyVersion.isNotBlank()) {
+            "auxiliary_advisory_disclosure_policy_blank"
+        }
+    }
+
+    companion object {
+        const val VERSION = "morimil.auxiliary-advisory.v1"
+    }
+}
+
 data class ReasoningKernelResult(
     val state: ReasoningState,
-    val reply: String?,
+    val morimilReply: String?,
+    val auxiliaryAdvisory: AuxiliaryAdvisory?,
     val errorMessage: String?,
     val externalAuthorizationRequired: Boolean = false
 ) {
-    val succeeded: Boolean get() = reply != null && errorMessage == null
+    init {
+        require(morimilReply == null || auxiliaryAdvisory == null) {
+            "reasoning_result_cannot_mix_morimil_reply_and_auxiliary_advisory"
+        }
+        require(auxiliaryAdvisory == null || state.finalReply == null) {
+            "auxiliary_advisory_cannot_populate_final_reply"
+        }
+    }
+
+    val succeeded: Boolean get() = morimilReply != null && errorMessage == null
+    val advisoryAvailable: Boolean get() = auxiliaryAdvisory != null && errorMessage == null
 }

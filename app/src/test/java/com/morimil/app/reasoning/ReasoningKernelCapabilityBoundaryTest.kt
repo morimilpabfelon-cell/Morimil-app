@@ -8,6 +8,7 @@ import com.morimil.app.reasoning.model.ReasoningEscalationStore
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -40,7 +41,7 @@ class ReasoningKernelCapabilityBoundaryTest {
     }
 
     @Test
-    fun auxiliaryReplyRequiresOneShotApprovalAndRemainsTransient() = runBlocking {
+    fun auxiliaryReplyRequiresOneShotApprovalAndRemainsAdvisoryOnly() = runBlocking {
         var livingMemoryReads = 0
         var capsuleReads = 0
         var motorCalls = 0
@@ -71,13 +72,14 @@ class ReasoningKernelCapabilityBoundaryTest {
             priorHistory = emptyList(),
             runtimeConfig = ReasoningProviderConfig.fromPreset(ReasoningPreset.LOCAL_USB_HELPER),
             runtimeAccess = "",
-            runtimeLabel = "motor auxiliar local"
+            runtimeLabel = "auxiliar temporal local"
         )
 
         val pendingResult = kernel.reason(request)
 
         assertTrue(pendingResult.externalAuthorizationRequired)
-        assertNull(pendingResult.reply)
+        assertNull(pendingResult.morimilReply)
+        assertNull(pendingResult.auxiliaryAdvisory)
         assertEquals(0, motorCalls)
         assertEquals(
             ReasoningEscalationDecision.PENDING,
@@ -91,7 +93,12 @@ class ReasoningKernelCapabilityBoundaryTest {
 
         val result = kernel.reason(request)
 
-        assertEquals("temporary computed reply", result.reply)
+        assertNull(result.morimilReply)
+        assertEquals("temporary computed reply", result.auxiliaryAdvisory?.content)
+        assertEquals(AuxiliaryAdvisory.VERSION, "morimil.auxiliary-advisory.v1")
+        assertNull(result.state.finalReply)
+        assertFalse(result.succeeded)
+        assertTrue(result.advisoryAvailable)
         assertEquals(2, livingMemoryReads)
         assertEquals(2, capsuleReads)
         assertEquals(1, motorCalls)
@@ -104,8 +111,9 @@ class ReasoningKernelCapabilityBoundaryTest {
         )
         assertTrue(
             result.state.trace.any { trace ->
-                trace.stage == "temporary_external_result" &&
-                    trace.detail.contains("intrinsic_motor_state_unchanged")
+                trace.stage == "auxiliary_advisory_boundary" &&
+                    trace.detail.contains("final_reply=false") &&
+                    trace.detail.contains("voice_authority=false")
             }
         )
         assertTrue(
@@ -151,11 +159,14 @@ class ReasoningKernelCapabilityBoundaryTest {
                 priorHistory = emptyList(),
                 runtimeConfig = ReasoningProviderConfig.default(),
                 runtimeAccess = "",
-                runtimeLabel = "temporary external provider"
+                runtimeLabel = "auxiliar temporal"
             )
         )
 
-        assertEquals("intrinsic reply", result.reply)
+        assertEquals("intrinsic reply", result.morimilReply)
+        assertNull(result.auxiliaryAdvisory)
+        assertEquals("intrinsic reply", result.state.finalReply)
+        assertTrue(result.succeeded)
         assertEquals(0, externalCalls)
         assertEquals(ReasoningExecutionOrigin.MORIMIL_INTRINSIC, result.state.executionOrigin)
         assertTrue(

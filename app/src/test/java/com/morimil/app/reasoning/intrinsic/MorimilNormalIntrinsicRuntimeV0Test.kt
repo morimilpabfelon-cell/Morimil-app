@@ -53,7 +53,8 @@ class MorimilNormalIntrinsicRuntimeV0Test {
             kernelRequest("Calcula 15 menos 2 por 6 respetando prioridad.")
         )
 
-        assertEquals("FINAL:3", result.reply)
+        assertEquals("FINAL:3", result.morimilReply)
+        assertNull(result.auxiliaryAdvisory)
         assertEquals(0, externalCalls)
         assertEquals(ReasoningExecutionOrigin.MORIMIL_INTRINSIC, result.state.executionOrigin)
         assertTrue(
@@ -80,7 +81,8 @@ class MorimilNormalIntrinsicRuntimeV0Test {
             )
         )
 
-        assertEquals("FINAL:ANA", result.reply)
+        assertEquals("FINAL:ANA", result.morimilReply)
+        assertNull(result.auxiliaryAdvisory)
         assertEquals(0, externalCalls)
         assertEquals(ReasoningExecutionOrigin.MORIMIL_INTRINSIC, result.state.executionOrigin)
         assertTrue(
@@ -105,7 +107,8 @@ class MorimilNormalIntrinsicRuntimeV0Test {
             kernelRequest("Calcula 12 - 5 y devuelve exactamente FINAL:<resultado>.")
         )
 
-        assertEquals("FINAL:7", result.reply)
+        assertEquals("FINAL:7", result.morimilReply)
+        assertNull(result.auxiliaryAdvisory)
         assertEquals(0, externalCalls)
         assertEquals(ReasoningExecutionOrigin.MORIMIL_INTRINSIC, result.state.executionOrigin)
         assertTrue(
@@ -117,7 +120,7 @@ class MorimilNormalIntrinsicRuntimeV0Test {
     }
 
     @Test
-    fun malformedInstructionRequiresApprovalBeforeTemporaryFallback() = runBlocking {
+    fun malformedInstructionRequiresApprovalBeforeTemporaryAdvisory() = runBlocking {
         var externalCalls = 0
         val kernel = kernel(
             externalProvider = TemporaryExternalReasoningProvider {
@@ -130,7 +133,8 @@ class MorimilNormalIntrinsicRuntimeV0Test {
         val pending = kernel.reason(request)
 
         assertTrue(pending.externalAuthorizationRequired)
-        assertNull(pending.reply)
+        assertNull(pending.morimilReply)
+        assertNull(pending.auxiliaryAdvisory)
         assertEquals(0, externalCalls)
         assertEquals(
             ReasoningEscalationDecision.PENDING,
@@ -140,7 +144,9 @@ class MorimilNormalIntrinsicRuntimeV0Test {
 
         val result = kernel.reason(request)
 
-        assertEquals("temporary external reply", result.reply)
+        assertNull(result.morimilReply)
+        assertEquals("temporary external reply", result.auxiliaryAdvisory?.content)
+        assertNull(result.state.finalReply)
         assertEquals(1, externalCalls)
         assertEquals(ReasoningExecutionOrigin.TEMPORARY_EXTERNAL, result.state.executionOrigin)
         assertTrue(
@@ -152,10 +158,16 @@ class MorimilNormalIntrinsicRuntimeV0Test {
                     event.detail.contains("decision=approved_once")
             }
         )
+        assertTrue(
+            result.state.trace.any { event ->
+                event.stage == "auxiliary_advisory_boundary" &&
+                    event.detail.contains("voice_authority=false")
+            }
+        )
     }
 
     @Test
-    fun unsupportedGenerativeTaskRequiresApprovalBeforeTemporaryFallback() = runBlocking {
+    fun unsupportedGenerativeTaskRequiresApprovalBeforeTemporaryAdvisory() = runBlocking {
         var externalCalls = 0
         val kernel = kernel(
             externalProvider = TemporaryExternalReasoningProvider {
@@ -168,7 +180,8 @@ class MorimilNormalIntrinsicRuntimeV0Test {
         val pending = kernel.reason(request)
 
         assertTrue(pending.externalAuthorizationRequired)
-        assertNull(pending.reply)
+        assertNull(pending.morimilReply)
+        assertNull(pending.auxiliaryAdvisory)
         assertEquals(0, externalCalls)
         assertEquals(
             ReasoningEscalationDecision.PENDING,
@@ -178,7 +191,9 @@ class MorimilNormalIntrinsicRuntimeV0Test {
 
         val result = kernel.reason(request)
 
-        assertEquals("temporary external reply", result.reply)
+        assertNull(result.morimilReply)
+        assertEquals("temporary external reply", result.auxiliaryAdvisory?.content)
+        assertNull(result.state.finalReply)
         assertEquals(1, externalCalls)
         assertEquals(ReasoningExecutionOrigin.TEMPORARY_EXTERNAL, result.state.executionOrigin)
         assertTrue(
@@ -188,6 +203,12 @@ class MorimilNormalIntrinsicRuntimeV0Test {
             result.state.trace.any { event ->
                 event.stage == "external_authorization_gate" &&
                     event.detail.contains("decision=approved_once")
+            }
+        )
+        assertTrue(
+            result.state.trace.any { event ->
+                event.stage == "auxiliary_advisory_boundary" &&
+                    event.detail.contains("trusted_history=false")
             }
         )
     }
@@ -247,7 +268,7 @@ class MorimilNormalIntrinsicRuntimeV0Test {
             priorHistory = emptyList(),
             runtimeConfig = ReasoningProviderConfig.fromPreset(ReasoningPreset.LOCAL_USB_HELPER),
             runtimeAccess = "",
-            runtimeLabel = "motor auxiliar local"
+            runtimeLabel = "auxiliar temporal local"
         )
     }
 }
