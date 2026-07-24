@@ -2,8 +2,8 @@ package com.morimil.app.reasoning
 
 import com.morimil.app.ai.ChatTurn
 import com.morimil.app.ai.ExternalReasoningDisclosureMode
+import com.morimil.app.ai.ExternalReasoningDisclosurePolicy
 import com.morimil.app.ai.ReasoningClient
-import com.morimil.app.ai.ReasoningEndpointPolicy
 import com.morimil.app.ai.ReasoningProviderConfig
 import com.morimil.app.data.repository.MemoryOrganRepository
 import com.morimil.app.data.repository.MemoryRepository
@@ -28,9 +28,9 @@ class RepositoryReasoningContextReader(
 }
 
 /**
- * Temporary external reasoning capability. It can return text to Morimil's
- * kernel but is not one of Morimil's intrinsic motors and exposes no transcript,
- * memory, identity or lifecycle writer.
+ * Temporary external compute capability. It can return advisory text to
+ * Morimil's kernel but is not one of Morimil's intrinsic motors and exposes no
+ * memory, identity, Genesis, tool or lifecycle capability.
  */
 fun interface TemporaryExternalReasoningProvider {
     suspend fun compute(request: TemporaryExternalReasoningRequest): Result<String>
@@ -41,27 +41,20 @@ data class TemporaryExternalReasoningRequest(
     val runtimeAccess: String,
     val systemPrompt: String,
     val history: List<ChatTurn>,
-    val disclosureMode: ExternalReasoningDisclosureMode,
-    val privateContextIncluded: Boolean
+    val disclosureMode: ExternalReasoningDisclosureMode
 ) {
     init {
-        require(systemPrompt.isNotBlank()) { "temporary_external_system_prompt_blank" }
-        require(history.isNotEmpty()) { "temporary_external_history_empty" }
-        when (disclosureMode) {
-            ExternalReasoningDisclosureMode.LOCAL_FULL_CONTEXT,
-            ExternalReasoningDisclosureMode.REMOTE_FULL_CONTEXT_EXPLICIT -> {
-                require(privateContextIncluded) {
-                    "full_context_disclosure_requires_private_context_marker"
-                }
-            }
-            ExternalReasoningDisclosureMode.REMOTE_USER_MESSAGE_ONLY -> {
-                require(!privateContextIncluded) {
-                    "remote_user_only_disclosure_cannot_include_private_context"
-                }
-                require(history.size == 1 && history.single().role == "user") {
-                    "remote_user_only_disclosure_must_contain_one_user_turn"
-                }
-            }
+        require(
+            disclosureMode == ExternalReasoningDisclosureMode.AUXILIARY_USER_TASK_ONLY
+        ) { "temporary_helper_disclosure_mode_not_allowed" }
+        require(systemPrompt == ExternalReasoningDisclosurePolicy.AUXILIARY_BOUNDARY_PROMPT) {
+            "temporary_helper_system_prompt_not_allowed"
+        }
+        require(history.size == 1 && history.single().role == "user") {
+            "temporary_helper_must_receive_exactly_one_user_turn"
+        }
+        require(history.single().content.isNotBlank()) {
+            "temporary_helper_user_task_blank"
         }
     }
 }
@@ -71,24 +64,14 @@ class ReasoningClientTemporaryExternalProvider(
 ) : TemporaryExternalReasoningProvider {
     override suspend fun compute(request: TemporaryExternalReasoningRequest): Result<String> {
         val valid = request.config.validated()
-        val isLocal = ReasoningEndpointPolicy.isLocalTrustedEndpoint(valid.baseUrl)
-        if (isLocal) {
-            require(request.disclosureMode == ExternalReasoningDisclosureMode.LOCAL_FULL_CONTEXT) {
-                "local_helper_requires_local_full_context_contract"
-            }
-        } else if (valid.allowPrivateContextToRemote) {
-            require(
-                request.disclosureMode ==
-                    ExternalReasoningDisclosureMode.REMOTE_FULL_CONTEXT_EXPLICIT
-            ) { "remote_private_context_requires_explicit_disclosure_contract" }
-        } else {
-            require(
-                request.disclosureMode ==
-                    ExternalReasoningDisclosureMode.REMOTE_USER_MESSAGE_ONLY
-            ) { "remote_default_requires_user_message_only_contract" }
-            require(!request.privateContextIncluded) {
-                "remote_default_cannot_include_private_context"
-            }
+        require(
+            request.disclosureMode == ExternalReasoningDisclosureMode.AUXILIARY_USER_TASK_ONLY
+        ) { "temporary_helper_requires_user_task_only_contract" }
+        require(request.systemPrompt == ExternalReasoningDisclosurePolicy.AUXILIARY_BOUNDARY_PROMPT) {
+            "temporary_helper_prompt_boundary_bypassed"
+        }
+        require(request.history.size == 1 && request.history.single().role == "user") {
+            "temporary_helper_history_boundary_bypassed"
         }
         return client.sendMessage(
             config = valid,
