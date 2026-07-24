@@ -5,9 +5,13 @@ import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.morimil.app.data.local.MorimilDatabase
+import com.morimil.app.data.local.ReasoningTurnAuthor
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -37,9 +41,20 @@ class ReasoningTranscriptRepositoryTest {
         val repository = ReasoningTranscriptRepository(database) { now++ }
 
         repository.appendUserTurn("pregunta")
-        repository.appendMorimilTurn("respuesta calculada")
+        repository.appendMorimilTurn("respuesta intrinseca")
+        repository.appendAuxiliaryAdvisoryTurn("calculo externo")
 
-        assertEquals(2, database.reasoningTranscriptDao().countTurns())
+        val turns = repository.turns.first()
+        assertEquals(3, turns.size)
+        assertEquals(ReasoningTurnAuthor.USER, turns[0].author)
+        assertEquals(ReasoningTurnAuthor.MORIMIL, turns[1].author)
+        assertEquals(ReasoningTurnAuthor.AUXILIARY_ADVISORY, turns[2].author)
+        assertTrue(
+            turns[2].body.startsWith(
+                ReasoningTranscriptRepository.AUXILIARY_ADVISORY_LABEL
+            )
+        )
+        assertFalse(ReasoningTurnAuthor.isTrustedConversationAuthor(turns[2].author))
         assertEquals(0, database.memoryDao().countMemoryEvents())
         assertEquals(0, database.genesisUltraMemoryDao().countAll())
         assertEquals(0, database.genesisUltraBirthDao().countBirthCommits())
