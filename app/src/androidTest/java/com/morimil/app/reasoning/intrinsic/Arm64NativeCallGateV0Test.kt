@@ -3,9 +3,11 @@ package com.morimil.app.reasoning.intrinsic
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -15,10 +17,11 @@ import java.util.concurrent.TimeUnit
 @RunWith(AndroidJUnit4::class)
 class Arm64NativeCallGateV0Test {
     @Test
-    fun cancellationCannotReleaseNativeSectionBeforeBlockingCallReturns() = runBlocking {
+    fun cancellationAndCloseCannotReleaseNativeSectionBeforeBlockingCallReturns() = runBlocking {
         val gate = Arm64NativeCallGateV0()
         val entered = CountDownLatch(1)
         val unblock = CountDownLatch(1)
+        var closed = false
 
         val job = launch(Dispatchers.Default) {
             gate.run {
@@ -38,8 +41,18 @@ class Arm64NativeCallGateV0Test {
             runCatching { gate.requireIdle() }.exceptionOrNull()?.message
         )
 
+        val closeJob = launch(Dispatchers.Default) {
+            gate.closeWhenIdle {
+                closed = true
+            }
+        }
+        delay(100)
+        assertFalse(closed)
+
         unblock.countDown()
         job.cancelAndJoin()
+        closeJob.join()
+        assertTrue(closed)
         assertEquals(0, gate.activeCallCount)
         gate.requireIdle()
     }
