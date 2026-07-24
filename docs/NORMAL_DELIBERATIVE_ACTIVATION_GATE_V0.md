@@ -4,9 +4,16 @@ Status: **normal-runtime activation blocked**
 
 ## Purpose
 
-This gate prevents a physically executable deliberative candidate from entering Morimil's normal runtime without sufficient quality, provenance and authorization evidence.
+This gate prevents a physically executable deliberative candidate from entering Morimil's normal runtime without sufficient independent quality, provenance and authorization evidence.
 
-Physical execution and production fitness are separate facts. The current Gemma 3n E2B LiteRT-LM candidate completed its 120-case Android ARM64 run, but the frozen benchmark recorded:
+Physical execution and production fitness are separate facts. Two evidence layers now coexist:
+
+1. the frozen raw-candidate benchmark recorded 40 false accepted responses and failed its quality gate;
+2. the current hybrid-authority benchmark completed 120/120 cases with 84 deterministic acceptances, 36 abstentions and zero false acceptances.
+
+The second result proves that Morimil's deterministic authority boundary can contain the candidate. It does **not** prove that the deliberative model is safe or authoritative when used alone. Therefore the normal deliberative gate continues to use the raw-candidate quality evidence.
+
+## Current raw-candidate evidence
 
 ```text
 completed cases:          120/120
@@ -15,7 +22,7 @@ quality gate:             failed
 production promotion:     blocked
 ```
 
-Therefore `DELIBERATIVE` remains absent from `MorimilNormalIntrinsicRuntimeV0`.
+`DELIBERATIVE` remains absent from `MorimilNormalIntrinsicRuntimeV0`.
 
 ## Runtime behavior
 
@@ -46,7 +53,7 @@ Passing the declarative gate in the future does not activate a motor automatical
 
 A later activation PR must separately provide:
 
-1. a benchmark with all required cases completed and zero false acceptances;
+1. independent deliberative-quality evidence with all required cases completed and zero false acceptances;
 2. an exact source-model revision;
 3. reproducible conversion evidence;
 4. a verified and certified local artifact;
