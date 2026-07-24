@@ -2,8 +2,13 @@
 """Tests for the strict current 84/36 physical evidence gate."""
 from __future__ import annotations
 
+import argparse
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
+import run_current_gemma3n_e2b_arm64_trimotor_benchmark_v0 as current_runner
 from current_trimotor_physical_evidence_v0 import (
     exact_current_response_records,
     validate_exact_responses,
@@ -70,6 +75,38 @@ class CurrentTriMotorPhysicalEvidenceTest(unittest.TestCase):
                     "capabilityBoundaryPassCount": 120,
                 },
             })
+
+    def test_physical_run_executes_strict_preflight_before_legacy_harness(self) -> None:
+        events: list[str] = []
+
+        def preflight() -> int:
+            events.append("preflight")
+            return 0
+
+        def stop_after_legacy(_args: argparse.Namespace) -> int:
+            events.append("legacy")
+            raise RuntimeError("stop_after_order_check")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            args = argparse.Namespace(
+                artifact_path="candidate.litertlm",
+                serial=None,
+                report_directory=str(Path(temporary)),
+                skip_build=True,
+                self_test=False,
+            )
+            with (
+                patch.object(current_runner, "strict_self_test", side_effect=preflight),
+                patch.object(
+                    current_runner,
+                    "run_legacy_harness",
+                    side_effect=stop_after_legacy,
+                ),
+                self.assertRaisesRegex(RuntimeError, "stop_after_order_check"),
+            ):
+                current_runner.run(args)
+
+        self.assertEqual(["preflight", "legacy"], events)
 
 
 if __name__ == "__main__":
