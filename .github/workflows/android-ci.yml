@@ -6,7 +6,7 @@ on:
       - main
   push:
     branches:
-      - v2-body-runtime
+      - main
 
 jobs:
   build:
