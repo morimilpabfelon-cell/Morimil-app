@@ -1,74 +1,52 @@
 package com.morimil.app.ai
 
 enum class ExternalReasoningDisclosureMode {
-    LOCAL_FULL_CONTEXT,
-    REMOTE_USER_MESSAGE_ONLY,
-    REMOTE_FULL_CONTEXT_EXPLICIT
+    AUXILIARY_USER_TASK_ONLY
 }
 
 data class ExternalReasoningDisclosure(
     val mode: ExternalReasoningDisclosureMode,
     val systemPrompt: String,
-    val history: List<ChatTurn>,
-    val privateContextIncluded: Boolean
+    val history: List<ChatTurn>
 ) {
     init {
-        require(systemPrompt.isNotBlank()) { "external_disclosure_system_prompt_blank" }
-        require(history.isNotEmpty()) { "external_disclosure_history_empty" }
-        if (mode == ExternalReasoningDisclosureMode.REMOTE_USER_MESSAGE_ONLY) {
-            require(!privateContextIncluded) { "remote_user_only_disclosure_cannot_include_private_context" }
-            require(history.size == 1 && history.single().role == "user") {
-                "remote_user_only_disclosure_must_contain_exactly_one_user_turn"
-            }
+        require(mode == ExternalReasoningDisclosureMode.AUXILIARY_USER_TASK_ONLY) {
+            "external_disclosure_mode_not_allowed"
+        }
+        require(systemPrompt == ExternalReasoningDisclosurePolicy.AUXILIARY_BOUNDARY_PROMPT) {
+            "external_disclosure_prompt_not_allowed"
+        }
+        require(history.size == 1 && history.single().role == "user") {
+            "external_disclosure_must_contain_exactly_one_user_turn"
+        }
+        require(history.single().content.isNotBlank()) {
+            "external_disclosure_user_task_blank"
         }
     }
 }
 
 /**
- * Keeps local helper behavior intact while making remote disclosure fail closed.
- * A remote provider receives only the current user message unless the owner has
- * explicitly enabled private-context disclosure for that exact profile.
+ * Immutable confidentiality boundary for every non-intrinsic compute provider.
+ *
+ * Ollama, remote APIs and future compatible providers receive only the current
+ * user task. They never receive Morimil's identity, doctrine, living memory,
+ * knowledge capsules, private history, Genesis state, tools or lifecycle data.
  */
 object ExternalReasoningDisclosurePolicy {
-    const val VERSION = "morimil.external-disclosure.v0"
+    const val VERSION = "morimil.external-disclosure.v1"
 
-    fun prepare(
-        config: ReasoningProviderConfig,
-        fullSystemPrompt: String,
-        fullHistory: List<ChatTurn>
-    ): ExternalReasoningDisclosure {
-        val valid = config.validated()
-        val currentUser = fullHistory.lastOrNull { turn -> turn.role == "user" }
-            ?: error("external_disclosure_current_user_turn_missing")
-
-        if (ReasoningEndpointPolicy.isLocalTrustedEndpoint(valid.baseUrl)) {
-            return ExternalReasoningDisclosure(
-                mode = ExternalReasoningDisclosureMode.LOCAL_FULL_CONTEXT,
-                systemPrompt = fullSystemPrompt,
-                history = fullHistory,
-                privateContextIncluded = true
-            )
-        }
-
-        if (valid.allowPrivateContextToRemote) {
-            return ExternalReasoningDisclosure(
-                mode = ExternalReasoningDisclosureMode.REMOTE_FULL_CONTEXT_EXPLICIT,
-                systemPrompt = fullSystemPrompt,
-                history = fullHistory,
-                privateContextIncluded = true
-            )
-        }
-
+    fun prepare(currentUserMessage: String): ExternalReasoningDisclosure {
+        val cleanTask = currentUserMessage.trim()
+        require(cleanTask.isNotBlank()) { "external_disclosure_user_task_blank" }
         return ExternalReasoningDisclosure(
-            mode = ExternalReasoningDisclosureMode.REMOTE_USER_MESSAGE_ONLY,
-            systemPrompt = REMOTE_MINIMAL_SYSTEM_PROMPT,
-            history = listOf(ChatTurn(role = "user", content = currentUser.content)),
-            privateContextIncluded = false
+            mode = ExternalReasoningDisclosureMode.AUXILIARY_USER_TASK_ONLY,
+            systemPrompt = AUXILIARY_BOUNDARY_PROMPT,
+            history = listOf(ChatTurn(role = "user", content = cleanTask))
         )
     }
 
-    internal const val REMOTE_MINIMAL_SYSTEM_PROMPT =
-        "You are a temporary external computation helper. Answer only the current user request. " +
-            "You do not own Morimil's identity, memory, doctrine, continuity, tools, lifecycle or final authority. " +
-            "Do not claim to be Morimil. Return advisory text only."
+    internal const val AUXILIARY_BOUNDARY_PROMPT =
+        "You are a temporary external computation provider. Answer only the current user task. " +
+            "You are not Morimil and have no access to Morimil's identity, memory, doctrine, " +
+            "Genesis, continuity, tools, lifecycle or final authority. Return advisory text only."
 }

@@ -42,7 +42,7 @@ class ReasoningKernel(
             capsuleContextSummary = "pending",
             policyDecision = when {
                 intrinsicRoles.isNotEmpty() -> "intrinsic_reasoning_first"
-                backend.usable -> "temporary_external_available"
+                backend.usable -> "temporary_helper_available"
                 else -> "intrinsic_unavailable_deterministic_fallback"
             },
             criticFindings = emptyList(),
@@ -150,15 +150,12 @@ class ReasoningKernel(
                     degradedReply(cleanInput, intent, memoryContext, capsuleContext, backend.reason)
                 } else {
                     val disclosure = ExternalReasoningDisclosurePolicy.prepare(
-                        config = request.runtimeConfig,
-                        fullSystemPrompt = systemPrompt,
-                        fullHistory = recentHistory
+                        currentUserMessage = cleanInput
                     )
                     state = state.withTrace(
                         "external_disclosure",
                         "policy=${ExternalReasoningDisclosurePolicy.VERSION} " +
-                            "mode=${disclosure.mode} " +
-                            "private_context=${disclosure.privateContextIncluded} " +
+                            "mode=${disclosure.mode} private_context=false " +
                             "history_turns=${disclosure.history.size} " +
                             "system_chars=${disclosure.systemPrompt.length}"
                     ).withTrace(
@@ -172,15 +169,14 @@ class ReasoningKernel(
                             runtimeAccess = request.runtimeAccess,
                             systemPrompt = disclosure.systemPrompt,
                             history = disclosure.history,
-                            disclosureMode = disclosure.mode,
-                            privateContextIncluded = disclosure.privateContextIncluded
+                            disclosureMode = disclosure.mode
                         )
                     ).map { externalReply ->
                         state = state.copy(
                             executionOrigin = ReasoningExecutionOrigin.TEMPORARY_EXTERNAL
                         ).withTrace(
                             "temporary_external_result",
-                            "reply_is_advisory; intrinsic_motor_state_unchanged"
+                            "reply_is_unverified_advisory; intrinsic_motor_state_unchanged"
                         )
                         externalReply
                     }.getOrElse { externalError ->

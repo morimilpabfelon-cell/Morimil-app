@@ -42,8 +42,7 @@ data class ReasoningProviderConfig(
     val preset: ReasoningPreset,
     val baseUrl: String,
     val model: String,
-    val maxTokens: Int = DEFAULT_MAX_TOKENS,
-    val allowPrivateContextToRemote: Boolean = false
+    val maxTokens: Int = DEFAULT_MAX_TOKENS
 ) {
     val wireFormat: ReasoningWireFormat
         get() {
@@ -73,14 +72,7 @@ data class ReasoningProviderConfig(
         }
         require(cleanModel.isNotBlank()) { "Modelo requerido." }
         require(maxTokens in 1..MAX_ALLOWED_TOKENS) { "maxTokens fuera de rango." }
-        val privateContextConsent =
-            if (ReasoningEndpointPolicy.isLocalTrustedEndpoint(cleanUrl)) false
-            else allowPrivateContextToRemote
-        return copy(
-            baseUrl = cleanUrl,
-            model = cleanModel,
-            allowPrivateContextToRemote = privateContextConsent
-        )
+        return copy(baseUrl = cleanUrl, model = cleanModel)
     }
 
     companion object {
@@ -99,13 +91,13 @@ data class ReasoningProviderConfig(
     }
 }
 
-data class ReasoningMotorSlot(val config: ReasoningProviderConfig) {
+data class ReasoningHelperSlot(val config: ReasoningProviderConfig) {
     val id: Int = SINGLE_HELPER_ID
     val displayName: String = SINGLE_HELPER_LABEL
 
     companion object {
         const val SINGLE_HELPER_ID = 1
-        const val SINGLE_HELPER_LABEL = "Motor auxiliar configurado"
+        const val SINGLE_HELPER_LABEL = "Auxiliar temporal configurado"
     }
 }
 
@@ -113,7 +105,10 @@ class ReasoningConfigStore(context: Context) {
     private val preferences = context.applicationContext
         .getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
-    fun loadActiveSlot(): ReasoningMotorSlot = ReasoningMotorSlot(load())
+    fun loadActiveHelper(): ReasoningHelperSlot = ReasoningHelperSlot(load())
+
+    /** Existing callers receive the same helper object; this is not a motor slot. */
+    fun loadActiveSlot(): ReasoningHelperSlot = loadActiveHelper()
 
     fun load(): ReasoningProviderConfig {
         val storedPresetName = preferences.getString(SETTING_PRESET, null)
@@ -129,16 +124,11 @@ class ReasoningConfigStore(context: Context) {
         val model = preferences.getString(SETTING_MODEL, null)?.takeIf { it.isNotBlank() }
             ?: preset.defaultModel
         val maxTokens = preferences.getInt(SETTING_MAX_TOKENS, ReasoningProviderConfig.DEFAULT_MAX_TOKENS)
-        val allowPrivateContextToRemote = preferences.getBoolean(
-            SETTING_ALLOW_PRIVATE_CONTEXT_TO_REMOTE,
-            false
-        )
         return ReasoningProviderConfig(
             preset = preset,
             baseUrl = baseUrl,
             model = model,
-            maxTokens = maxTokens,
-            allowPrivateContextToRemote = allowPrivateContextToRemote
+            maxTokens = maxTokens
         ).let { config ->
             if (config.baseUrl.isBlank() || config.model.isBlank()) config else config.validated()
         }
@@ -151,12 +141,9 @@ class ReasoningConfigStore(context: Context) {
             .putString(SETTING_BASE_URL, valid.baseUrl)
             .putString(SETTING_MODEL, valid.model)
             .putInt(SETTING_MAX_TOKENS, valid.maxTokens)
-            .putBoolean(
-                SETTING_ALLOW_PRIVATE_CONTEXT_TO_REMOTE,
-                valid.allowPrivateContextToRemote
-            )
+            .remove(LEGACY_SETTING_ALLOW_PRIVATE_CONTEXT_TO_REMOTE)
             .commit()
-        check(committed) { "No se pudo guardar la configuracion del motor auxiliar." }
+        check(committed) { "No se pudo guardar la configuracion del auxiliar temporal." }
     }
 
     companion object {
@@ -165,7 +152,7 @@ class ReasoningConfigStore(context: Context) {
         private const val SETTING_BASE_URL = "reasoning_base_url"
         private const val SETTING_MODEL = "reasoning_model"
         private const val SETTING_MAX_TOKENS = "reasoning_max_tokens"
-        private const val SETTING_ALLOW_PRIVATE_CONTEXT_TO_REMOTE =
+        private const val LEGACY_SETTING_ALLOW_PRIVATE_CONTEXT_TO_REMOTE =
             "allow_private_context_to_remote"
     }
 }

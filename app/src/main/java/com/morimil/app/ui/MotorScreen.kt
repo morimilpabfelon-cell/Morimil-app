@@ -36,21 +36,20 @@ fun MotorScreen(viewModel: MotorViewModel) {
     val configStore = remember(context) { ReasoningConfigStore(context) }
     val secretVault = remember(context) { SecretVault(context) }
     val initialConfig = remember(configStore) { configStore.load() }
-    val initialSuperior = remember(context) { ReasoningProfileRuntimeStore.loadSuperior(context) }
-    var endpoint by remember { mutableStateOf(initialConfig.baseUrl) }
-    var model by remember { mutableStateOf(initialConfig.model.ifBlank { "llama3.2" }) }
-    var saveStatus by remember { mutableStateOf("Config actual cargada.") }
-    var superiorEndpoint by remember { mutableStateOf(initialSuperior.baseUrl) }
-    var superiorModel by remember { mutableStateOf(initialSuperior.model) }
-    var allowPrivateContextToRemote by remember {
-        mutableStateOf(initialSuperior.allowPrivateContextToRemote)
+    val initialRemoteHelper = remember(context) {
+        ReasoningProfileRuntimeStore.loadRemoteHelper(context)
     }
-    var superiorSaveStatus by remember {
-        mutableStateOf("Motor auxiliar remoto API sin configurar.")
+    var localEndpoint by remember { mutableStateOf(initialConfig.baseUrl) }
+    var localModel by remember { mutableStateOf(initialConfig.model.ifBlank { "llama3.2" }) }
+    var localSaveStatus by remember { mutableStateOf("Configuracion auxiliar cargada.") }
+    var remoteEndpoint by remember { mutableStateOf(initialRemoteHelper.baseUrl) }
+    var remoteModel by remember { mutableStateOf(initialRemoteHelper.model) }
+    var remoteSaveStatus by remember {
+        mutableStateOf("Auxiliar remoto temporal sin configurar.")
     }
-    var superiorRuntimeKey by remember { mutableStateOf("") }
-    var superiorKeyStatus by remember {
-        mutableStateOf(remoteKeyStatus(secretVault, superiorEndpoint, 2))
+    var remoteRuntimeKey by remember { mutableStateOf("") }
+    var remoteKeyStatus by remember {
+        mutableStateOf(remoteKeyStatus(secretVault, remoteEndpoint, REMOTE_HELPER_SLOT_ID))
     }
 
     Column(
@@ -60,44 +59,45 @@ fun MotorScreen(viewModel: MotorViewModel) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(uiState.title, style = MaterialTheme.typography.headlineMedium)
         Text(
-            "Orden real: 1 Morimil nucleo, 2 auxiliar local Ollama por USB, " +
-                "3 auxiliar remoto API. Morimil conserva identidad, memoria y autoridad local."
+            "Arquitectura cognitiva y auxiliares",
+            style = MaterialTheme.typography.headlineMedium
         )
-        MorimilCoreMotorCard()
-        ReasoningKernelGatesCard(
-            localConfigured = endpoint.isNotBlank() && model.isNotBlank(),
-            remoteProfileConfigured = superiorEndpoint.isNotBlank() && superiorModel.isNotBlank(),
+        Text(
+            "Los tres motores de Morimil son intuitivo, deliberativo y metacognitivo. " +
+                "Ollama y las APIs son proveedores temporales de computo; nunca son motores de Morimil."
+        )
+        Text(uiState.boundary, style = MaterialTheme.typography.bodySmall)
+        MorimilCognitiveArchitectureCard()
+        TemporaryHelperBoundaryCard(
+            localConfigured = localEndpoint.isNotBlank() && localModel.isNotBlank(),
+            remoteConfigured = remoteEndpoint.isNotBlank() && remoteModel.isNotBlank(),
             remoteKeyStored = secretVault.hasReasoningKey(
-                slotId = 2,
-                endpoint = superiorEndpoint
-            ),
-            remotePrivateContextAllowed = allowPrivateContextToRemote,
-            externalWebIsContextOnly = true
+                slotId = REMOTE_HELPER_SLOT_ID,
+                endpoint = remoteEndpoint
+            )
         )
-        LocalBackendConfigCard(
-            endpoint = endpoint,
-            model = model,
-            saveStatus = saveStatus,
-            onEndpointChange = { endpoint = it },
-            onModelChange = { model = it },
+        LocalHelperConfigCard(
+            endpoint = localEndpoint,
+            model = localModel,
+            saveStatus = localSaveStatus,
+            onEndpointChange = { localEndpoint = it },
+            onModelChange = { localModel = it },
             onUseUsb = {
-                endpoint = "http://127.0.0.1:11434/v1/chat/completions"
-                if (model.isBlank()) model = "llama3.2"
+                localEndpoint = "http://127.0.0.1:11434/v1/chat/completions"
+                if (localModel.isBlank()) localModel = "llama3.2"
             },
             onSave = {
                 val result = configStore.save(
                     ReasoningProviderConfig(
                         preset = ReasoningPreset.LOCAL_USB_HELPER,
-                        baseUrl = endpoint,
-                        model = model
+                        baseUrl = localEndpoint,
+                        model = localModel
                     )
                 )
-                saveStatus = result.fold(
+                localSaveStatus = result.fold(
                     onSuccess = {
-                        "Motor 2 auxiliar local Ollama por USB guardado. " +
-                            "El siguiente mensaje usara esta configuracion."
+                        "Auxiliar temporal local guardado. Solo recibira la tarea actual del usuario."
                     },
                     onFailure = { error ->
                         "No se pudo guardar: ${error.message ?: error::class.java.simpleName}"
@@ -105,30 +105,36 @@ fun MotorScreen(viewModel: MotorViewModel) {
                 )
             }
         )
-        SuperiorBackendConfigCard(
-            endpoint = superiorEndpoint,
-            model = superiorModel,
-            saveStatus = superiorSaveStatus,
-            runtimeKey = superiorRuntimeKey,
-            keyStatus = superiorKeyStatus,
-            allowPrivateContextToRemote = allowPrivateContextToRemote,
+        RemoteHelperConfigCard(
+            endpoint = remoteEndpoint,
+            model = remoteModel,
+            saveStatus = remoteSaveStatus,
+            runtimeKey = remoteRuntimeKey,
+            keyStatus = remoteKeyStatus,
             onEndpointChange = { value ->
-                superiorEndpoint = value
-                superiorKeyStatus = remoteKeyStatus(secretVault, value, 2)
+                remoteEndpoint = value
+                remoteKeyStatus = remoteKeyStatus(
+                    secretVault,
+                    value,
+                    REMOTE_HELPER_SLOT_ID
+                )
             },
-            onModelChange = { superiorModel = it },
-            onRuntimeKeyChange = { superiorRuntimeKey = it },
-            onAllowPrivateContextChange = { allowPrivateContextToRemote = it },
+            onModelChange = { remoteModel = it },
+            onRuntimeKeyChange = { remoteRuntimeKey = it },
             onSaveRuntimeKey = {
                 val result = secretVault.saveReasoningKey(
-                    slotId = 2,
-                    endpoint = superiorEndpoint,
-                    key = superiorRuntimeKey
+                    slotId = REMOTE_HELPER_SLOT_ID,
+                    endpoint = remoteEndpoint,
+                    key = remoteRuntimeKey
                 )
-                superiorKeyStatus = result.fold(
+                remoteKeyStatus = result.fold(
                     onSuccess = {
-                        superiorRuntimeKey = ""
-                        remoteKeyStatus(secretVault, superiorEndpoint, 2)
+                        remoteRuntimeKey = ""
+                        remoteKeyStatus(
+                            secretVault,
+                            remoteEndpoint,
+                            REMOTE_HELPER_SLOT_ID
+                        )
                     },
                     onFailure = { error ->
                         "No se pudo guardar llave API: " +
@@ -137,35 +143,37 @@ fun MotorScreen(viewModel: MotorViewModel) {
                 )
             },
             onClearRuntimeKey = {
-                if (ReasoningEndpointPolicy.isSecureRemoteEndpoint(superiorEndpoint)) {
-                    secretVault.clearReasoningKey(2, superiorEndpoint)
+                if (ReasoningEndpointPolicy.isSecureRemoteEndpoint(remoteEndpoint)) {
+                    secretVault.clearReasoningKey(REMOTE_HELPER_SLOT_ID, remoteEndpoint)
                 } else {
-                    secretVault.clearAllReasoningKeys(2)
+                    secretVault.clearAllReasoningKeys(REMOTE_HELPER_SLOT_ID)
                 }
-                superiorRuntimeKey = ""
-                superiorKeyStatus = "Llave API borrada."
+                remoteRuntimeKey = ""
+                remoteKeyStatus = "Llave API borrada."
             },
             onSave = {
-                val result = ReasoningProfileRuntimeStore.saveSuperior(
+                val result = ReasoningProfileRuntimeStore.saveRemoteHelper(
                     context,
                     ReasoningProviderConfig(
                         preset = ReasoningPreset.CUSTOM,
-                        baseUrl = superiorEndpoint,
-                        model = superiorModel,
-                        allowPrivateContextToRemote = allowPrivateContextToRemote
+                        baseUrl = remoteEndpoint,
+                        model = remoteModel
                     )
                 )
-                superiorSaveStatus = result.fold(
+                remoteSaveStatus = result.fold(
                     onSuccess = {
-                        "Motor 3 auxiliar remoto guardado. Contexto privado remoto: " +
-                            if (allowPrivateContextToRemote) "AUTORIZADO" else "BLOQUEADO"
+                        "Auxiliar remoto temporal guardado. Sin acceso a identidad, doctrina, memoria, Genesis ni historial privado."
                     },
                     onFailure = { error ->
-                        "No se pudo guardar motor 3 API: " +
+                        "No se pudo guardar el auxiliar remoto: " +
                             (error.message ?: error::class.java.simpleName)
                     }
                 )
-                superiorKeyStatus = remoteKeyStatus(secretVault, superiorEndpoint, 2)
+                remoteKeyStatus = remoteKeyStatus(
+                    secretVault,
+                    remoteEndpoint,
+                    REMOTE_HELPER_SLOT_ID
+                )
             }
         )
     }
@@ -180,49 +188,47 @@ private fun remoteKeyStatus(vault: SecretVault, endpoint: String, slotId: Int): 
         return "Llave API guardada y ligada al origen HTTPS actual."
     }
     if (vault.hasLegacyUnboundReasoningKey(slotId)) {
-        return "Existe una llave antigua sin host. Por seguridad no se usara; vuelve a guardarla para este origen."
+        return "Existe una llave antigua sin host. No se usara; vuelve a guardarla para este origen."
     }
     return "Llave API no guardada para este origen."
 }
 
 @Composable
-private fun MorimilCoreMotorCard() {
+private fun MorimilCognitiveArchitectureCard() {
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Motor 1 — Morimil nucleo", style = MaterialTheme.typography.titleMedium)
+            Text("Arquitectura cognitiva de Morimil", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Este motor no se configura como API. Es el kernel local que arma contexto, usa memoria viva, aplica identidad y decide que motor auxiliar consultar.",
+                "El kernel coordina identidad, memoria, doctrina y autoridad. Los motores cognitivos intrinsecos son roles estables de Morimil, no endpoints configurables.",
                 style = MaterialTheme.typography.bodySmall
             )
-            GateRow("Identidad local activa", true)
-            GateRow("Memoria viva local activa", true)
-            GateRow("Gobernanza local activa", true)
-            GateRow("No requiere endpoint externo", true)
+            GateRow("Motor intuitivo intrinseco", true)
+            GateRow("Motor deliberativo normal permanece bloqueado", true)
+            GateRow("Motor metacognitivo normal permanece bloqueado", true)
+            GateRow("Ollama y APIs no cuentan como motores", true)
         }
     }
 }
 
 @Composable
-private fun ReasoningKernelGatesCard(
+private fun TemporaryHelperBoundaryCard(
     localConfigured: Boolean,
-    remoteProfileConfigured: Boolean,
-    remoteKeyStored: Boolean,
-    remotePrivateContextAllowed: Boolean,
-    externalWebIsContextOnly: Boolean
+    remoteConfigured: Boolean,
+    remoteKeyStored: Boolean
 ) {
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Estado general de motores", style = MaterialTheme.typography.titleMedium)
+            Text("Frontera de auxiliares temporales", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Morimil conserva el nucleo. Ollama y API son auxiliares temporales sin autoridad de memoria.",
+                "Los auxiliares aportan calculo reemplazable. No poseen identidad, memoria, autoridad ni voz intrinseca.",
                 style = MaterialTheme.typography.bodySmall
             )
-            GateRow("Motor 1 Morimil nucleo activo", true)
-            GateRow("Motor 2 auxiliar local Ollama USB configurado", localConfigured)
-            GateRow("Motor 3 auxiliar remoto API configurado", remoteProfileConfigured)
+            GateRow("Auxiliar local Ollama USB configurado", localConfigured)
+            GateRow("Auxiliar remoto API configurado", remoteConfigured)
             GateRow("Llave remota ligada al host exacto", remoteKeyStored)
-            GateRow("Contexto privado remoto bloqueado por defecto", !remotePrivateContextAllowed)
-            GateRow("Web externa entra como contexto local", externalWebIsContextOnly)
+            GateRow("Solo reciben la tarea actual del usuario", true)
+            GateRow("Sin acceso a memoria, doctrina, Genesis o historial", true)
+            GateRow("Salida externa separada de la voz de Morimil", true)
         }
     }
 }
@@ -236,7 +242,7 @@ private fun GateRow(label: String, ok: Boolean) {
 }
 
 @Composable
-private fun LocalBackendConfigCard(
+private fun LocalHelperConfigCard(
     endpoint: String,
     model: String,
     saveStatus: String,
@@ -247,9 +253,12 @@ private fun LocalBackendConfigCard(
 ) {
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Motor 2 — auxiliar local Ollama", style = MaterialTheme.typography.titleMedium)
             Text(
-                "USB usa 127.0.0.1 con ADB reverse hacia el puerto 11434 de la PC. No usa la red LAN.",
+                "Auxiliar temporal local — Ollama por USB",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Text(
+                "ADB reverse conecta el telefono con el proceso externo en la PC. Aunque use loopback, sigue fuera de Morimil y recibe solo la tarea actual.",
                 style = MaterialTheme.typography.bodySmall
             )
             Button(onClick = onUseUsb) {
@@ -259,18 +268,20 @@ private fun LocalBackendConfigCard(
                 value = endpoint,
                 onValueChange = onEndpointChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Endpoint local USB") }
+                label = { Text("Endpoint auxiliar USB") }
             )
             TextField(
                 value = model,
                 onValueChange = onModelChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Modelo local") }
+                label = { Text("Modelo del auxiliar") }
             )
             Button(onClick = onSave, enabled = endpoint.isNotBlank() && model.isNotBlank()) {
-                Text("Guardar motor 2 auxiliar local")
+                Text("Guardar auxiliar local")
             }
             Text(saveStatus, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
+
+private const val REMOTE_HELPER_SLOT_ID = 2

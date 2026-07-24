@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -17,17 +16,15 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun SuperiorBackendConfigCard(
+fun RemoteHelperConfigCard(
     endpoint: String,
     model: String,
     saveStatus: String,
     runtimeKey: String,
     keyStatus: String,
-    allowPrivateContextToRemote: Boolean,
     onEndpointChange: (String) -> Unit,
     onModelChange: (String) -> Unit,
     onRuntimeKeyChange: (String) -> Unit,
-    onAllowPrivateContextChange: (Boolean) -> Unit,
     onSave: () -> Unit,
     onSaveRuntimeKey: () -> Unit,
     onClearRuntimeKey: () -> Unit
@@ -37,9 +34,12 @@ fun SuperiorBackendConfigCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text("Motor 3 — auxiliar remoto API", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Perfil remoto separado. No reemplaza el nucleo de Morimil y solo se usa despues de una autorizacion de escalamiento.",
+                "Auxiliar temporal remoto — API",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Text(
+                "No es un motor de Morimil ni una autoridad superior. Recibe solamente la tarea actual del usuario y devuelve una salida consultiva identificada como externa.",
                 style = MaterialTheme.typography.bodySmall
             )
             TextField(
@@ -52,26 +52,10 @@ fun SuperiorBackendConfigCard(
                 value = model,
                 onValueChange = onModelChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Modelo API") }
+                label = { Text("Modelo del auxiliar") }
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Permitir contexto privado completo")
-                    Text(
-                        "Desactivado por defecto. Al activarlo, doctrina, memoria, capsulas e historial pueden enviarse a este proveedor remoto.",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-                Switch(
-                    checked = allowPrivateContextToRemote,
-                    onCheckedChange = onAllowPrivateContextChange
-                )
-            }
             Button(onClick = onSave, enabled = endpoint.isNotBlank() && model.isNotBlank()) {
-                Text("Guardar perfil remoto")
+                Text("Guardar auxiliar remoto")
             }
             Text(saveStatus, style = MaterialTheme.typography.bodySmall)
 

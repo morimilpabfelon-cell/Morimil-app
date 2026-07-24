@@ -5,8 +5,11 @@ import org.junit.Test
 
 class ReasoningProviderConfigTest {
     @Test
-    fun reasoningRuntimeExposesOneConfiguredHelperMotor() {
-        assertEquals(1, ReasoningMotorSlot.SINGLE_HELPER_ID)
-        assertEquals("Motor auxiliar configurado", ReasoningMotorSlot.SINGLE_HELPER_LABEL)
+    fun reasoningRuntimeExposesOneConfiguredTemporaryHelper() {
+        assertEquals(1, ReasoningHelperSlot.SINGLE_HELPER_ID)
+        assertEquals(
+            "Auxiliar temporal configurado",
+            ReasoningHelperSlot.SINGLE_HELPER_LABEL
+        )
     }
 }

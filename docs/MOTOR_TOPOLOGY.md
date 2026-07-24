@@ -1,65 +1,117 @@
-# Morimil motor topology
+# Morimil cognitive topology
 
-Morimil has three different motor layers. They must not be described as one single API motor.
+Morimil has exactly three intrinsic cognitive motors:
 
-## 1. Morimil Core Motor
+1. `INTUITIVE`
+2. `DELIBERATIVE`
+3. `METACOGNITIVE`
 
-This is Morimil's own local reasoning organism: kernel, memory retrieval, doctrine, identity, rest cycle, traces, capsules, and governance. It is the part that grows with time.
+These roles belong to Morimil. They remain stable while their internal implementations, capability versions and approved artifacts may evolve.
 
-It owns the conversation flow.
-It owns memory composition.
-It owns identity priority.
-It decides how context is assembled.
+Ollama, remote APIs, Gemma packages and future compatible runtimes are not additional Morimil motors. They are replaceable compute providers.
 
-This layer is not Ollama and is not a remote API.
+## Morimil-owned organism
 
-## 2. Local Helper Model
+Morimil owns and governs:
 
-This is an external local model used as compute help for Morimil's Core Motor.
+- local identity;
+- Genesis continuity;
+- doctrine and policy;
+- living memory and knowledge capsules;
+- context composition;
+- intrinsic tri-motor coordination;
+- hybrid authority;
+- abstention;
+- traces;
+- learning-candidate promotion and rollback.
 
-Official routes:
+The kernel coordinates those capabilities. The kernel is not a fourth motor.
 
-- Ollama over USB ADB reverse: `http://127.0.0.1:11434/v1/chat/completions`
-- Ollama over private LAN/local network: `http://192.168.x.x:11434/v1/chat/completions`
+## Intrinsic motors
 
-The Android emulator endpoint is not part of Morimil's real local helper topology.
+### Intuitive
 
-This layer is local assistance. It is not Morimil's identity.
+Fast local reasoning, bounded deterministic work, uncertainty estimation and escalation decisions.
 
-## 3. Remote API Helper Model
+### Deliberative
 
-This is an optional external cloud model used only when configured.
+Deep multi-step reasoning. It remains blocked in the normal runtime until its evidence, provenance and personal authorization gates pass.
 
-Examples:
+### Metacognitive
 
-- OpenAI-compatible chat completions
-- Claude/Messages-compatible endpoints
-- Responses-compatible endpoints
-- Any future compatible provider
+Independent checking, contradiction detection, uncertainty review and abstention. It also remains blocked in the normal runtime until its gates pass.
 
-This layer is remote assistance. It is not superior to Morimil and must not be named as the main motor.
+## Temporary compute helpers
 
-## Structural rule
+### Local helper
 
-Morimil Core Motor is the owner.
-Local helper models and remote API helper models are compute providers.
-
-A compute provider must never replace identity, doctrine, living memory, or core governance.
-
-Correct chain:
-
-```text
-Morimil Core Motor
-  -> chooses configured helper model if available
-  -> receives reply from helper model
-  -> records trace and memory through Morimil's local system
-```
-
-Incorrect chain:
+The supported local-helper route is Ollama over USB/ADB reverse:
 
 ```text
-API/Ollama
-  -> becomes Morimil
+http://127.0.0.1:11434/v1/chat/completions
 ```
 
-That is not the architecture.
+Loopback does not make Ollama intrinsic. The process runs outside Morimil's Android process and may run on another physical device. It therefore receives only the current user task.
+
+Private-LAN Ollama is not an authorized route in the current runtime.
+
+### Remote helper
+
+A configured HTTPS API may be consulted after the applicable routing and approval gates. It also receives only the current user task.
+
+## Immutable confidentiality boundary
+
+No temporary helper may receive:
+
+- Morimil identity or alias context;
+- doctrine or policy text;
+- living memory;
+- knowledge capsules;
+- Genesis state;
+- prior private conversation history;
+- tools, secrets or credentials unrelated to that provider;
+- lifecycle or promotion authority.
+
+There is no full-context consent switch for helpers. The boundary is structural, not optional.
+
+## Output boundary
+
+A helper returns unverified advisory text.
+
+The transcript must store it as:
+
+```text
+AUXILIARY_ADVISORY
+```
+
+It must carry a visible external-advisory label and must not:
+
+- be stored as author `morimil`;
+- be spoken by text-to-speech as Morimil;
+- re-enter later prompts as trusted Morimil history;
+- become living or canonical memory;
+- alter identity, Genesis or lifecycle state.
+
+Only an intrinsically finalized result may be represented as Morimil's own answer.
+
+## Correct chain
+
+```text
+User task
+  -> Morimil kernel
+  -> intrinsic motors first
+  -> optional temporary helper receives current task only
+  -> helper returns unverified advisory
+  -> advisory remains visibly external and outside trusted history
+```
+
+## Incorrect chains
+
+```text
+Ollama/API -> becomes Motor 2 or Motor 3
+Ollama/API -> receives full Morimil context
+Ollama/API -> speaks as Morimil
+Ollama/API -> becomes a superior motor
+```
+
+All four are architecture violations.

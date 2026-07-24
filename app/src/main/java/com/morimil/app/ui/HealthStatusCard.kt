@@ -54,7 +54,7 @@ fun HealthStatusCard(
                 HealthStatusChip(health.auditSourceLabel)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                HealthStatusChip(health.motorLabel, attention = health.motorNeedsAttention)
+                HealthStatusChip(health.helperLabel, attention = health.helperNeedsAttention)
                 HealthStatusChip(health.restCycleLabel, attention = health.restCycleNeedsAttention)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -64,7 +64,7 @@ fun HealthStatusCard(
                 Text(health.internalIssueDetailLabel, style = MaterialTheme.typography.bodySmall)
             }
             val checkedLabel = health.checkedAtMillis?.toString() ?: "pending"
-            Text("modelo=${health.modelLabel.take(80)} checked=$checkedLabel")
+            Text("modelo_auxiliar=${health.helperModelLabel.take(80)} checked=$checkedLabel")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onRefresh) { Text("Actualizar salud") }
                 Button(onClick = onRunIntegrityAudit) { Text("Auditar memoria") }
