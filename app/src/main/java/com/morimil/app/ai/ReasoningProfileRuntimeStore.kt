@@ -6,34 +6,30 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 object ReasoningProfileRuntimeStore {
-    private val emptyRemoteApiConfig = ReasoningProviderConfig(
+    private val emptyRemoteHelperConfig = ReasoningProviderConfig(
         preset = ReasoningPreset.CUSTOM,
         baseUrl = "",
-        model = "",
-        allowPrivateContextToRemote = false
+        model = ""
     )
 
-    private val _remoteApiConfig = MutableStateFlow(emptyRemoteApiConfig)
+    private val _remoteHelperConfig = MutableStateFlow(emptyRemoteHelperConfig)
 
-    val superiorConfig: StateFlow<ReasoningProviderConfig> = _remoteApiConfig.asStateFlow()
+    val remoteHelperConfig: StateFlow<ReasoningProviderConfig> =
+        _remoteHelperConfig.asStateFlow()
 
-    fun loadSuperior(context: Context? = null): ReasoningProviderConfig = loadRemoteApi(context)
-
-    fun saveSuperior(config: ReasoningProviderConfig): Result<Unit> = saveRemoteApi(config)
-
-    fun saveSuperior(context: Context, config: ReasoningProviderConfig): Result<Unit> =
-        saveRemoteApi(context, config)
-
-    fun loadRemoteApi(context: Context? = null): ReasoningProviderConfig {
-        context?.let { hydrateRemoteApi(it) }
-        return _remoteApiConfig.value
+    fun loadRemoteHelper(context: Context? = null): ReasoningProviderConfig {
+        context?.let { hydrateRemoteHelper(it) }
+        return _remoteHelperConfig.value
     }
 
-    fun saveRemoteApi(config: ReasoningProviderConfig): Result<Unit> = runCatching {
-        _remoteApiConfig.value = config.validated()
+    fun saveRemoteHelper(config: ReasoningProviderConfig): Result<Unit> = runCatching {
+        _remoteHelperConfig.value = config.validated()
     }
 
-    fun saveRemoteApi(context: Context, config: ReasoningProviderConfig): Result<Unit> = runCatching {
+    fun saveRemoteHelper(
+        context: Context,
+        config: ReasoningProviderConfig
+    ): Result<Unit> = runCatching {
         val valid = config.validated()
         val committed = context.applicationContext
             .getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
@@ -41,37 +37,37 @@ object ReasoningProfileRuntimeStore {
             .putString(SETTING_BASE_URL, valid.baseUrl)
             .putString(SETTING_MODEL, valid.model)
             .putInt(SETTING_MAX_TOKENS, valid.maxTokens)
-            .putBoolean(
-                SETTING_ALLOW_PRIVATE_CONTEXT_TO_REMOTE,
-                valid.allowPrivateContextToRemote
-            )
+            .remove(LEGACY_SETTING_ALLOW_PRIVATE_CONTEXT_TO_REMOTE)
             .commit()
-        check(committed) { "No se pudo guardar el perfil remoto de razonamiento." }
-        _remoteApiConfig.value = valid
+        check(committed) { "No se pudo guardar el auxiliar remoto temporal." }
+        _remoteHelperConfig.value = valid
     }
 
-    private fun hydrateRemoteApi(context: Context) {
-        val prefs = context.applicationContext.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+    private fun hydrateRemoteHelper(context: Context) {
+        val prefs = context.applicationContext
+            .getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+        if (prefs.contains(LEGACY_SETTING_ALLOW_PRIVATE_CONTEXT_TO_REMOTE)) {
+            check(
+                prefs.edit()
+                    .remove(LEGACY_SETTING_ALLOW_PRIVATE_CONTEXT_TO_REMOTE)
+                    .commit()
+            ) { "No se pudo eliminar la autorizacion heredada de contexto privado." }
+        }
         val baseUrl = prefs.getString(SETTING_BASE_URL, null).orEmpty()
         val model = prefs.getString(SETTING_MODEL, null).orEmpty()
         if (baseUrl.isBlank() || model.isBlank()) {
-            _remoteApiConfig.value = emptyRemoteApiConfig
+            _remoteHelperConfig.value = emptyRemoteHelperConfig
             return
         }
         val maxTokens = prefs.getInt(
             SETTING_MAX_TOKENS,
             ReasoningProviderConfig.DEFAULT_MAX_TOKENS
         )
-        val allowPrivateContextToRemote = prefs.getBoolean(
-            SETTING_ALLOW_PRIVATE_CONTEXT_TO_REMOTE,
-            false
-        )
-        _remoteApiConfig.value = ReasoningProviderConfig(
+        _remoteHelperConfig.value = ReasoningProviderConfig(
             preset = ReasoningPreset.CUSTOM,
             baseUrl = baseUrl,
             model = model,
-            maxTokens = maxTokens,
-            allowPrivateContextToRemote = allowPrivateContextToRemote
+            maxTokens = maxTokens
         ).validated()
     }
 
@@ -79,6 +75,6 @@ object ReasoningProfileRuntimeStore {
     private const val SETTING_BASE_URL = "base_url"
     private const val SETTING_MODEL = "model"
     private const val SETTING_MAX_TOKENS = "max_tokens"
-    private const val SETTING_ALLOW_PRIVATE_CONTEXT_TO_REMOTE =
+    private const val LEGACY_SETTING_ALLOW_PRIVATE_CONTEXT_TO_REMOTE =
         "allow_private_context_to_remote"
 }
