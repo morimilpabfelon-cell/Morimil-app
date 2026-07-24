@@ -1,0 +1,11 @@
+{
+  "baselineRunId": "morimil-v0.2-physical-20260721-192940-2e071af0",
+  "benchmarkVersion": "morimil.deliberative.loop-effort.benchmark.smoke.v0",
+  "candidateRunId": "morimil-trimotor-v0.2-physical-20260723-203336-1d3baa47",
+  "comparisonVersion": "morimil.deliberative.loop-effort.benchmark.comparison.v0",
+  "datasetSha256": "sha256:f5531706637d2358ca7da9181ab3bd4ccebed634a774c66ebb538bce5cf651fc",
+  "outcome": "V0_3_SUPERIOR",
+  "productionPromotionAllowed": false,
+  "reasons": [],
+  "status": "research-only"
+}
