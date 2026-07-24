@@ -2,12 +2,21 @@ package com.morimil.app.reasoning
 
 import com.morimil.app.ai.ReasoningProviderConfig
 import com.morimil.app.data.genesis.GenesisIdentity
+import com.morimil.app.reasoning.model.ReasoningEscalationDecision
+import com.morimil.app.reasoning.model.ReasoningEscalationStore
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ReasoningKernelCapabilityBoundaryTest {
+    @After
+    fun clearAuthorizationStore() {
+        ReasoningEscalationStore.clear()
+    }
+
     @Test
     fun constructorExposesOnlyReadContextAndTemporaryComputationCapabilities() {
         val constructor = ReasoningKernel::class.java.declaredConstructors.single()
@@ -30,7 +39,7 @@ class ReasoningKernelCapabilityBoundaryTest {
     }
 
     @Test
-    fun auxiliaryReplyRemainsTransientAndKernelHasNoMemoryWriter() = runBlocking {
+    fun auxiliaryReplyRequiresOneShotApprovalAndRemainsTransient() = runBlocking {
         var livingMemoryReads = 0
         var capsuleReads = 0
         var motorCalls = 0
@@ -52,29 +61,40 @@ class ReasoningKernelCapabilityBoundaryTest {
                 Result.success("temporary computed reply")
             }
         )
-
-        val result = kernel.reason(
-            ReasoningKernelRequest(
-                input = "Piensa sobre esto",
-                alias = "Morimil",
-                genesis = testGenesis(),
-                doctrineText = null,
-                policyText = null,
-                priorHistory = emptyList(),
-                runtimeConfig = ReasoningProviderConfig.default(),
-                runtimeAccess = "",
-                runtimeLabel = "motor auxiliar local"
-            )
+        val request = ReasoningKernelRequest(
+            input = "Piensa sobre esto",
+            alias = "Morimil",
+            genesis = testGenesis(),
+            doctrineText = null,
+            policyText = null,
+            priorHistory = emptyList(),
+            runtimeConfig = ReasoningProviderConfig.default(),
+            runtimeAccess = "",
+            runtimeLabel = "motor auxiliar local"
         )
 
+        val pendingResult = kernel.reason(request)
+
+        assertTrue(pendingResult.externalAuthorizationRequired)
+        assertNull(pendingResult.reply)
+        assertEquals(0, motorCalls)
+        assertEquals(
+            ReasoningEscalationDecision.PENDING,
+            ReasoningEscalationStore.pendingRequest.value?.decision
+        )
+        assertEquals("Piensa sobre esto", ReasoningEscalationStore.approveCurrent())
+
+        val result = kernel.reason(request)
+
         assertEquals("temporary computed reply", result.reply)
-        assertEquals(1, livingMemoryReads)
-        assertEquals(1, capsuleReads)
+        assertEquals(2, livingMemoryReads)
+        assertEquals(2, capsuleReads)
         assertEquals(1, motorCalls)
         assertEquals(ReasoningExecutionOrigin.TEMPORARY_EXTERNAL, result.state.executionOrigin)
         assertTrue(
             result.state.trace.any { trace ->
-                trace.stage == "intrinsic_motor_unavailable"
+                trace.stage == "external_authorization_gate" &&
+                    trace.detail.contains("decision=approved_once")
             }
         )
         assertTrue(
