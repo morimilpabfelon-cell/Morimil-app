@@ -10,6 +10,8 @@ import com.morimil.app.ai.ReasoningRuntimeState
 import com.morimil.app.data.genesis.GenesisIdentity
 import com.morimil.app.reasoning.model.ModelBackendRouter
 import com.morimil.app.reasoning.model.ReasoningBackendStatusStore
+import com.morimil.app.reasoning.model.ReasoningEscalationGateResult
+import com.morimil.app.reasoning.model.ReasoningEscalationStore
 import com.morimil.app.web.NativeWebContextStore
 
 class ReasoningKernel(
@@ -118,7 +120,9 @@ class ReasoningKernel(
                 "complexity=${backend.taskComplexity} " +
                     "authority_task_kind=$authorityTaskKind available=$intrinsicRoles"
             )
-            val reply = intrinsicCoordinator.reason(
+
+            var authorizationRequired = false
+            val reply: String? = intrinsicCoordinator.reason(
                 IntrinsicReasoningRequest(
                     systemPrompt = systemPrompt,
                     history = recentHistory,
@@ -126,85 +130,156 @@ class ReasoningKernel(
                     taskKind = authorityTaskKind,
                     authorityPrompt = cleanInput
                 )
-            ).map { motorResult ->
-                HybridAuthorityPresentationStore.publish(
-                    finalizationStatus = motorResult.finalizationStatus,
-                    authorityDecision = motorResult.authorityDecision
-                )
-                state = state.copy(
-                    criticFindings = motorResult.findings,
-                    executionOrigin = ReasoningExecutionOrigin.MORIMIL_INTRINSIC,
-                    modelBackendLabel = "morimil_intrinsic:${motorResult.activatedVersions}"
-                ).withTrace(
-                    "intrinsic_motor_result",
-                    "requested=${motorResult.requestedRoles} " +
-                        "activated=${motorResult.activatedVersions} " +
-                        "unavailable=${motorResult.unavailableRoles} " +
-                        "failed=${motorResult.failedRoles} " +
-                        "finalization=${motorResult.finalizationStatus} " +
-                        "authority_route=${motorResult.authorityDecision?.route}"
-                )
-                motorResult.reply
-            }.getOrElse { intrinsicError ->
-                state = state.withTrace(
-                    "intrinsic_motor_unavailable",
-                    intrinsicError.message ?: intrinsicError::class.java.simpleName
-                )
-                if (!backend.usable) {
+            ).fold(
+                onSuccess = { motorResult ->
+                    HybridAuthorityPresentationStore.publish(
+                        finalizationStatus = motorResult.finalizationStatus,
+                        authorityDecision = motorResult.authorityDecision
+                    )
                     state = state.copy(
-                        executionOrigin = ReasoningExecutionOrigin.DETERMINISTIC_FALLBACK
-                    )
-                    degradedReply(cleanInput, intent, memoryContext, capsuleContext, backend.reason)
-                } else {
-                    val disclosure = ExternalReasoningDisclosurePolicy.prepare(
-                        currentUserMessage = cleanInput
-                    )
-                    state = state.withTrace(
-                        "external_disclosure",
-                        "policy=${ExternalReasoningDisclosurePolicy.VERSION} " +
-                            "mode=${disclosure.mode} private_context=false " +
-                            "history_turns=${disclosure.history.size} " +
-                            "system_chars=${disclosure.systemPrompt.length}"
+                        criticFindings = motorResult.findings,
+                        executionOrigin = ReasoningExecutionOrigin.MORIMIL_INTRINSIC,
+                        modelBackendLabel = "morimil_intrinsic:${motorResult.activatedVersions}"
                     ).withTrace(
-                        "temporary_external_call",
-                        "backend=${backend.kind} endpoint=${backend.endpoint.take(80)} " +
-                            "model=${backend.model} complexity=${backend.taskComplexity}"
+                        "intrinsic_motor_result",
+                        "requested=${motorResult.requestedRoles} " +
+                            "activated=${motorResult.activatedVersions} " +
+                            "unavailable=${motorResult.unavailableRoles} " +
+                            "failed=${motorResult.failedRoles} " +
+                            "finalization=${motorResult.finalizationStatus} " +
+                            "authority_route=${motorResult.authorityDecision?.route}"
                     )
-                    temporaryExternalProvider.compute(
-                        TemporaryExternalReasoningRequest(
-                            config = request.runtimeConfig,
-                            runtimeAccess = request.runtimeAccess,
-                            systemPrompt = disclosure.systemPrompt,
-                            history = disclosure.history,
-                            disclosureMode = disclosure.mode
-                        )
-                    ).map { externalReply ->
-                        state = state.copy(
-                            executionOrigin = ReasoningExecutionOrigin.TEMPORARY_EXTERNAL
-                        ).withTrace(
-                            "temporary_external_result",
-                            "reply_is_unverified_advisory; intrinsic_motor_state_unchanged"
-                        )
-                        externalReply
-                    }.getOrElse { externalError ->
+                    motorResult.reply
+                },
+                onFailure = { intrinsicError ->
+                    state = state.withTrace(
+                        "intrinsic_motor_unavailable",
+                        intrinsicError.message ?: intrinsicError::class.java.simpleName
+                    )
+                    if (!backend.usable) {
                         state = state.copy(
                             executionOrigin = ReasoningExecutionOrigin.DETERMINISTIC_FALLBACK
-                        ).withTrace(
-                            "temporary_external_failed",
-                            externalError.message ?: externalError::class.java.simpleName
                         )
-                        degradedReply(
-                            cleanInput,
-                            intent,
-                            memoryContext,
-                            capsuleContext,
-                            externalError.message ?: externalError::class.java.simpleName
-                        )
+                        degradedReply(cleanInput, intent, memoryContext, capsuleContext, backend.reason)
+                    } else {
+                        when (ReasoningEscalationStore.consumeOrRequest(backend, cleanInput)) {
+                            ReasoningEscalationGateResult.PENDING -> {
+                                authorizationRequired = true
+                                state = state.copy(
+                                    policyDecision = "external_authorization_pending",
+                                    executionOrigin = ReasoningExecutionOrigin.PENDING
+                                ).withTrace(
+                                    "external_authorization_gate",
+                                    "version=${ReasoningEscalationStore.VERSION} decision=pending " +
+                                        "backend=${backend.kind} model=${backend.model.take(80)}"
+                                )
+                                null
+                            }
+
+                            ReasoningEscalationGateResult.LOCAL_ONLY_ONCE -> {
+                                state = state.copy(
+                                    policyDecision = "external_authorization_declined",
+                                    executionOrigin = ReasoningExecutionOrigin.DETERMINISTIC_FALLBACK
+                                ).withTrace(
+                                    "external_authorization_gate",
+                                    "version=${ReasoningEscalationStore.VERSION} decision=local_only"
+                                )
+                                degradedReply(
+                                    cleanInput,
+                                    intent,
+                                    memoryContext,
+                                    capsuleContext,
+                                    "external_helper_declined_by_guardian"
+                                )
+                            }
+
+                            ReasoningEscalationGateResult.APPROVED_ONCE -> {
+                                state = state.copy(
+                                    policyDecision = "external_authorization_approved_once"
+                                ).withTrace(
+                                    "external_authorization_gate",
+                                    "version=${ReasoningEscalationStore.VERSION} decision=approved_once " +
+                                        "backend=${backend.kind} model=${backend.model.take(80)}"
+                                )
+                                val disclosure = ExternalReasoningDisclosurePolicy.prepare(
+                                    currentUserMessage = cleanInput
+                                )
+                                state = state.withTrace(
+                                    "external_disclosure",
+                                    "policy=${ExternalReasoningDisclosurePolicy.VERSION} " +
+                                        "mode=${disclosure.mode} private_context=false " +
+                                        "history_turns=${disclosure.history.size} " +
+                                        "system_chars=${disclosure.systemPrompt.length}"
+                                ).withTrace(
+                                    "temporary_external_call",
+                                    "backend=${backend.kind} endpoint=${backend.endpoint.take(80)} " +
+                                        "model=${backend.model} complexity=${backend.taskComplexity}"
+                                )
+                                temporaryExternalProvider.compute(
+                                    TemporaryExternalReasoningRequest(
+                                        config = request.runtimeConfig,
+                                        runtimeAccess = request.runtimeAccess,
+                                        systemPrompt = disclosure.systemPrompt,
+                                        history = disclosure.history,
+                                        disclosureMode = disclosure.mode
+                                    )
+                                ).map { externalReply ->
+                                    state = state.copy(
+                                        executionOrigin = ReasoningExecutionOrigin.TEMPORARY_EXTERNAL
+                                    ).withTrace(
+                                        "temporary_external_result",
+                                        "reply_is_unverified_advisory; intrinsic_motor_state_unchanged"
+                                    )
+                                    externalReply
+                                }.getOrElse { externalError ->
+                                    state = state.copy(
+                                        executionOrigin = ReasoningExecutionOrigin.DETERMINISTIC_FALLBACK
+                                    ).withTrace(
+                                        "temporary_external_failed",
+                                        externalError.message ?: externalError::class.java.simpleName
+                                    )
+                                    degradedReply(
+                                        cleanInput,
+                                        intent,
+                                        memoryContext,
+                                        capsuleContext,
+                                        externalError.message ?: externalError::class.java.simpleName
+                                    )
+                                }
+                            }
+
+                            ReasoningEscalationGateResult.NOT_REQUIRED -> {
+                                state = state.copy(
+                                    policyDecision = "external_authorization_not_applicable",
+                                    executionOrigin = ReasoningExecutionOrigin.DETERMINISTIC_FALLBACK
+                                ).withTrace(
+                                    "external_authorization_gate",
+                                    "version=${ReasoningEscalationStore.VERSION} decision=not_required"
+                                )
+                                degradedReply(
+                                    cleanInput,
+                                    intent,
+                                    memoryContext,
+                                    capsuleContext,
+                                    "external_authorization_not_applicable"
+                                )
+                            }
+                        }
                     }
                 }
+            )
+
+            if (authorizationRequired) {
+                return@runCatching ReasoningKernelResult(
+                    state = state,
+                    reply = null,
+                    errorMessage = null,
+                    externalAuthorizationRequired = true
+                )
             }
 
-            state = state.withFinalReply(reply)
+            val finalReply = requireNotNull(reply) { "reasoning_reply_missing" }
+            state = state.withFinalReply(finalReply)
             state = state.withTrace(
                 "persistence_boundary",
                 "reply_is_transient; memory_write_capability=absent"
@@ -212,7 +287,7 @@ class ReasoningKernel(
 
             ReasoningKernelResult(
                 state = state,
-                reply = reply,
+                reply = finalReply,
                 errorMessage = null
             )
         }.getOrElse { error ->
