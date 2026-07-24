@@ -4,6 +4,10 @@
 # across Windows/macOS/Linux checkouts.
 app/src/main/assets/genesis/** text eol=lf
 
+# Physical evidence is hash-verified byte-for-byte. Treat the complete evidence
+# tree as binary so Git never rewrites LF to CRLF on Windows checkouts.
+docs/research/evidence/** -text
+
 # Keep platform scripts explicit.
 gradlew text eol=lf
 *.bat text eol=crlf
