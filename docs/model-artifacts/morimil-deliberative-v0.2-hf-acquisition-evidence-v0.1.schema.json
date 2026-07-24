@@ -1,0 +1,255 @@
+{
+  "$id": "morimil.deliberative.v0.2.hf-acquisition-evidence-v0.1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authorityBoundary": {
+      "additionalProperties": false,
+      "properties": {
+        "identityAuthority": {
+          "const": false
+        },
+        "lifecycleAuthority": {
+          "const": false
+        },
+        "memoryWriteCapability": {
+          "const": false
+        },
+        "normalRuntimeActivated": {
+          "const": false
+        }
+      },
+      "required": [
+        "memoryWriteCapability",
+        "identityAuthority",
+        "lifecycleAuthority",
+        "normalRuntimeActivated"
+      ],
+      "type": "object"
+    },
+    "captureToolVersion": {
+      "const": "morimil.hf-provenance-capture.v0.1"
+    },
+    "capturedAtUtc": {
+      "format": "date-time",
+      "pattern": "Z$",
+      "type": "string"
+    },
+    "evidenceKind": {
+      "const": "verified-direct-upstream-binary-acquisition"
+    },
+    "huggingFace": {
+      "additionalProperties": false,
+      "properties": {
+        "artifactFilename": {
+          "const": "gemma-3n-E2B-it-int4.litertlm"
+        },
+        "artifactSha256": {
+          "const": "sha256:2ed7bc3a0026c93d5b8a4544b352d9d00cd66ff0bac3ef6a20ac3d2cba4010d6"
+        },
+        "artifactSizeBytes": {
+          "const": 3655827456
+        },
+        "authenticatedUser": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$",
+          "type": "string"
+        },
+        "clientVersion": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "gated": {
+          "const": true
+        },
+        "licenseId": {
+          "const": "gemma"
+        },
+        "observedRepositorySnapshot": {
+          "const": "c03b6f60b8da6c5400b6838a2cf26420f80c0a01"
+        },
+        "repository": {
+          "const": "google/gemma-3n-E2B-it-litert-lm"
+        },
+        "requestedArtifactRevision": {
+          "const": "ba9ca88da013b537b6ed38108be609b8db1c3a16"
+        },
+        "resolvedArtifactRevision": {
+          "const": "ba9ca88da013b537b6ed38108be609b8db1c3a16"
+        }
+      },
+      "required": [
+        "authenticatedUser",
+        "clientVersion",
+        "repository",
+        "gated",
+        "licenseId",
+        "requestedArtifactRevision",
+        "resolvedArtifactRevision",
+        "observedRepositorySnapshot",
+        "artifactFilename",
+        "artifactSizeBytes",
+        "artifactSha256"
+      ],
+      "type": "object"
+    },
+    "localCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "artifactSha256": {
+          "const": "sha256:2ed7bc3a0026c93d5b8a4544b352d9d00cd66ff0bac3ef6a20ac3d2cba4010d6"
+        },
+        "artifactSizeBytes": {
+          "const": 3655827456
+        },
+        "filename": {
+          "const": "morimil-deliberative-v0.2.candidate.litertlm"
+        }
+      },
+      "required": [
+        "filename",
+        "artifactSizeBytes",
+        "artifactSha256"
+      ],
+      "type": "object"
+    },
+    "officialGoogleAllowlist": {
+      "additionalProperties": false,
+      "properties": {
+        "modelFile": {
+          "const": "gemma-3n-E2B-it-int4.litertlm"
+        },
+        "modelFileRevision": {
+          "const": "ba9ca88da013b537b6ed38108be609b8db1c3a16"
+        },
+        "modelId": {
+          "const": "google/gemma-3n-E2B-it-litert-lm"
+        },
+        "path": {
+          "const": "model_allowlists/1_0_15.json"
+        },
+        "repository": {
+          "const": "google-ai-edge/gallery"
+        },
+        "revision": {
+          "const": "126501c8849affcfb094d2c5b193aa5deb1434a6"
+        },
+        "sizeInBytes": {
+          "const": 3655827456
+        }
+      },
+      "required": [
+        "repository",
+        "revision",
+        "path",
+        "modelId",
+        "modelFile",
+        "modelFileRevision",
+        "sizeInBytes"
+      ],
+      "type": "object"
+    },
+    "promotion": {
+      "additionalProperties": false,
+      "properties": {
+        "blockers": {
+          "const": [
+            "UPSTREAM_BASE_CHECKPOINT_REVISION_UNDISCLOSED",
+            "CERTIFICATION_MISSING",
+            "SIGNATURE_MISSING",
+            "INSTALLATION_AUTHORIZATION_MISSING",
+            "PERSONAL_RUNTIME_ACTIVATION_AUTHORIZATION_MISSING"
+          ]
+        },
+        "certified": {
+          "const": false
+        },
+        "installed": {
+          "const": false
+        },
+        "personalRuntimeActivationAuthorized": {
+          "const": false
+        },
+        "promotionAllowed": {
+          "const": false
+        },
+        "signed": {
+          "const": false
+        }
+      },
+      "required": [
+        "certified",
+        "signed",
+        "installed",
+        "personalRuntimeActivationAuthorized",
+        "promotionAllowed",
+        "blockers"
+      ],
+      "type": "object"
+    },
+    "provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "acquisitionMode": {
+          "const": "DIRECT_UPSTREAM_BINARY_RENAME_ONLY"
+        },
+        "conversionPerformedByMorimil": {
+          "const": false
+        },
+        "renameOnly": {
+          "const": true
+        },
+        "reproducibleAcquisitionEvidence": {
+          "const": true
+        },
+        "reproducibleConversionEvidence": {
+          "const": false
+        },
+        "sourceModelId": {
+          "const": "google/gemma-3n-E2B-it"
+        },
+        "sourceModelRevision": {
+          "const": null
+        },
+        "sourceModelRevisionStatus": {
+          "const": "UPSTREAM_NOT_DISCLOSED"
+        },
+        "upstreamByteIdentityVerified": {
+          "const": true
+        }
+      },
+      "required": [
+        "acquisitionMode",
+        "conversionPerformedByMorimil",
+        "renameOnly",
+        "upstreamByteIdentityVerified",
+        "reproducibleAcquisitionEvidence",
+        "reproducibleConversionEvidence",
+        "sourceModelId",
+        "sourceModelRevision",
+        "sourceModelRevisionStatus"
+      ],
+      "type": "object"
+    },
+    "schemaVersion": {
+      "const": "morimil.deliberative.v0.2.hf-acquisition-evidence.v0.1"
+    },
+    "status": {
+      "const": "research-only"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "status",
+    "evidenceKind",
+    "captureToolVersion",
+    "capturedAtUtc",
+    "huggingFace",
+    "localCandidate",
+    "officialGoogleAllowlist",
+    "provenance",
+    "authorityBoundary",
+    "promotion"
+  ],
+  "title": "Morimil deliberative v0.2 Hugging Face acquisition evidence v0.1",
+  "type": "object"
+}
