@@ -1,15 +1,15 @@
 package com.morimil.app.ui
 
-import com.morimil.app.ai.ReasoningMotorSlot
+import com.morimil.app.ai.ReasoningHelperSlot
 import com.morimil.app.runtime.RestCycleScheduleStatus
 
 data class OrganismHealthUiState(
     val level: HealthStatusLevel = HealthStatusLevel.Attention,
     val overallLabel: String = "salud pendiente",
     val healthSentence: String = "Morimil aun no tiene reporte de salud local.",
-    val motorLabel: String = "motor pendiente",
-    val modelLabel: String = "modelo pendiente",
-    val motorNeedsAttention: Boolean = true,
+    val helperLabel: String = "auxiliar: no configurado (opcional)",
+    val helperModelLabel: String = "sin modelo auxiliar",
+    val helperNeedsAttention: Boolean = false,
     val memoryLabel: String = "memoria: sin auditar",
     val memoryNeedsAttention: Boolean = false,
     val eventCount: Int = 0,
@@ -42,7 +42,7 @@ data class InternalRuntimeIssueUiState(
 
 object OrganismHealthUiStateBuilder {
     fun build(
-        activeSlot: ReasoningMotorSlot,
+        activeHelper: ReasoningHelperSlot,
         audit: MemoryIntegrityAuditUiState,
         restCycleAudit: RestCycleAuditSignal? = null,
         hasQuarantine: Boolean,
@@ -54,13 +54,14 @@ object OrganismHealthUiStateBuilder {
         latestRestCycleAtMillis: Long?,
         nowMillis: Long
     ): OrganismHealthUiState {
-        val modelLabel = activeSlot.config.model.ifBlank { "modelo pendiente" }
-        val motorIsConfigured = activeSlot.config.baseUrl.isNotBlank() && activeSlot.config.model.isNotBlank()
-        val motorIsLocal = !activeSlot.config.requiresRuntimeKey && motorIsConfigured
-        val motorLabel = when {
-            !motorIsConfigured -> "motor pendiente"
-            motorIsLocal -> "motor local activo"
-            else -> "motor API activo"
+        val helperModelLabel = activeHelper.config.model.ifBlank { "sin modelo auxiliar" }
+        val helperConfigured =
+            activeHelper.config.baseUrl.isNotBlank() && activeHelper.config.model.isNotBlank()
+        val helperIsLocal = !activeHelper.config.requiresRuntimeKey && helperConfigured
+        val helperLabel = when {
+            !helperConfigured -> "auxiliar: no configurado (opcional)"
+            helperIsLocal -> "auxiliar: local disponible"
+            else -> "auxiliar: remoto disponible"
         }
         val effectiveMemoryVerified = audit.memoryChainVerified ?: restCycleAudit?.memoryChainVerified
         val effectiveCapsulesVerified = audit.capsuleChainVerified ?: restCycleAudit?.capsuleChainVerified
@@ -107,7 +108,6 @@ object OrganismHealthUiStateBuilder {
             auditNeedsAttention -> "salud: auditar"
             recallNeedsAttention -> "salud: revisar recalls"
             restCycleScheduleStatus.needsAttention -> "salud: revisar descanso"
-            !motorIsConfigured -> "salud: configurar motor"
             else -> "salud: estable"
         }
         val level = when {
@@ -115,7 +115,6 @@ object OrganismHealthUiStateBuilder {
                 effectiveMemoryVerified == false || effectiveCapsulesVerified == false -> HealthStatusLevel.Critical
             internalIssue != null -> HealthStatusLevel.Attention
             auditNeedsAttention || recallNeedsAttention || restCycleScheduleStatus.needsAttention -> HealthStatusLevel.Attention
-            !motorIsConfigured -> HealthStatusLevel.Watch
             else -> HealthStatusLevel.Stable
         }
         val recommendedActionLabel = when {
@@ -126,7 +125,6 @@ object OrganismHealthUiStateBuilder {
             auditNeedsAttention -> "accion: auditar memoria"
             recallNeedsAttention -> "accion: revisar recalls"
             restCycleScheduleStatus.needsAttention -> "accion: activar descanso"
-            !motorIsConfigured -> "accion: configurar motor"
             else -> "accion: continuar"
         }
         val healthSentence = listOf(
@@ -134,7 +132,7 @@ object OrganismHealthUiStateBuilder {
             formatEventCount(eventCount),
             recallLabel.removePrefix("recalls: "),
             auditAgeLabel.removePrefix("auditoria: "),
-            motorLabel,
+            helperLabel,
             internalIssue?.label ?: "sin fallos internos"
         ).joinToString(", ")
 
@@ -142,9 +140,9 @@ object OrganismHealthUiStateBuilder {
             level = level,
             overallLabel = overallLabel,
             healthSentence = healthSentence,
-            motorLabel = "${activeSlot.displayName}: $motorLabel",
-            modelLabel = modelLabel,
-            motorNeedsAttention = !motorIsConfigured,
+            helperLabel = "${activeHelper.displayName}: $helperLabel",
+            helperModelLabel = helperModelLabel,
+            helperNeedsAttention = false,
             memoryLabel = memoryLabel,
             memoryNeedsAttention = memoryNeedsAttention,
             eventCount = eventCount,
