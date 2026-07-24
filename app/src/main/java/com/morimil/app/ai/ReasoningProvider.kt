@@ -107,6 +107,9 @@ class ReasoningConfigStore(context: Context) {
 
     fun loadActiveHelper(): ReasoningHelperSlot = ReasoningHelperSlot(load())
 
+    /** Existing callers receive the same helper object; this is not a motor slot. */
+    fun loadActiveSlot(): ReasoningHelperSlot = loadActiveHelper()
+
     fun load(): ReasoningProviderConfig {
         val storedPresetName = preferences.getString(SETTING_PRESET, null)
         val preset = ReasoningPreset.fromName(storedPresetName)
