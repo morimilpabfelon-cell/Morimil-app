@@ -29,3 +29,11 @@ If one answer is missing, the component is not ready.
 Do not merge a component that is only reachable from tests.
 
 Do not merge a cleanup that removes a backend path but leaves old UI or tests calling the removed contract.
+
+## Technical execution role
+
+Bounded repository implementation follows
+[`docs/EXECUTOR_TECNICO_DOCTRINE.md`](EXECUTOR_TECNICO_DOCTRINE.md).
+
+`EJECUTOR TÉCNICO` works on one isolated branch, records exact evidence, preserves
+scope boundaries, and has no merge authority without explicit authorization.
